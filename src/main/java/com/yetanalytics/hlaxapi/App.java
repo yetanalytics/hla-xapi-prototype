@@ -1,9 +1,6 @@
 package com.yetanalytics.hlaxapi;
 
-import java.io.File;
 import java.io.IOException;
-
-import javax.imageio.ImageIO;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,9 +8,6 @@ import org.apache.logging.log4j.Logger;
 import hla.rti1516e.exceptions.RTIexception;
 import hla.rti1516e.exceptions.RTIinternalError;
 
-/**
- * Hello world!
- */
 public class App {
 
     private static final Logger logger = LogManager.getLogger(App.class);
@@ -44,7 +38,7 @@ public class App {
         }
 
         hlaInterface.addInteractionListener(new InteractionListener() {
-            
+
             public void receivedStart(float timeScaleFactor) {
                 logger.info("Scenario Started Event Handler Run");
             }

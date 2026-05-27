@@ -1,10 +1,5 @@
 package com.yetanalytics.hlaxapi;
 
-import hla.rti1516e.*;
-import hla.rti1516e.encoding.DecoderException;
-import hla.rti1516e.encoding.EncoderFactory;
-import hla.rti1516e.exceptions.*;
-
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -14,19 +9,60 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import hla.rti1516e.CallbackModel;
+import hla.rti1516e.InteractionClassHandle;
+import hla.rti1516e.LogicalTime;
+import hla.rti1516e.MessageRetractionHandle;
+import hla.rti1516e.NullFederateAmbassador;
+import hla.rti1516e.OrderType;
+import hla.rti1516e.ParameterHandle;
+import hla.rti1516e.ParameterHandleValueMap;
+import hla.rti1516e.RTIambassador;
+import hla.rti1516e.ResignAction;
+import hla.rti1516e.RtiFactory;
+import hla.rti1516e.RtiFactoryFactory;
+import hla.rti1516e.TransportationTypeHandle;
+import hla.rti1516e.encoding.DecoderException;
+import hla.rti1516e.encoding.EncoderFactory;
+import hla.rti1516e.exceptions.AlreadyConnected;
+import hla.rti1516e.exceptions.CallNotAllowedFromWithinCallback;
+import hla.rti1516e.exceptions.ConnectionFailed;
+import hla.rti1516e.exceptions.CouldNotCreateLogicalTimeFactory;
+import hla.rti1516e.exceptions.CouldNotOpenFDD;
+import hla.rti1516e.exceptions.ErrorReadingFDD;
+import hla.rti1516e.exceptions.FederateAlreadyExecutionMember;
+import hla.rti1516e.exceptions.FederateInternalError;
+import hla.rti1516e.exceptions.FederateIsExecutionMember;
+import hla.rti1516e.exceptions.FederateNameAlreadyInUse;
+import hla.rti1516e.exceptions.FederateNotExecutionMember;
+import hla.rti1516e.exceptions.FederateOwnsAttributes;
+import hla.rti1516e.exceptions.FederateServiceInvocationsAreBeingReportedViaMOM;
+import hla.rti1516e.exceptions.FederatesCurrentlyJoined;
+import hla.rti1516e.exceptions.FederationExecutionAlreadyExists;
+import hla.rti1516e.exceptions.FederationExecutionDoesNotExist;
+import hla.rti1516e.exceptions.InconsistentFDD;
+import hla.rti1516e.exceptions.InteractionClassNotDefined;
+import hla.rti1516e.exceptions.InvalidInteractionClassHandle;
+import hla.rti1516e.exceptions.InvalidLocalSettingsDesignator;
+import hla.rti1516e.exceptions.InvalidResignAction;
+import hla.rti1516e.exceptions.NameNotFound;
+import hla.rti1516e.exceptions.NotConnected;
+import hla.rti1516e.exceptions.OwnershipAcquisitionPending;
+import hla.rti1516e.exceptions.RTIinternalError;
+import hla.rti1516e.exceptions.RestoreInProgress;
+import hla.rti1516e.exceptions.SaveInProgress;
+import hla.rti1516e.exceptions.UnsupportedCallbackModel;
+
 class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private static final Logger logger = LogManager.getLogger(HlaInterfaceImpl.class);
 
     private RTIambassador _ambassador;
 
-    private String _federateName = "";
     private String _federationName;
 
     private final List<InteractionListener> _listeners = new CopyOnWriteArrayList<InteractionListener>();
 
-    private HLAunicodeStringCoder _unicodeStringCoder;
-    private HLAunicodeStringCoder _callbackUnicodeStringCoder;
     private TimeScaleFactorFloat32Coder _callbackTimeScaleFactorCoder;
 
     private InteractionClassHandle _startInteractionClassHandle;
@@ -46,24 +82,19 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         _ambassador = rtiFactory.getRtiAmbassador();
 
         EncoderFactory encoderFactory = rtiFactory.getEncoderFactory();
-        _unicodeStringCoder = new HLAunicodeStringCoder(encoderFactory);
-        _callbackUnicodeStringCoder = new HLAunicodeStringCoder(encoderFactory);
         _callbackTimeScaleFactorCoder = new TimeScaleFactorFloat32Coder(encoderFactory);
 
         try {
             _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, localSettingsDesignator);
+        } catch (UnsupportedCallbackModel | CallNotAllowedFromWithinCallback e) {
+            throw new RTIinternalError("HlaInterfaceFailure", e);
         } catch (AlreadyConnected ignored) {
-        } catch (UnsupportedCallbackModel e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        } catch (CallNotAllowedFromWithinCallback e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
         }
 
         _federationName = federationName;
         try {
             _ambassador.destroyFederationExecution(federationName);
-        } catch (FederatesCurrentlyJoined ignored) {
-        } catch (FederationExecutionDoesNotExist ignored) {
+        } catch (FederatesCurrentlyJoined | FederationExecutionDoesNotExist ignored) {
         }
 
         File fddFile = new File(fomPath);
@@ -72,6 +103,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             url = fddFile.toURI().toURL();
         } catch (MalformedURLException ignored) {
         }
+
         try {
             _ambassador.createFederationExecution(federationName, url);
         } catch (FederationExecutionAlreadyExists ignored) {
@@ -86,19 +118,14 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
                     _ambassador.joinFederationExecution(federateName + federateNameSuffix, "xAPI Interaction Processor", federationName,
                             new URL[] { url });
                     joined = true;
-                    _federateName = federateName + federateNameSuffix;
                 } catch (FederateNameAlreadyInUse e) {
                     federateNameSuffix = "-" + federateNameIndex++;
                 }
             }
         } catch (FederateAlreadyExecutionMember ignored) {
-        } catch (CouldNotCreateLogicalTimeFactory e) {
+        } catch (CouldNotCreateLogicalTimeFactory | FederationExecutionDoesNotExist | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
-        } catch (FederationExecutionDoesNotExist e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        } catch (CallNotAllowedFromWithinCallback e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        }
+        } 
     
 
         try {
@@ -115,32 +142,24 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         try {
             try {
                 _ambassador.resignFederationExecution(ResignAction.CANCEL_THEN_DELETE_THEN_DIVEST);
+            } catch (FederateOwnsAttributes | OwnershipAcquisitionPending 
+                | CallNotAllowedFromWithinCallback | InvalidResignAction e) {
+                throw new RTIinternalError("HlaInterfaceFailure", e);
             } catch (FederateNotExecutionMember ignored) {
-            } catch (FederateOwnsAttributes e) {
-                throw new RTIinternalError("HlaInterfaceFailure", e);
-            } catch (OwnershipAcquisitionPending e) {
-                throw new RTIinternalError("HlaInterfaceFailure", e);
-            } catch (CallNotAllowedFromWithinCallback e) {
-                throw new RTIinternalError("HlaInterfaceFailure", e);
-            } catch (InvalidResignAction e) {
-                throw new RTIinternalError("HlaInterfaceFailure", e);
-            }
+            } 
 
             if (_federationName != null) {
                 try {
                     _ambassador.destroyFederationExecution(_federationName);
-                } catch (FederatesCurrentlyJoined ignored) {
-                } catch (FederationExecutionDoesNotExist ignored) {
-                }
+                } catch (FederatesCurrentlyJoined 
+                    | FederationExecutionDoesNotExist ignored) {}
             }
 
             try {
                 _ambassador.disconnect();
-            } catch (FederateIsExecutionMember e) {
+            } catch (FederateIsExecutionMember | CallNotAllowedFromWithinCallback e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
-            } catch (CallNotAllowedFromWithinCallback e) {
-                throw new RTIinternalError("HlaInterfaceFailure", e);
-            }
+            } 
         } catch (NotConnected ignored) {
         }
     }
@@ -153,9 +172,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
                     "TimeScaleFactor");
             _stopInteractionClassHandle = _ambassador.getInteractionClassHandle("Stop");
 
-        } catch (NameNotFound e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        } catch (InvalidInteractionClassHandle e) {
+        } catch (NameNotFound | InvalidInteractionClassHandle e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         }
     }
