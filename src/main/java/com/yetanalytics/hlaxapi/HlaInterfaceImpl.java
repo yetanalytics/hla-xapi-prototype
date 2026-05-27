@@ -39,6 +39,7 @@ import hla.rti1516e.exceptions.FederationExecutionAlreadyExists;
 import hla.rti1516e.exceptions.FederationExecutionDoesNotExist;
 import hla.rti1516e.exceptions.InconsistentFDD;
 import hla.rti1516e.exceptions.InteractionClassNotDefined;
+import hla.rti1516e.exceptions.InvalidInteractionClassHandle;
 import hla.rti1516e.exceptions.InvalidLocalSettingsDesignator;
 import hla.rti1516e.exceptions.InvalidResignAction;
 import hla.rti1516e.exceptions.NameNotFound;
@@ -204,6 +205,11 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
         logger.info("Received Interaction");
-        logger.info("Interaction Handle: {}", interactionClass.toString());
+        try {
+            String interactionName = _ambassador.getInteractionClassName(interactionClass);
+            logger.info("Interaction Handle: {}", interactionName);
+        } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
+            logger.error("Error ascertaining interaction details!", e);
+        }
     }
 }
