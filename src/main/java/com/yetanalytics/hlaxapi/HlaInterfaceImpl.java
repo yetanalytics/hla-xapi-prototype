@@ -3,8 +3,6 @@ package com.yetanalytics.hlaxapi;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +20,6 @@ import hla.rti1516e.ResignAction;
 import hla.rti1516e.RtiFactory;
 import hla.rti1516e.RtiFactoryFactory;
 import hla.rti1516e.TransportationTypeHandle;
-import hla.rti1516e.encoding.DecoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.exceptions.AlreadyConnected;
 import hla.rti1516e.exceptions.CallNotAllowedFromWithinCallback;
@@ -42,7 +39,6 @@ import hla.rti1516e.exceptions.FederationExecutionAlreadyExists;
 import hla.rti1516e.exceptions.FederationExecutionDoesNotExist;
 import hla.rti1516e.exceptions.InconsistentFDD;
 import hla.rti1516e.exceptions.InteractionClassNotDefined;
-import hla.rti1516e.exceptions.InvalidInteractionClassHandle;
 import hla.rti1516e.exceptions.InvalidLocalSettingsDesignator;
 import hla.rti1516e.exceptions.InvalidResignAction;
 import hla.rti1516e.exceptions.NameNotFound;
@@ -61,14 +57,10 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private String _federationName;
 
-    private final List<InteractionListener> _listeners = new CopyOnWriteArrayList<InteractionListener>();
-
     private TimeScaleFactorFloat32Coder _callbackTimeScaleFactorCoder;
 
-    private InteractionClassHandle _startInteractionClassHandle;
     private ParameterHandle _timeScaleFactorParameterHandle;
-    private InteractionClassHandle _stopInteractionClassHandle;
-
+    
     
 
     public HlaInterfaceImpl() {
@@ -129,7 +121,6 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     
 
         try {
-            getHandles();
             subscribeInteractions();
             logger.info("Started Subscription");
 
@@ -164,25 +155,14 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         }
     }
 
-    private void getHandles() throws RTIinternalError, FederateNotExecutionMember, NotConnected {
-        try {
-
-            _startInteractionClassHandle = _ambassador.getInteractionClassHandle("Start");
-            _timeScaleFactorParameterHandle = _ambassador.getParameterHandle(_startInteractionClassHandle,
-                    "TimeScaleFactor");
-            _stopInteractionClassHandle = _ambassador.getInteractionClassHandle("Stop");
-
-        } catch (NameNotFound | InvalidInteractionClassHandle e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        }
-    }
-
     private void subscribeInteractions() throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress,
             NotConnected, RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
         try {
-            _ambassador.subscribeInteractionClass(_startInteractionClassHandle);
-            _ambassador.subscribeInteractionClass(_stopInteractionClassHandle);
-        } catch (InteractionClassNotDefined e) {
+            //All Interactions
+            InteractionClassHandle rootHandle = _ambassador.getInteractionClassHandle("HLAinteractionRoot");
+            _ambassador.subscribeInteractionClass(rootHandle);
+            
+        } catch (InteractionClassNotDefined | NameNotFound e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         }
     }
@@ -198,13 +178,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
      * Interactions
      */
 
-    public void addInteractionListener(InteractionListener listener) {
-        _listeners.add(listener);
-    }
 
-    public void removeInteractionListener(InteractionListener listener) {
-        _listeners.add(listener);
-    }
 
     @Override
     public void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters,
@@ -230,18 +204,6 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
         logger.info("Received Interaction");
-        if (interactionClass.equals(_startInteractionClassHandle)) {
-            logger.info("Received Start Interaction");
-            try {
-                float timeScaleFactor = _callbackTimeScaleFactorCoder
-                        .decode(theParameters.get(_timeScaleFactorParameterHandle));
-                for (InteractionListener listener : _listeners) {
-                    listener.receivedStart(timeScaleFactor);
-                }
-            } catch (DecoderException e) {
-                System.out.println("Failed to decode parameters for Start interaction");
-                e.printStackTrace();
-            }
-        }
+        logger.info("Interaction Handle: {}", interactionClass.toString());
     }
 }

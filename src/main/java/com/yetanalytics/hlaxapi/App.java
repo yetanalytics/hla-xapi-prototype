@@ -37,17 +37,6 @@ public class App {
             System.exit(0);
         }
 
-        hlaInterface.addInteractionListener(new InteractionListener() {
-
-            public void receivedStart(float timeScaleFactor) {
-                logger.info("Scenario Started Event Handler Run");
-            }
-
-            public void receivedStop() {
-                logger.info("Scenario Stopped Event Handler Run");
-            }
-        });
-
         boolean running = true;
         while (running) {
             try {

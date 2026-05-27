@@ -30,25 +30,6 @@ public interface HlaInterface {
     */
    void stop() throws RTIinternalError;
 
-
-   /*
-    * Interactions
-    */
-
-   /**
-    * Add an InteractionListener to receive notifications when Interactions are received
-    *
-    * @param listener an InteractionListener
-    */
-   void addInteractionListener(InteractionListener listener);
-
-   /**
-    * Remove a previously added InteractionListener
-    *
-    * @param listener an InteractionListener
-    */
-   void removeInteractionListener(InteractionListener listener);
-
    public static class Factory {
       public static HlaInterface newInterface() {
          return new HlaInterfaceImpl();
