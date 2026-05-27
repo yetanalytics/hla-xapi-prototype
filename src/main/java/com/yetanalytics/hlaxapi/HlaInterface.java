@@ -1,5 +1,7 @@
 package com.yetanalytics.hlaxapi;
 
+import java.util.Map;
+
 import hla.rti1516e.exceptions.*;
 
 
@@ -13,7 +15,8 @@ public interface HlaInterface {
     * @param federationName          Name of the federation to join
     * @param federateName            The name you want for your federate
     */
-   void start(String localSettingsDesignator, String fomPath, String federationName, String federateName)
+   void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
+        Map<String, String[]> interactionSubscriptions)
          throws RestoreInProgress,
                 SaveInProgress,
                 NotConnected,

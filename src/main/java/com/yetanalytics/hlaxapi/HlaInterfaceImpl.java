@@ -3,6 +3,7 @@ package com.yetanalytics.hlaxapi;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,7 +68,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     public HlaInterfaceImpl() {
     }
 
-    public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName)
+    public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
+        Map<String, String[]> interactionSubscriptions)
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
             FederateServiceInvocationsAreBeingReportedViaMOM {
@@ -122,7 +124,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     
 
         try {
-            subscribeInteractions();
+            subscribeInteractions(interactionSubscriptions);
             logger.info("Started Subscription");
 
         } catch (FederateNotExecutionMember e) {
@@ -154,21 +156,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             } 
         } catch (NotConnected ignored) {
         }
-    }
-
-    private void subscribeInteractions() throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress,
-            NotConnected, RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
-        try {
-            //All Interactions
-            InteractionClassHandle rootHandle = _ambassador.getInteractionClassHandle("HLAinteractionRoot");
-            _ambassador.subscribeInteractionClass(rootHandle);
-            
-        } catch (InteractionClassNotDefined | NameNotFound e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        }
-    }
-
-    
+    }    
 
     @Override
     public void connectionLost(String faultDescription) throws FederateInternalError {
@@ -179,7 +167,20 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
      * Interactions
      */
 
-
+    private void subscribeInteractions(Map<String, String[]> interactionSubscriptions) 
+        throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected, 
+        RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
+        interactionSubscriptions.forEach((key, value) -> {
+            try {
+                InteractionClassHandle handle = _ambassador.getInteractionClassHandle(key);
+                _ambassador.subscribeInteractionClass(handle);
+            } catch (NameNotFound | FederateNotExecutionMember | NotConnected | RTIinternalError 
+                | FederateServiceInvocationsAreBeingReportedViaMOM | InteractionClassNotDefined 
+                | SaveInProgress | RestoreInProgress e) {
+                logger.error("Could not register listener for {}!", key, e);
+            }
+        });
+    }
 
     @Override
     public void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters,

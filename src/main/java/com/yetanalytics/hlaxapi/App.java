@@ -1,6 +1,8 @@
 package com.yetanalytics.hlaxapi;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +31,7 @@ public class App {
         try {
             logger.info("Attempting RTI Connection");
             hlaInterface.start(config.getLocalSettingsDesignator(), config.getFom(), config.getFederationName(),
-                    config.getFederateName());
+                    config.getFederateName(), getInteractionMap());
         } catch (RTIexception e) {
             System.out.println("Could not connect to the RTI using the local settings designator \""
                     + config.getLocalSettingsDesignator() + "\"");
@@ -50,5 +52,16 @@ public class App {
                 System.exit(0);
             }
         }
+    }
+
+    //This will be set by config and a parser, not manually
+    private static Map<String, String[]> getInteractionMap(){
+        Map<String, String[]> interacMap = new HashMap<>();
+        interacMap.put("LoadScenario", new String[]{"ScenarioName", "InitialFuelAmount"});
+        interacMap.put("ScenarioLoaded", new String[]{"FederateName"});
+        interacMap.put("ScenarioLoadFailure", new String[]{"FederateName", "ErrorMessage"});
+        interacMap.put("Start", new String[]{"TimeScaleFactor"});
+        interacMap.put("Stop", new String[]{});
+        return interacMap;
     }
 }
