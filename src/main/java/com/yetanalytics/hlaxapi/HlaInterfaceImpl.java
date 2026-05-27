@@ -212,7 +212,9 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     }
 
     private void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
+        logger.info("Received Interaction");
         if (interactionClass.equals(_startInteractionClassHandle)) {
+            logger.info("Received Start Interaction");
             try {
                 float timeScaleFactor = _callbackTimeScaleFactorCoder
                         .decode(theParameters.get(_timeScaleFactorParameterHandle));

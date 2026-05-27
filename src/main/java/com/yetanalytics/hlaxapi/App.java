@@ -1,6 +1,9 @@
 package com.yetanalytics.hlaxapi;
 
+import java.io.File;
 import java.io.IOException;
+
+import javax.imageio.ImageIO;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +43,17 @@ public class App {
             System.exit(0);
         }
 
+        hlaInterface.addInteractionListener(new InteractionListener() {
+            
+            public void receivedStart(float timeScaleFactor) {
+                logger.info("Scenario Started Event Handler Run");
+            }
+
+            public void receivedStop() {
+                logger.info("Scenario Stopped Event Handler Run");
+            }
+        });
+
         boolean running = true;
         while (running) {
             try {
@@ -48,7 +62,8 @@ public class App {
                 logger.warn("Manually Interrupted. Shutting down");
                 try {
                     hlaInterface.stop();
-                } catch (RTIinternalError ignored) {}
+                } catch (RTIinternalError ignored) {
+                }
                 System.exit(0);
             }
         }
