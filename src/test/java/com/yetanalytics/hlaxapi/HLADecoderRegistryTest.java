@@ -68,6 +68,17 @@ class HLADecoderRegistryTest {
     }
 
     @Test
+    void aliasesTrackRetargetedDecoders() throws DecoderException {
+        registry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
+        registry.register("HLAfloat32BE", Float.class, bytes -> 9.5f);
+
+        assertEquals(9.5f, registry.decode(
+                "ScaleFactorFloat32",
+                new byte[0],
+                Float.class));
+    }
+
+    @Test
     void decodesRegisteredVariableArrays() throws DecoderException {
         registry.registerVariableArray("IntegerHistory", "HLAinteger32BE", Integer.class);
 
@@ -138,11 +149,19 @@ class HLADecoderRegistryTest {
         assertThrows(IllegalArgumentException.class, () -> registry.decoderFor("HLAfloat32BE", Integer.class));
     }
 
-        @Test
-        void rejectsNegativeFixedArraySizes() {
-                assertThrows(IllegalArgumentException.class,
-                                () -> registry.registerFixedArray("BadFixedArray", "HLAinteger32BE", -1, Integer.class));
-        }
+    @Test
+    void rejectsNegativeFixedArraySizes() {
+        assertThrows(IllegalArgumentException.class,
+                () -> registry.registerFixedArray("BadFixedArray", "HLAinteger32BE", -1, Integer.class));
+    }
+
+    @Test
+    void rejectsNormalizedNameCollisions() {
+        registry.register("com.example.CustomFloat", Float.class, bytes -> 1.0f);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> registry.register("org.example.CustomFloat", Float.class, bytes -> 2.0f));
+    }
 
     @Test
     void rejectsValueOnlyDecodersAsArrayElements() {

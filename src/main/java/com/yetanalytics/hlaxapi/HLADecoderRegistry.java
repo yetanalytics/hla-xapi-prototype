@@ -56,18 +56,25 @@ public class HLADecoderRegistry {
     }
 
     public <T> void register(String hlaType, Class<T> javaType, HLAValueDecoder<T> decoder) {
-        decoders.put(normalize(hlaType), new RegisteredDecoder(
-                Objects.requireNonNull(javaType, "javaType"),
-                Objects.requireNonNull(decoder, "decoder"),
-                null));
+        String normalizedType = normalize(hlaType);
+        putDecoder(normalizedType, new RegisteredDecoder(
+            hlaType.trim(),
+            Objects.requireNonNull(javaType, "javaType"),
+            Objects.requireNonNull(decoder, "decoder"),
+            null,
+            null));
     }
 
     public void registerAlias(String alias, String targetType) {
-        RegisteredDecoder target = registeredDecoderFor(targetType);
-        decoders.put(normalize(alias), new RegisteredDecoder(
-                target.javaType(),
-                target.decoder(),
-                target.elementAdapter()));
+        String normalizedAlias = normalize(alias);
+        String normalizedTargetType = normalize(targetType);
+        lookupRegisteredDecoder(normalizedTargetType);
+        putDecoder(normalizedAlias, new RegisteredDecoder(
+            alias.trim(),
+            null,
+            null,
+            null,
+            normalizedTargetType));
     }
 
     /**
@@ -77,7 +84,7 @@ public class HLADecoderRegistry {
      * decoders, and arrays previously registered through this registry.
      */
     public <T> void registerVariableArray(String hlaType, String elementHlaType, Class<T> elementJavaType) {
-        RegisteredDecoder element = registeredDecoderFor(elementHlaType);
+        RegisteredDecoder element = lookupRegisteredDecoder(normalize(elementHlaType)).resolved(this);
         requireJavaType(elementHlaType, elementJavaType, element);
         ElementAdapter elementAdapter = requireElementAdapter(elementHlaType, element);
         registerElementBacked(hlaType, List.class, variableArrayAdapter(elementAdapter));
@@ -93,7 +100,7 @@ public class HLADecoderRegistry {
         if (size < 0) {
             throw new IllegalArgumentException("Fixed array size must not be negative: " + size);
         }
-        RegisteredDecoder element = registeredDecoderFor(elementHlaType);
+        RegisteredDecoder element = lookupRegisteredDecoder(normalize(elementHlaType)).resolved(this);
         requireJavaType(elementHlaType, elementJavaType, element);
         ElementAdapter elementAdapter = requireElementAdapter(elementHlaType, element);
         registerElementBacked(hlaType, List.class, fixedArrayAdapter(elementAdapter, size));
@@ -211,10 +218,13 @@ public class HLADecoderRegistry {
             element.decode(bytes);
             return adapter.extractValue(element);
         };
-        decoders.put(normalize(hlaType), new RegisteredDecoder(
+        String normalizedType = normalize(hlaType);
+        putDecoder(normalizedType, new RegisteredDecoder(
+                hlaType.trim(),
                 Objects.requireNonNull(javaType, "javaType"),
                 decoder,
-                adapter));
+                adapter,
+                null));
     }
 
     private ElementAdapter variableArrayAdapter(ElementAdapter elementAdapter) {
@@ -266,13 +276,25 @@ public class HLADecoderRegistry {
     }
 
     private RegisteredDecoder registeredDecoderFor(String hlaType) {
-        String normalizedType = normalize(hlaType);
+        return lookupRegisteredDecoder(normalize(hlaType)).resolved(this);
+    }
+
+    private RegisteredDecoder lookupRegisteredDecoder(String normalizedType) {
         RegisteredDecoder registered = decoders.get(normalizedType);
         if (registered == null) {
             throw new IllegalArgumentException("No HLA decoder registered for type " + normalizedType
                     + ". Supported types: " + decoders.keySet());
         }
         return registered;
+    }
+
+    private void putDecoder(String normalizedType, RegisteredDecoder registeredDecoder) {
+        RegisteredDecoder existing = decoders.get(normalizedType);
+        if (existing != null && !existing.registeredType().equals(registeredDecoder.registeredType())) {
+            throw new IllegalArgumentException("HLA type " + normalizedType
+                    + " is already registered as " + existing.registeredType());
+        }
+        decoders.put(normalizedType, registeredDecoder);
     }
 
     private void requireJavaType(String hlaType, Class<?> requestedJavaType, RegisteredDecoder registered) {
@@ -333,6 +355,65 @@ public class HLADecoderRegistry {
         Object extractValue(DataElement element);
     }
 
-    private record RegisteredDecoder(Class<?> javaType, HLAValueDecoder<?> decoder, ElementAdapter elementAdapter) {
+    private static final class RegisteredDecoder {
+
+        private final String registeredType;
+        private final Class<?> javaType;
+        private final HLAValueDecoder<?> decoder;
+        private final ElementAdapter elementAdapter;
+        private final String targetType;
+
+        private RegisteredDecoder(
+                String registeredType,
+                Class<?> javaType,
+                HLAValueDecoder<?> decoder,
+                ElementAdapter elementAdapter,
+                String targetType) {
+            this.registeredType = Objects.requireNonNull(registeredType, "registeredType");
+            this.javaType = javaType;
+            this.decoder = decoder;
+            this.elementAdapter = elementAdapter;
+            this.targetType = targetType;
+        }
+
+        private String registeredType() {
+            return registeredType;
+        }
+
+        private Class<?> javaType() {
+            return javaType;
+        }
+
+        private HLAValueDecoder<?> decoder() {
+            return decoder;
+        }
+
+        private ElementAdapter elementAdapter() {
+            return elementAdapter;
+        }
+
+        private RegisteredDecoder resolved(HLADecoderRegistry registry) {
+            if (targetType == null) {
+                return this;
+            }
+            if (registry == null) {
+                return this;
+            }
+            return resolveTarget(registry, targetType, new java.util.LinkedHashSet<String>());
+        }
+
+        private RegisteredDecoder resolveTarget(
+                HLADecoderRegistry registry,
+                String normalizedType,
+                java.util.Set<String> seenTypes) {
+            if (!seenTypes.add(normalizedType)) {
+                throw new IllegalArgumentException("Alias cycle detected involving HLA type " + normalizedType);
+            }
+            RegisteredDecoder next = registry.lookupRegisteredDecoder(normalizedType);
+            if (next.targetType == null) {
+                return next;
+            }
+            return next.resolveTarget(registry, next.targetType, seenTypes);
+        }
     }
 }
