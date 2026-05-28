@@ -201,15 +201,17 @@ public class HLADecoderRegistry {
     }
 
     private void registerElementBacked(String hlaType, Class<?> javaType, ElementAdapter elementAdapter) {
+        ElementAdapter adapter = Objects.requireNonNull(elementAdapter, "elementAdapter");
+        ThreadLocal<DataElement> elementCache = ThreadLocal.withInitial(adapter::createElement);
         HLAValueDecoder<Object> decoder = bytes -> {
-            DataElement element = elementAdapter.createElement();
+            DataElement element = elementCache.get();
             element.decode(bytes);
-            return elementAdapter.extractValue(element);
+            return adapter.extractValue(element);
         };
         decoders.put(normalize(hlaType), new RegisteredDecoder(
                 Objects.requireNonNull(javaType, "javaType"),
                 decoder,
-                Objects.requireNonNull(elementAdapter, "elementAdapter")));
+                adapter));
     }
 
     private ElementAdapter variableArrayAdapter(ElementAdapter elementAdapter) {
