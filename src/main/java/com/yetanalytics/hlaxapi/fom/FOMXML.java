@@ -1,6 +1,5 @@
 package com.yetanalytics.hlaxapi.fom;
 
-import javax.xml.bind.Unmarshaller;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -70,6 +69,17 @@ public class FOMXML {
     public String checkInteractionParameterDatatype(String interactionName, String paramName) 
             throws XPathExpressionException {
         String exp = String.format(findInteractionByNameExp, interactionName, paramName);
+        
+        return (String) xPath.compile(exp).evaluate(doc, XPathConstants.STRING);
+        
+    }
+
+    private final String checkSimpleDataTypesExp = 
+        "//simpleData[name[text()='%s']]/representation";
+
+    public String checkCustomDatatypes(String dataTypeName) 
+            throws XPathExpressionException {
+        String exp = String.format(checkSimpleDataTypesExp, dataTypeName);
         
         return (String) xPath.compile(exp).evaluate(doc, XPathConstants.STRING);
         
