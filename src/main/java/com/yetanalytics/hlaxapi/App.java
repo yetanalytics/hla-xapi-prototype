@@ -3,6 +3,8 @@ package com.yetanalytics.hlaxapi;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +29,12 @@ public class App {
         }
 
         final HlaInterface hlaInterface = HlaInterface.Factory.newInterface();
+        final CountDownLatch shutdownLatch = new CountDownLatch(1);
+        final AtomicBoolean shuttingDown = new AtomicBoolean(false);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            shutdown(hlaInterface, shutdownLatch, shuttingDown);
+        }, "hla-xapi-shutdown-hook"));
 
         try {
             logger.info("Attempting RTI Connection");
@@ -36,21 +44,36 @@ public class App {
             System.out.println("Could not connect to the RTI using the local settings designator \""
                     + config.getLocalSettingsDesignator() + "\"");
             e.printStackTrace();
-            System.exit(0);
+            return;
         }
 
-        boolean running = true;
-        while (running) {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                logger.warn("Manually Interrupted. Shutting down");
-                try {
-                    hlaInterface.stop();
-                } catch (RTIinternalError ignored) {
-                }
-                System.exit(0);
-            }
+        try {
+            shutdownLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("Main thread interrupted. Shutting down");
+            shutdown(hlaInterface, shutdownLatch, shuttingDown);
+        }
+    }
+    
+    private static void shutdown(
+            HlaInterface hlaInterface,
+            CountDownLatch shutdownLatch,
+            AtomicBoolean shuttingDown) {
+
+        if (!shuttingDown.compareAndSet(false, true)) {
+            return;
+        }
+
+        logger.info("Shutting down Custom Federate");
+
+        try {
+            hlaInterface.stop();
+        } catch (RTIinternalError e) {
+            logger.warn("Error while stopping HLA interface", e);
+        } finally {
+            shutdownLatch.countDown();
+
         }
     }
 
