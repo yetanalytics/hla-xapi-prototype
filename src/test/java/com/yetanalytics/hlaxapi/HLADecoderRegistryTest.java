@@ -138,6 +138,12 @@ class HLADecoderRegistryTest {
         assertThrows(IllegalArgumentException.class, () -> registry.decoderFor("HLAfloat32BE", Integer.class));
     }
 
+        @Test
+        void rejectsNegativeFixedArraySizes() {
+                assertThrows(IllegalArgumentException.class,
+                                () -> registry.registerFixedArray("BadFixedArray", "HLAinteger32BE", -1, Integer.class));
+        }
+
     @Test
     void rejectsValueOnlyDecodersAsArrayElements() {
         registry.register("CustomValue", Object.class, bytes -> new Object());
