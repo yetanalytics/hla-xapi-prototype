@@ -8,8 +8,10 @@ import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -18,12 +20,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import hla.rti1516e.encoding.ByteWrapper;
+import hla.rti1516e.encoding.DataElement;
+import hla.rti1516e.encoding.DataElementFactory;
 import hla.rti1516e.encoding.DecoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.HLAASCIIchar;
 import hla.rti1516e.encoding.HLAASCIIstring;
 import hla.rti1516e.encoding.HLAboolean;
 import hla.rti1516e.encoding.HLAbyte;
+import hla.rti1516e.encoding.HLAfixedArray;
 import hla.rti1516e.encoding.HLAfloat32BE;
 import hla.rti1516e.encoding.HLAfloat32LE;
 import hla.rti1516e.encoding.HLAfloat64BE;
@@ -38,6 +44,7 @@ import hla.rti1516e.encoding.HLAoctet;
 import hla.rti1516e.encoding.HLAoctetPairBE;
 import hla.rti1516e.encoding.HLAoctetPairLE;
 import hla.rti1516e.encoding.HLAopaqueData;
+import hla.rti1516e.encoding.HLAvariableArray;
 import hla.rti1516e.encoding.HLAunicodeChar;
 import hla.rti1516e.encoding.HLAunicodeString;
 
@@ -83,6 +90,67 @@ class HLADecoderRegistryTest {
     }
 
     @Test
+    void decodesRegisteredVariableArrays() throws DecoderException {
+        registry.registerVariableArray("IntegerHistory", "HLAinteger32BE", Integer.class);
+
+        assertEquals(List.of(7, -3, 42), registry.decode(
+                "IntegerHistory",
+                variableArray(
+                        int32(7, ByteOrder.BIG_ENDIAN),
+                        int32(-3, ByteOrder.BIG_ENDIAN),
+                        int32(42, ByteOrder.BIG_ENDIAN)),
+                List.class));
+    }
+
+    @Test
+    void decodesArraysOfAliases() throws DecoderException {
+        registry.registerAlias("FuelInt32", "HLAinteger32BE");
+        registry.registerVariableArray("FuelHistory", "FuelInt32", Integer.class);
+
+        assertEquals(List.of(100, 75, 50), registry.decode(
+                "FuelHistory",
+                variableArray(
+                        int32(100, ByteOrder.BIG_ENDIAN),
+                        int32(75, ByteOrder.BIG_ENDIAN),
+                        int32(50, ByteOrder.BIG_ENDIAN)),
+                List.class));
+    }
+
+    @Test
+    void decodesRegisteredFixedArrays() throws DecoderException {
+        registry.registerFixedArray("EulerAngles", "HLAfloat64LE", 3, Double.class);
+
+        assertEquals(List.of(10.5d, -20.25d, 30.125d), registry.decode(
+                "EulerAngles",
+                fixedArray(
+                        float64(10.5d, ByteOrder.LITTLE_ENDIAN),
+                        float64(-20.25d, ByteOrder.LITTLE_ENDIAN),
+                        float64(30.125d, ByteOrder.LITTLE_ENDIAN)),
+                List.class));
+    }
+
+    @Test
+    void decodesNestedRegisteredArrays() throws DecoderException {
+        registry.registerFixedArray("CoordinatePair", "HLAinteger16BE", 2, Short.class);
+        registry.registerVariableArray("CoordinateHistory", "CoordinatePair", List.class);
+
+        assertEquals(
+                List.of(
+                        List.of((short) 1, (short) 2),
+                        List.of((short) -3, (short) 4)),
+                registry.decode(
+                        "CoordinateHistory",
+                        variableArray(
+                                fixedArray(
+                                        int16((short) 1, ByteOrder.BIG_ENDIAN),
+                                        int16((short) 2, ByteOrder.BIG_ENDIAN)),
+                                fixedArray(
+                                        int16((short) -3, ByteOrder.BIG_ENDIAN),
+                                        int16((short) 4, ByteOrder.BIG_ENDIAN))),
+                        List.class));
+    }
+
+    @Test
     void rejectsUnknownTypes() {
         assertThrows(IllegalArgumentException.class, () -> registry.decoderFor("MissingHlaType"));
     }
@@ -90,6 +158,14 @@ class HLADecoderRegistryTest {
     @Test
     void rejectsMismatchedJavaTypes() {
         assertThrows(IllegalArgumentException.class, () -> registry.decoderFor("HLAfloat32BE", Integer.class));
+    }
+
+    @Test
+    void rejectsValueOnlyDecodersAsArrayElements() {
+        registry.register("CustomValue", Object.class, bytes -> new Object());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> registry.registerVariableArray("CustomArray", "CustomValue", Object.class));
     }
 
     static Stream<Arguments> builtInDecodings() {
@@ -131,42 +207,63 @@ class HLADecoderRegistryTest {
                 (proxy, method, args) -> {
                     Object initialValue = args != null && args.length == 1 ? args[0] : null;
                     return switch (method.getName()) {
-                        case "createHLAboolean" -> element(HLAboolean.class, HLADecoderRegistryTest::decodeBoolean, initialValue);
+                        case "createHLAboolean" -> element(HLAboolean.class,
+                                fixedLengthDecoder(1, HLADecoderRegistryTest::decodeBoolean), initialValue);
                         case "createHLAinteger16BE" -> element(HLAinteger16BE.class,
-                                bytes -> decodeShort(bytes, ByteOrder.BIG_ENDIAN), initialValue);
+                                fixedLengthDecoder(Short.BYTES, bytes -> decodeShort(bytes, ByteOrder.BIG_ENDIAN)),
+                                initialValue);
                         case "createHLAinteger16LE" -> element(HLAinteger16LE.class,
-                                bytes -> decodeShort(bytes, ByteOrder.LITTLE_ENDIAN), initialValue);
+                                fixedLengthDecoder(Short.BYTES, bytes -> decodeShort(bytes, ByteOrder.LITTLE_ENDIAN)),
+                                initialValue);
                         case "createHLAinteger32BE" -> element(HLAinteger32BE.class,
-                                bytes -> decodeInt(bytes, ByteOrder.BIG_ENDIAN), initialValue);
+                                fixedLengthDecoder(Integer.BYTES, bytes -> decodeInt(bytes, ByteOrder.BIG_ENDIAN)),
+                                initialValue);
                         case "createHLAinteger32LE" -> element(HLAinteger32LE.class,
-                                bytes -> decodeInt(bytes, ByteOrder.LITTLE_ENDIAN), initialValue);
+                                fixedLengthDecoder(Integer.BYTES, bytes -> decodeInt(bytes, ByteOrder.LITTLE_ENDIAN)),
+                                initialValue);
                         case "createHLAinteger64BE" -> element(HLAinteger64BE.class,
-                                bytes -> decodeLong(bytes, ByteOrder.BIG_ENDIAN), initialValue);
+                                fixedLengthDecoder(Long.BYTES, bytes -> decodeLong(bytes, ByteOrder.BIG_ENDIAN)),
+                                initialValue);
                         case "createHLAinteger64LE" -> element(HLAinteger64LE.class,
-                                bytes -> decodeLong(bytes, ByteOrder.LITTLE_ENDIAN), initialValue);
+                                fixedLengthDecoder(Long.BYTES, bytes -> decodeLong(bytes, ByteOrder.LITTLE_ENDIAN)),
+                                initialValue);
                         case "createHLAfloat32BE" -> element(HLAfloat32BE.class,
-                                bytes -> decodeFloat(bytes, ByteOrder.BIG_ENDIAN), initialValue);
+                                fixedLengthDecoder(Float.BYTES, bytes -> decodeFloat(bytes, ByteOrder.BIG_ENDIAN)),
+                                initialValue);
                         case "createHLAfloat32LE" -> element(HLAfloat32LE.class,
-                                bytes -> decodeFloat(bytes, ByteOrder.LITTLE_ENDIAN), initialValue);
+                                fixedLengthDecoder(Float.BYTES, bytes -> decodeFloat(bytes, ByteOrder.LITTLE_ENDIAN)),
+                                initialValue);
                         case "createHLAfloat64BE" -> element(HLAfloat64BE.class,
-                                bytes -> decodeDouble(bytes, ByteOrder.BIG_ENDIAN), initialValue);
+                                fixedLengthDecoder(Double.BYTES, bytes -> decodeDouble(bytes, ByteOrder.BIG_ENDIAN)),
+                                initialValue);
                         case "createHLAfloat64LE" -> element(HLAfloat64LE.class,
-                                bytes -> decodeDouble(bytes, ByteOrder.LITTLE_ENDIAN), initialValue);
-                        case "createHLAoctet" -> element(HLAoctet.class, HLADecoderRegistryTest::decodeByte, initialValue);
-                        case "createHLAbyte" -> element(HLAbyte.class, HLADecoderRegistryTest::decodeByte, initialValue);
-                        case "createHLAASCIIchar" -> element(HLAASCIIchar.class, HLADecoderRegistryTest::decodeByte, initialValue);
+                                fixedLengthDecoder(Double.BYTES, bytes -> decodeDouble(bytes, ByteOrder.LITTLE_ENDIAN)),
+                                initialValue);
+                        case "createHLAoctet" -> element(HLAoctet.class,
+                                fixedLengthDecoder(1, HLADecoderRegistryTest::decodeByte), initialValue);
+                        case "createHLAbyte" -> element(HLAbyte.class,
+                                fixedLengthDecoder(1, HLADecoderRegistryTest::decodeByte), initialValue);
+                        case "createHLAASCIIchar" -> element(HLAASCIIchar.class,
+                                fixedLengthDecoder(1, HLADecoderRegistryTest::decodeByte), initialValue);
                         case "createHLAunicodeChar" -> element(HLAunicodeChar.class,
-                                bytes -> decodeShort(bytes, ByteOrder.BIG_ENDIAN), initialValue);
+                                fixedLengthDecoder(Short.BYTES, bytes -> decodeShort(bytes, ByteOrder.BIG_ENDIAN)),
+                                initialValue);
                         case "createHLAoctetPairBE" -> element(HLAoctetPairBE.class,
-                                bytes -> decodeShort(bytes, ByteOrder.BIG_ENDIAN), initialValue);
+                                fixedLengthDecoder(Short.BYTES, bytes -> decodeShort(bytes, ByteOrder.BIG_ENDIAN)),
+                                initialValue);
                         case "createHLAoctetPairLE" -> element(HLAoctetPairLE.class,
-                                bytes -> decodeShort(bytes, ByteOrder.LITTLE_ENDIAN), initialValue);
+                                fixedLengthDecoder(Short.BYTES, bytes -> decodeShort(bytes, ByteOrder.LITTLE_ENDIAN)),
+                                initialValue);
                         case "createHLAopaqueData" -> element(HLAopaqueData.class,
-                                HLADecoderRegistryTest::decodeOpaqueData, initialValue);
+                                variableByteLengthDecoder(HLADecoderRegistryTest::decodeOpaqueData), initialValue);
                         case "createHLAASCIIstring" -> element(HLAASCIIstring.class,
-                                HLADecoderRegistryTest::decodeAsciiString, initialValue);
+                                variableByteLengthDecoder(HLADecoderRegistryTest::decodeAsciiString), initialValue);
                         case "createHLAunicodeString" -> element(HLAunicodeString.class,
-                                HLADecoderRegistryTest::decodeUnicodeString, initialValue);
+                                unicodeStringDecoder(), initialValue);
+                        case "createHLAfixedArray" -> fixedArray(
+                                dataElementFactory(args[0]),
+                                (Integer) args[1]);
+                        case "createHLAvariableArray" -> variableArray(dataElementFactory(args[0]));
                         default -> throw new UnsupportedOperationException(method.getName());
                     };
                 });
@@ -184,7 +281,11 @@ class HLADecoderRegistryTest {
                                 value.set(decoder.decode(bytes));
                                 yield null;
                             }
-                            throw new UnsupportedOperationException("decode(ByteWrapper)");
+                            if (args != null && args.length == 1 && args[0] instanceof ByteWrapper byteWrapper) {
+                                value.set(decoder.decode(byteWrapper));
+                                yield null;
+                            }
+                            throw new UnsupportedOperationException("decode");
                         }
                         case "getValue" -> value.get();
                         case "setValue" -> {
@@ -195,7 +296,7 @@ class HLADecoderRegistryTest {
                         case "get" -> ((byte[]) value.get())[(Integer) args[0]];
                         case "iterator" -> opaqueDataIterator((byte[]) value.get());
                         case "getOctetBoundary" -> 1;
-                        case "getEncodedLength" -> 0;
+                        case "getEncodedLength" -> decoder.encodedLength();
                         case "encode", "toByteArray" -> throw new UnsupportedOperationException(method.getName());
                         case "toString" -> elementInterface.getSimpleName() + "[" + value.get() + "]";
                         case "hashCode" -> System.identityHashCode(proxy);
@@ -204,6 +305,138 @@ class HLADecoderRegistryTest {
                     };
                 });
         return elementInterface.cast(element);
+    }
+
+    private static HLAfixedArray<DataElement> fixedArray(DataElementFactory<DataElement> factory, int size) {
+        List<DataElement> elements = new ArrayList<DataElement>(size);
+        for (int index = 0; index < size; index++) {
+            elements.add(factory.createElement(index));
+        }
+        Object fixedArray = Proxy.newProxyInstance(
+                HLADecoderRegistryTest.class.getClassLoader(),
+                new Class<?>[] { HLAfixedArray.class },
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "decode" -> {
+                        if (args != null && args.length == 1 && args[0] instanceof byte[] bytes) {
+                            decodeComplete(bytes, byteWrapper -> decodeElements(byteWrapper, elements));
+                            yield null;
+                        }
+                        if (args != null && args.length == 1 && args[0] instanceof ByteWrapper byteWrapper) {
+                            decodeElements(byteWrapper, elements);
+                            yield null;
+                        }
+                        throw new UnsupportedOperationException("decode");
+                    }
+                    case "size" -> elements.size();
+                    case "get" -> elements.get((Integer) args[0]);
+                    case "iterator" -> elements.iterator();
+                    case "getOctetBoundary" -> 1;
+                    case "getEncodedLength" -> encodedLength(elements);
+                    case "encode", "toByteArray" -> throw new UnsupportedOperationException(method.getName());
+                    case "toString" -> "HLAfixedArray" + elements;
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        @SuppressWarnings("unchecked")
+        HLAfixedArray<DataElement> typedArray = (HLAfixedArray<DataElement>) fixedArray;
+        return typedArray;
+    }
+
+    private static HLAvariableArray<DataElement> variableArray(DataElementFactory<DataElement> factory) {
+        List<DataElement> elements = new ArrayList<DataElement>();
+        Object variableArray = Proxy.newProxyInstance(
+                HLADecoderRegistryTest.class.getClassLoader(),
+                new Class<?>[] { HLAvariableArray.class },
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "decode" -> {
+                        if (args != null && args.length == 1 && args[0] instanceof byte[] bytes) {
+                            decodeComplete(bytes, byteWrapper -> decodeVariableElements(byteWrapper, factory, elements));
+                            yield null;
+                        }
+                        if (args != null && args.length == 1 && args[0] instanceof ByteWrapper byteWrapper) {
+                            decodeVariableElements(byteWrapper, factory, elements);
+                            yield null;
+                        }
+                        throw new UnsupportedOperationException("decode");
+                    }
+                    case "addElement" -> {
+                        elements.add((DataElement) args[0]);
+                        yield null;
+                    }
+                    case "resize" -> {
+                        resizeElements(factory, elements, (Integer) args[0]);
+                        yield null;
+                    }
+                    case "size" -> elements.size();
+                    case "get" -> elements.get((Integer) args[0]);
+                    case "iterator" -> elements.iterator();
+                    case "getOctetBoundary" -> 4;
+                    case "getEncodedLength" -> Integer.BYTES + encodedLength(elements);
+                    case "encode", "toByteArray" -> throw new UnsupportedOperationException(method.getName());
+                    case "toString" -> "HLAvariableArray" + elements;
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        @SuppressWarnings("unchecked")
+        HLAvariableArray<DataElement> typedArray = (HLAvariableArray<DataElement>) variableArray;
+        return typedArray;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static DataElementFactory<DataElement> dataElementFactory(Object value) {
+        return (DataElementFactory<DataElement>) value;
+    }
+
+    private static void decodeElements(ByteWrapper byteWrapper, List<DataElement> elements) throws DecoderException {
+        for (DataElement element : elements) {
+            element.decode(byteWrapper);
+        }
+    }
+
+    private static void decodeVariableElements(
+            ByteWrapper byteWrapper,
+            DataElementFactory<DataElement> factory,
+            List<DataElement> elements) throws DecoderException {
+        int size = byteWrapper.getInt();
+        if (size < 0) {
+            throw new DecoderException("Negative array size " + size);
+        }
+        elements.clear();
+        for (int index = 0; index < size; index++) {
+            DataElement element = factory.createElement(index);
+            element.decode(byteWrapper);
+            elements.add(element);
+        }
+    }
+
+    private static void resizeElements(
+            DataElementFactory<DataElement> factory,
+            List<DataElement> elements,
+            int newSize) {
+        while (elements.size() > newSize) {
+            elements.remove(elements.size() - 1);
+        }
+        while (elements.size() < newSize) {
+            elements.add(factory.createElement(elements.size()));
+        }
+    }
+
+    private static void decodeComplete(byte[] bytes, ByteWrapperDecoder decoder) throws DecoderException {
+        ByteWrapper byteWrapper = new ByteWrapper(bytes);
+        decoder.decode(byteWrapper);
+        if (byteWrapper.remaining() != 0) {
+            throw new DecoderException("Unexpected trailing bytes: " + byteWrapper.remaining());
+        }
+    }
+
+    private static int encodedLength(List<DataElement> elements) {
+        int length = 0;
+        for (DataElement element : elements) {
+            length += element.getEncodedLength();
+        }
+        return length;
     }
 
     private static Iterator<Byte> opaqueDataIterator(byte[] bytes) {
@@ -330,8 +563,122 @@ class HLADecoderRegistryTest {
                 .array();
     }
 
+    private static byte[] fixedArray(byte[]... encodedElements) {
+        int size = 0;
+        for (byte[] encodedElement : encodedElements) {
+            size += encodedElement.length;
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        for (byte[] encodedElement : encodedElements) {
+            buffer.put(encodedElement);
+        }
+        return buffer.array();
+    }
+
+    private static byte[] variableArray(byte[]... encodedElements) {
+        int size = Integer.BYTES;
+        for (byte[] encodedElement : encodedElements) {
+            size += encodedElement.length;
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(size)
+                .order(ByteOrder.BIG_ENDIAN)
+                .putInt(encodedElements.length);
+        for (byte[] encodedElement : encodedElements) {
+            buffer.put(encodedElement);
+        }
+        return buffer.array();
+    }
+
+    private static ByteDecoder fixedLengthDecoder(int encodedLength, ByteArrayDecoder decoder) {
+        return new ByteDecoder() {
+            @Override
+            public Object decode(byte[] bytes) throws DecoderException {
+                return decoder.decode(bytes);
+            }
+
+            @Override
+            public Object decode(ByteWrapper byteWrapper) throws DecoderException {
+                byte[] bytes = new byte[encodedLength];
+                byteWrapper.get(bytes);
+                return decoder.decode(bytes);
+            }
+
+            @Override
+            public int encodedLength() {
+                return encodedLength;
+            }
+        };
+    }
+
+    private static ByteDecoder variableByteLengthDecoder(ByteArrayDecoder decoder) {
+        return new ByteDecoder() {
+            @Override
+            public Object decode(byte[] bytes) throws DecoderException {
+                return decoder.decode(bytes);
+            }
+
+            @Override
+            public Object decode(ByteWrapper byteWrapper) throws DecoderException {
+                int length = byteWrapper.getInt();
+                byte[] payload = new byte[length];
+                byteWrapper.get(payload);
+                byte[] bytes = ByteBuffer.allocate(Integer.BYTES + length)
+                        .order(ByteOrder.BIG_ENDIAN)
+                        .putInt(length)
+                        .put(payload)
+                        .array();
+                return decoder.decode(bytes);
+            }
+
+            @Override
+            public int encodedLength() {
+                return 0;
+            }
+        };
+    }
+
+    private static ByteDecoder unicodeStringDecoder() {
+        return new ByteDecoder() {
+            @Override
+            public Object decode(byte[] bytes) throws DecoderException {
+                return decodeUnicodeString(bytes);
+            }
+
+            @Override
+            public Object decode(ByteWrapper byteWrapper) throws DecoderException {
+                int length = byteWrapper.getInt();
+                byte[] payload = new byte[length * Character.BYTES];
+                byteWrapper.get(payload);
+                byte[] bytes = ByteBuffer.allocate(Integer.BYTES + payload.length)
+                        .order(ByteOrder.BIG_ENDIAN)
+                        .putInt(length)
+                        .put(payload)
+                        .array();
+                return decodeUnicodeString(bytes);
+            }
+
+            @Override
+            public int encodedLength() {
+                return 0;
+            }
+        };
+    }
+
     @FunctionalInterface
+    private interface ByteArrayDecoder {
+        Object decode(byte[] bytes) throws DecoderException;
+    }
+
     private interface ByteDecoder {
         Object decode(byte[] bytes) throws DecoderException;
+
+        Object decode(ByteWrapper byteWrapper) throws DecoderException;
+
+        int encodedLength();
+    }
+
+    @FunctionalInterface
+    private interface ByteWrapperDecoder {
+        void decode(ByteWrapper byteWrapper) throws DecoderException;
     }
 }

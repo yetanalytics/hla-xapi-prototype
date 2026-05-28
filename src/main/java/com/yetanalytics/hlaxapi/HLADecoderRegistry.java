@@ -1,7 +1,9 @@
 package com.yetanalytics.hlaxapi;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -9,9 +11,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import hla.rti1516e.encoding.DataElement;
+import hla.rti1516e.encoding.DataElementFactory;
 import hla.rti1516e.encoding.DecoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.HLAboolean;
+import hla.rti1516e.encoding.HLAfixedArray;
 import hla.rti1516e.encoding.HLAfloat32BE;
 import hla.rti1516e.encoding.HLAfloat32LE;
 import hla.rti1516e.encoding.HLAfloat64BE;
@@ -28,6 +32,7 @@ import hla.rti1516e.encoding.HLAoctetPairLE;
 import hla.rti1516e.encoding.HLAopaqueData;
 import hla.rti1516e.encoding.HLAASCIIstring;
 import hla.rti1516e.encoding.HLAbyte;
+import hla.rti1516e.encoding.HLAvariableArray;
 import hla.rti1516e.encoding.HLAunicodeString;
 
 /**
@@ -39,24 +44,56 @@ import hla.rti1516e.encoding.HLAunicodeString;
  */
 public class HLADecoderRegistry {
 
+    private final EncoderFactory encoderFactory;
     private final Map<String, RegisteredDecoder> decoders = new LinkedHashMap<String, RegisteredDecoder>();
 
     public HLADecoderRegistry(EncoderFactory encoderFactory) {
-        Objects.requireNonNull(encoderFactory, "encoderFactory");
-        registerStandardDecoders(encoderFactory);
+        this.encoderFactory = Objects.requireNonNull(encoderFactory, "encoderFactory");
+        registerStandardDecoders(this.encoderFactory);
     }
 
     public <T> void register(String hlaType, Class<T> javaType, HLAValueDecoder<T> decoder) {
         decoders.put(normalize(hlaType), new RegisteredDecoder(
                 Objects.requireNonNull(javaType, "javaType"),
-                Objects.requireNonNull(decoder, "decoder")));
+                Objects.requireNonNull(decoder, "decoder"),
+                null));
     }
 
     public void registerAlias(String alias, String targetType) {
         RegisteredDecoder target = registeredDecoderFor(targetType);
         decoders.put(normalize(alias), new RegisteredDecoder(
                 target.javaType(),
-                target.decoder()));
+                target.decoder(),
+                target.elementAdapter()));
+    }
+
+    /**
+     * Registers an HLAvariableArray decoder. Decoded arrays are returned as
+     * immutable List instances. The element type must be backed by an HLA
+     * DataElement, which includes built-in primitive decoders, aliases of those
+     * decoders, and arrays previously registered through this registry.
+     */
+    public <T> void registerVariableArray(String hlaType, String elementHlaType, Class<T> elementJavaType) {
+        RegisteredDecoder element = registeredDecoderFor(elementHlaType);
+        requireJavaType(elementHlaType, elementJavaType, element);
+        ElementAdapter elementAdapter = requireElementAdapter(elementHlaType, element);
+        registerElementBacked(hlaType, List.class, variableArrayAdapter(elementAdapter));
+    }
+
+    /**
+     * Registers an HLAfixedArray decoder. Decoded arrays are returned as immutable
+     * List instances. The element type must be backed by an HLA DataElement, which
+     * includes built-in primitive decoders, aliases of those decoders, and arrays
+     * previously registered through this registry.
+     */
+    public <T> void registerFixedArray(String hlaType, String elementHlaType, int size, Class<T> elementJavaType) {
+        if (size < 0) {
+            throw new IllegalArgumentException("Fixed array size must not be negative: " + size);
+        }
+        RegisteredDecoder element = registeredDecoderFor(elementHlaType);
+        requireJavaType(elementHlaType, elementJavaType, element);
+        ElementAdapter elementAdapter = requireElementAdapter(elementHlaType, element);
+        registerElementBacked(hlaType, List.class, fixedArrayAdapter(elementAdapter, size));
     }
 
     public Set<String> supportedTypes() {
@@ -144,11 +181,83 @@ public class HLADecoderRegistry {
             Class<T> javaType,
             Supplier<E> dataElementSupplier,
             Function<E, T> valueExtractor) {
-        register(hlaType, javaType, bytes -> {
-            E element = dataElementSupplier.get();
+        ElementAdapter adapter = new ElementAdapter() {
+            @Override
+            public DataElement createElement() {
+                return dataElementSupplier.get();
+            }
+
+            @Override
+            public Object extractValue(DataElement element) {
+                return valueExtractor.apply(elementType(element));
+            }
+
+            @SuppressWarnings("unchecked")
+            private E elementType(DataElement element) {
+                return (E) element;
+            }
+        };
+        registerElementBacked(hlaType, javaType, adapter);
+    }
+
+    private void registerElementBacked(String hlaType, Class<?> javaType, ElementAdapter elementAdapter) {
+        HLAValueDecoder<Object> decoder = bytes -> {
+            DataElement element = elementAdapter.createElement();
             element.decode(bytes);
-            return valueExtractor.apply(element);
-        });
+            return elementAdapter.extractValue(element);
+        };
+        decoders.put(normalize(hlaType), new RegisteredDecoder(
+                Objects.requireNonNull(javaType, "javaType"),
+                decoder,
+                Objects.requireNonNull(elementAdapter, "elementAdapter")));
+    }
+
+    private ElementAdapter variableArrayAdapter(ElementAdapter elementAdapter) {
+        return new ElementAdapter() {
+            @Override
+            public DataElement createElement() {
+                DataElementFactory<DataElement> factory = index -> elementAdapter.createElement();
+                return encoderFactory.createHLAvariableArray(factory);
+            }
+
+            @Override
+            public Object extractValue(DataElement element) {
+                HLAvariableArray<?> array = (HLAvariableArray<?>) element;
+                return extractArrayValues(array, elementAdapter);
+            }
+        };
+    }
+
+    private ElementAdapter fixedArrayAdapter(ElementAdapter elementAdapter, int size) {
+        return new ElementAdapter() {
+            @Override
+            public DataElement createElement() {
+                DataElementFactory<DataElement> factory = index -> elementAdapter.createElement();
+                return encoderFactory.createHLAfixedArray(factory, size);
+            }
+
+            @Override
+            public Object extractValue(DataElement element) {
+                HLAfixedArray<?> array = (HLAfixedArray<?>) element;
+                return extractArrayValues(array, elementAdapter);
+            }
+        };
+    }
+
+    private static List<Object> extractArrayValues(Iterable<? extends DataElement> array, ElementAdapter elementAdapter) {
+        List<Object> values = new ArrayList<Object>();
+        for (DataElement element : array) {
+            values.add(elementAdapter.extractValue(element));
+        }
+        return Collections.unmodifiableList(values);
+    }
+
+    private static ElementAdapter requireElementAdapter(String hlaType, RegisteredDecoder registered) {
+        if (registered.elementAdapter() == null) {
+            throw new IllegalArgumentException("HLA type " + normalize(hlaType)
+                    + " is registered as a value decoder and cannot be used as an array element");
+        }
+        return registered.elementAdapter();
     }
 
     private RegisteredDecoder registeredDecoderFor(String hlaType) {
@@ -213,6 +322,12 @@ public class HLADecoderRegistry {
         return javaType;
     }
 
-    private record RegisteredDecoder(Class<?> javaType, HLAValueDecoder<?> decoder) {
+    private interface ElementAdapter {
+        DataElement createElement();
+
+        Object extractValue(DataElement element);
+    }
+
+    private record RegisteredDecoder(Class<?> javaType, HLAValueDecoder<?> decoder, ElementAdapter elementAdapter) {
     }
 }
