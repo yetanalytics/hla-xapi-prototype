@@ -63,7 +63,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private final List<InteractionListener> _listeners = new CopyOnWriteArrayList<InteractionListener>();
 
-    private TimeScaleFactorFloat32Coder _callbackTimeScaleFactorCoder;
+    private HLADecoderRegistry _decoderRegistry;
 
     private InteractionClassHandle _startInteractionClassHandle;
     private ParameterHandle _timeScaleFactorParameterHandle;
@@ -82,7 +82,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         _ambassador = rtiFactory.getRtiAmbassador();
 
         EncoderFactory encoderFactory = rtiFactory.getEncoderFactory();
-        _callbackTimeScaleFactorCoder = new TimeScaleFactorFloat32Coder(encoderFactory);
+        _decoderRegistry = new HLADecoderRegistry(encoderFactory);
+        _decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
 
         try {
             _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, localSettingsDesignator);
@@ -233,8 +234,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         if (interactionClass.equals(_startInteractionClassHandle)) {
             logger.info("Received Start Interaction");
             try {
-                float timeScaleFactor = _callbackTimeScaleFactorCoder
-                        .decode(theParameters.get(_timeScaleFactorParameterHandle));
+                float timeScaleFactor = _decoderRegistry
+                        .decode("ScaleFactorFloat32", theParameters.get(_timeScaleFactorParameterHandle), Float.class);
                 for (InteractionListener listener : _listeners) {
                     listener.receivedStart(timeScaleFactor);
                 }
