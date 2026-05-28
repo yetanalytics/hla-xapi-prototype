@@ -16,6 +16,7 @@ import hla.rti1516e.encoding.DecoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.HLAboolean;
 import hla.rti1516e.encoding.HLAfixedArray;
+import hla.rti1516e.encoding.HLAfixedRecord;
 import hla.rti1516e.encoding.HLAfloat32BE;
 import hla.rti1516e.encoding.HLAfloat32LE;
 import hla.rti1516e.encoding.HLAfloat64BE;
@@ -104,6 +105,25 @@ public class HLADecoderRegistry {
         requireJavaType(elementHlaType, elementJavaType, element);
         ElementAdapter elementAdapter = requireElementAdapter(elementHlaType, element);
         registerElementBacked(hlaType, List.class, fixedArrayAdapter(elementAdapter, size));
+    }
+
+    /**
+     * Registers an HLAfixedRecord decoder. Decoded records are returned as
+     * immutable Map instances keyed by field name. The supplied map's iteration
+     * order is the encoded field order, so callers should pass an ordered map
+     * such as LinkedHashMap when field order matters.
+     */
+    public void registerFixedRecord(String hlaType, Map<String, String> fields) {
+        Objects.requireNonNull(fields, "fields");
+        List<FieldAdapter> fieldAdapters = new ArrayList<FieldAdapter>();
+        for (Map.Entry<String, String> field : fields.entrySet()) {
+            String fieldName = normalizeFieldName(field.getKey());
+            String fieldHlaType = field.getValue();
+            RegisteredDecoder registeredField = lookupRegisteredDecoder(normalize(fieldHlaType)).resolved(this);
+            ElementAdapter fieldAdapter = requireElementAdapter(fieldHlaType, registeredField);
+            fieldAdapters.add(new FieldAdapter(fieldName, fieldAdapter));
+        }
+        registerElementBacked(hlaType, Map.class, fixedRecordAdapter(fieldAdapters));
     }
 
     public Set<String> supportedTypes() {
@@ -259,6 +279,31 @@ public class HLADecoderRegistry {
         };
     }
 
+    private ElementAdapter fixedRecordAdapter(List<FieldAdapter> fieldAdapters) {
+        List<FieldAdapter> fields = List.copyOf(fieldAdapters);
+        return new ElementAdapter() {
+            @Override
+            public DataElement createElement() {
+                HLAfixedRecord record = encoderFactory.createHLAfixedRecord();
+                for (FieldAdapter field : fields) {
+                    record.add(field.elementAdapter().createElement());
+                }
+                return record;
+            }
+
+            @Override
+            public Object extractValue(DataElement element) {
+                HLAfixedRecord record = (HLAfixedRecord) element;
+                Map<String, Object> values = new LinkedHashMap<String, Object>();
+                for (int index = 0; index < fields.size(); index++) {
+                    FieldAdapter field = fields.get(index);
+                    values.put(field.name(), field.elementAdapter().extractValue(record.get(index)));
+                }
+                return Collections.unmodifiableMap(values);
+            }
+        };
+    }
+
     private static List<Object> extractArrayValues(Iterable<? extends DataElement> array, ElementAdapter elementAdapter) {
         List<Object> values = new ArrayList<Object>();
         for (DataElement element : array) {
@@ -270,7 +315,7 @@ public class HLADecoderRegistry {
     private static ElementAdapter requireElementAdapter(String hlaType, RegisteredDecoder registered) {
         if (registered.elementAdapter() == null) {
             throw new IllegalArgumentException("HLA type " + normalize(hlaType)
-                    + " is registered as a value decoder and cannot be used as an array element");
+                    + " is registered as a value decoder and cannot be used as an aggregate element");
         }
         return registered.elementAdapter();
     }
@@ -318,6 +363,14 @@ public class HLADecoderRegistry {
         return normalizedType;
     }
 
+    private static String normalizeFieldName(String fieldName) {
+        String normalizedFieldName = Objects.requireNonNull(fieldName, "fieldName").trim();
+        if (normalizedFieldName.isEmpty()) {
+            throw new IllegalArgumentException("Fixed record field name must not be blank");
+        }
+        return normalizedFieldName;
+    }
+
     private static Class<?> wrapperType(Class<?> javaType) {
         if (!javaType.isPrimitive()) {
             return javaType;
@@ -353,6 +406,25 @@ public class HLADecoderRegistry {
         DataElement createElement();
 
         Object extractValue(DataElement element);
+    }
+
+    private static final class FieldAdapter {
+
+        private final String name;
+        private final ElementAdapter elementAdapter;
+
+        private FieldAdapter(String name, ElementAdapter elementAdapter) {
+            this.name = Objects.requireNonNull(name, "name");
+            this.elementAdapter = Objects.requireNonNull(elementAdapter, "elementAdapter");
+        }
+
+        private String name() {
+            return name;
+        }
+
+        private ElementAdapter elementAdapter() {
+            return elementAdapter;
+        }
     }
 
     private static final class RegisteredDecoder {

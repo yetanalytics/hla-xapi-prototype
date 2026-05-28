@@ -20,6 +20,7 @@ import hla.rti1516e.encoding.HLAASCIIstring;
 import hla.rti1516e.encoding.HLAboolean;
 import hla.rti1516e.encoding.HLAbyte;
 import hla.rti1516e.encoding.HLAfixedArray;
+import hla.rti1516e.encoding.HLAfixedRecord;
 import hla.rti1516e.encoding.HLAfloat32BE;
 import hla.rti1516e.encoding.HLAfloat32LE;
 import hla.rti1516e.encoding.HLAfloat64BE;
@@ -104,6 +105,7 @@ final class HLAEncodingTestSupport {
                         case "createHLAunicodeString" -> element(HLAunicodeString.class,
                                 unicodeStringDecoder(), initialValue);
                         case "createHLAfixedArray" -> fixedArray(dataElementFactory(args[0]), (Integer) args[1]);
+                        case "createHLAfixedRecord" -> fixedRecord();
                         case "createHLAvariableArray" -> variableArray(dataElementFactory(args[0]));
                         default -> throw new UnsupportedOperationException(method.getName());
                     };
@@ -162,6 +164,10 @@ final class HLAEncodingTestSupport {
             buffer.put(encodedElement);
         }
         return buffer.array();
+    }
+
+    static byte[] fixedRecord(byte[]... encodedFields) {
+        return fixedArray(encodedFields);
     }
 
     static byte[] variableArray(byte[]... encodedElements) {
@@ -248,6 +254,41 @@ final class HLAEncodingTestSupport {
         @SuppressWarnings("unchecked")
         HLAfixedArray<DataElement> typedArray = (HLAfixedArray<DataElement>) fixedArray;
         return typedArray;
+    }
+
+    private static HLAfixedRecord fixedRecord() {
+        List<DataElement> fields = new ArrayList<DataElement>();
+        Object fixedRecord = Proxy.newProxyInstance(
+                HLAEncodingTestSupport.class.getClassLoader(),
+                new Class<?>[] { HLAfixedRecord.class },
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "decode" -> {
+                        if (args != null && args.length == 1 && args[0] instanceof byte[] bytes) {
+                            decodeComplete(bytes, byteWrapper -> decodeElements(byteWrapper, fields));
+                            yield null;
+                        }
+                        if (args != null && args.length == 1 && args[0] instanceof ByteWrapper byteWrapper) {
+                            decodeElements(byteWrapper, fields);
+                            yield null;
+                        }
+                        throw new UnsupportedOperationException("decode");
+                    }
+                    case "add" -> {
+                        fields.add((DataElement) args[0]);
+                        yield null;
+                    }
+                    case "size" -> fields.size();
+                    case "get" -> fields.get((Integer) args[0]);
+                    case "iterator" -> fields.iterator();
+                    case "getOctetBoundary" -> 1;
+                    case "getEncodedLength" -> encodedLength(fields);
+                    case "encode", "toByteArray" -> throw new UnsupportedOperationException(method.getName());
+                    case "toString" -> "HLAfixedRecord" + fields;
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        return HLAfixedRecord.class.cast(fixedRecord);
     }
 
     private static HLAvariableArray<DataElement> variableArray(DataElementFactory<DataElement> factory) {

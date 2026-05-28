@@ -2,6 +2,7 @@ package com.yetanalytics.hlaxapi;
 
 import static com.yetanalytics.hlaxapi.HLAEncodingTestSupport.asciiString;
 import static com.yetanalytics.hlaxapi.HLAEncodingTestSupport.fixedArray;
+import static com.yetanalytics.hlaxapi.HLAEncodingTestSupport.fixedRecord;
 import static com.yetanalytics.hlaxapi.HLAEncodingTestSupport.float32;
 import static com.yetanalytics.hlaxapi.HLAEncodingTestSupport.float64;
 import static com.yetanalytics.hlaxapi.HLAEncodingTestSupport.int16;
@@ -16,7 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.ByteOrder;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -140,6 +143,44 @@ class HLADecoderRegistryTest {
     }
 
     @Test
+    void decodesRegisteredFixedRecords() throws DecoderException {
+        registry.registerAlias("AngleFloat64", "HLAfloat64BE");
+        registry.registerFixedRecord("PositionRec",
+                fields("Lat", "AngleFloat64", "Long", "AngleFloat64"));
+
+        assertEquals(
+                Map.of("Lat", 42.25d, "Long", -71.125d),
+                registry.decode(
+                        "PositionRec",
+                        fixedRecord(
+                                float64(42.25d, ByteOrder.BIG_ENDIAN),
+                                float64(-71.125d, ByteOrder.BIG_ENDIAN)),
+                        Map.class));
+    }
+
+    @Test
+    void decodesArraysOfFixedRecords() throws DecoderException {
+        registry.registerFixedRecord("CoordinatePair",
+                fields("X", "HLAinteger16BE", "Y", "HLAinteger16BE"));
+        registry.registerVariableArray("CoordinateHistory", "CoordinatePair", Map.class);
+
+        assertEquals(
+                List.of(
+                        Map.of("X", (short) 1, "Y", (short) 2),
+                        Map.of("X", (short) -3, "Y", (short) 4)),
+                registry.decode(
+                        "CoordinateHistory",
+                        variableArray(
+                                fixedRecord(
+                                        int16((short) 1, ByteOrder.BIG_ENDIAN),
+                                        int16((short) 2, ByteOrder.BIG_ENDIAN)),
+                                fixedRecord(
+                                        int16((short) -3, ByteOrder.BIG_ENDIAN),
+                                        int16((short) 4, ByteOrder.BIG_ENDIAN))),
+                        List.class));
+    }
+
+    @Test
     void rejectsUnknownTypes() {
         assertThrows(IllegalArgumentException.class, () -> registry.decoderFor("MissingHlaType"));
     }
@@ -169,6 +210,14 @@ class HLADecoderRegistryTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> registry.registerVariableArray("CustomArray", "CustomValue", Object.class));
+    }
+
+    @Test
+    void rejectsValueOnlyDecodersAsFixedRecordFields() {
+        registry.register("CustomValue", Object.class, bytes -> new Object());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> registry.registerFixedRecord("CustomRecord", Map.of("Value", "CustomValue")));
     }
 
     static Stream<Arguments> builtInDecodings() {
@@ -201,5 +250,13 @@ class HLADecoderRegistryTest {
                         new byte[] { 1, 2, (byte) 0xFF }),
                 Arguments.of("HLAASCIIstring", asciiString("xAPI Ready"), "xAPI Ready"),
                 Arguments.of("HLAunicodeString", unicodeString("R\u00e9sum\u00e9"), "R\u00e9sum\u00e9"));
+    }
+
+    private static Map<String, String> fields(String... namesAndTypes) {
+        LinkedHashMap<String, String> fields = new LinkedHashMap<String, String>();
+        for (int index = 0; index < namesAndTypes.length; index += 2) {
+            fields.put(namesAndTypes[index], namesAndTypes[index + 1]);
+        }
+        return fields;
     }
 }
