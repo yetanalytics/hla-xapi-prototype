@@ -41,6 +41,9 @@ import hla.rti1516e.encoding.HLAunicodeString;
  * Unsuffixed multi-byte aliases, such as HLAinteger32 and HLAfloat64, resolve to
  * the big-endian HLA encoder by default. Register a FOM-specific alias when the
  * FOM type name differs from its HLA representation.
+ *
+ * <p>This class is not thread-safe. If registrations may occur concurrently with decoding,
+ * synchronize access externally.</p>
  */
 public class HLADecoderRegistry {
 
