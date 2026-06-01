@@ -115,12 +115,38 @@ public class FOMXML {
         }   
     }
 
+    public PathCheckResult checkInteractionParameterPath(String interactionName, List<Object> pathParts){
+        try {
+            return checkParameterPath(interactionName, true, pathParts);
+        } catch (XPathExpressionException e) {
+            logger.error("Error checking interaction parameter path", e);
+            return new PathCheckResult(false, null, null);
+        }
+    }
 
+    public PathCheckResult checkInteractionParameterPath(String interactionName, String param){
+        return checkInteractionParameterPath(interactionName, List.of(param));
+    }
+
+    public PathCheckResult checkObjectParameterPath(String objectName, List<Object> pathParts) {
+        try {
+            return checkParameterPath(objectName, false, pathParts);
+        } catch (XPathExpressionException e) {
+            logger.error("Error checking object parameter path", e);
+            return new PathCheckResult(false, null, null);
+        }
+    }
+
+    public PathCheckResult checkObjectParameterPath(String objectName, String param){
+        return checkObjectParameterPath(objectName, List.of(param));
+    }
+    
+    
+    
     private final String findInteractionByNameExp = "//interactionClass[name[text()='%s']]/parameter[name[text()='%s']]/dataType";
+    private final String findObjectByNameExp = "//objectClass[name[text()='%s']]/attribute[name[text()='%s']]/dataType";
     private final String fixedRecordDataTypeExp = "//fixedRecordData[name[text()='%s']]/field[name[text()='%s']]/dataType";
     private final String arrayDataTypeExp = "//arrayData[name[text()='%s']]/dataType";
-
-    
 
     /**
      * Given an interaction name and a path (where the first element is the parameter
@@ -129,10 +155,10 @@ public class FOMXML {
      * root of the resolved path.
      *
      */
-    public PathCheckResult checkInteractionParameterPath(String interactionName, List<Object> pathParts)
+    private PathCheckResult checkParameterPath(String entityName, boolean isInteraction, List<Object> pathParts)
             throws XPathExpressionException {
-        if (interactionName == null || interactionName.isEmpty())
-            throw new IllegalArgumentException("interactionName is required");
+        if (entityName == null || entityName.isEmpty())
+            throw new IllegalArgumentException("entity name is required");
 
         if (pathParts == null || pathParts.isEmpty())
             throw new IllegalArgumentException("First element of pathParts must be the parameter name (String)");
@@ -142,9 +168,9 @@ public class FOMXML {
             throw new IllegalArgumentException("First element of pathParts must be the parameter name (String)");
         }
 
-        String paramName = (String) first;
-        // find parameter dataType for the interaction
-        String paramExp = String.format(findInteractionByNameExp, interactionName, paramName);
+        // find parameter dataType for the interaction/object
+        String paramExp = String.format(isInteraction ? findInteractionByNameExp : findObjectByNameExp, 
+            entityName, (String) first);
         String currentTypeName = (String) xPath.compile(paramExp).evaluate(doc, XPathConstants.STRING);
 
         if (currentTypeName == null || currentTypeName.isEmpty()) {
@@ -195,23 +221,15 @@ public class FOMXML {
         return new PathCheckResult(true, null, currentTypeName);
     }
 
-    /**
-     * Overload for simple one-layer lookups
-     */
-    public PathCheckResult checkInteractionParameterPath(String interactionName, String param){
-        try {
-            return checkInteractionParameterPath(interactionName, List.of(param));
-        } catch (XPathExpressionException e) {
-            logger.error("Error checking interaction parameter path", e);
-            return new PathCheckResult(false, null, null);
-        }
-    }
-
     private final String checkSimpleDataTypeExp = "//simpleData[name[text()='%s']]/representation";
     private final String checkEnumDataTypeExp = "//enumeratedData[name[text()='%s']]/representation";
 
+    /**
+     * Given what is presumed to be a custom data type name, check if it's a simpleData or enumeratedData and return 
+     * the primitive representation if so.
+     *
+     */
     private String getRawType(String dataTypeName) throws XPathExpressionException{
-        
         
         String simpleExp = String.format(checkSimpleDataTypeExp, dataTypeName);
         String simpleType = (String) xPath.compile(simpleExp).evaluate(doc, XPathConstants.STRING);
