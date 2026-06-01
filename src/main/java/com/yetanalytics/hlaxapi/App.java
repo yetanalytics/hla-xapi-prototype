@@ -55,7 +55,7 @@ public class App {
             shutdown(hlaInterface, shutdownLatch, shuttingDown);
         }
     }
-    
+
     private static void shutdown(
             HlaInterface hlaInterface,
             CountDownLatch shutdownLatch,
@@ -78,6 +78,7 @@ public class App {
     }
 
     //This will be set by config and a parser, not manually
+    //TODO: Redo for multidimentsional params OR just properly implement the config/DSL
     private static Map<String, String[]> getInteractionMap(){
         Map<String, String[]> interacMap = new HashMap<>();
         interacMap.put("LoadScenario", new String[]{"ScenarioName", "InitialFuelAmount"});
