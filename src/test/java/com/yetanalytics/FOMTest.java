@@ -2,9 +2,12 @@ package com.yetanalytics;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+
 import javax.xml.xpath.XPathExpressionException;
 
 import com.yetanalytics.hlaxapi.fom.FOMXML;
+import com.yetanalytics.hlaxapi.fom.FOMXML.PathCheckResult;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,19 +25,30 @@ public class FOMTest {
 
 
         try {
-            FOMXML.initInstance("config/fom.xml");
+            FOMXML.initInstance("src/test/resources/SISO-STD-025.3-2024.xml");
             FOMXML fomXml = FOMXML.getInstance();
 
-            String scenarioNameType = fomXml.checkInteractionParameterDatatype("LoadScenario", "ScenarioName");
-            logger.info("Load Scenario Name Type: {}", scenarioNameType);
-            assertTrue(scenarioNameType.equals("HLAunicodeString"));
+            //primitive parameter
+            PathCheckResult isRandomResult = fomXml.checkInteractionParameterPath("Degrade", "IsRandom");
+            logger.info("Degrade, IsRandom Type: {}", isRandomResult);
+            assertTrue(isRandomResult.primitiveType.equals("HLAboolean"));
 
-            String initialFuelAmountType = fomXml.checkInteractionParameterDatatype("LoadScenario", "InitialFuelAmount");
-            assertTrue(initialFuelAmountType.equals("FuelInt32"));
+            //simple data type
+            PathCheckResult PercentageResult = fomXml.checkInteractionParameterPath("Degrade", "Percentage");
+            logger.info("Degrade, Percentage Type: {}", PercentageResult);
+            assertTrue(PercentageResult.primitiveType.equals("HLAfloat64BE"));
+            
+            //fixedRecord + simpledata
+            PathCheckResult CyberEventTimeHoursResult = fomXml.checkInteractionParameterPath("CyberEvent", 
+                    List.of("EventTime", "Hours"));
+            logger.info("CyberEvent, EventTime, Hours Type: {}", CyberEventTimeHoursResult);
+            assertTrue(CyberEventTimeHoursResult.primitiveType.equals("HLAinteger32BE"));
 
-            String fuelIntRepresentation = fomXml.checkCustomDatatypes(initialFuelAmountType);
-            logger.info("Custom FuelInt representation: {}", fuelIntRepresentation);
-            assertTrue(fuelIntRepresentation.equals("HLAinteger32BE"));
+            //array of fixedRecord + simpledata
+            PathCheckResult CyberEventTargetModifiersResult = fomXml.checkInteractionParameterPath("CyberEvent", 
+                    List.of("TargetModifiers", 0, "Key"));
+            logger.info("CyberEvent, TargetModifiers[], Key: {}", CyberEventTargetModifiersResult);
+            assertTrue(CyberEventTargetModifiersResult.primitiveType.equals("HLAASCIIstring"));
 
 
 
