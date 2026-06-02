@@ -3,8 +3,7 @@ package com.yetanalytics.hlaxapi;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +21,6 @@ import hla.rti1516e.ResignAction;
 import hla.rti1516e.RtiFactory;
 import hla.rti1516e.RtiFactoryFactory;
 import hla.rti1516e.TransportationTypeHandle;
-import hla.rti1516e.encoding.DecoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.exceptions.AlreadyConnected;
 import hla.rti1516e.exceptions.CallNotAllowedFromWithinCallback;
@@ -61,20 +59,17 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private String _federationName;
 
-    private final List<InteractionListener> _listeners = new CopyOnWriteArrayList<InteractionListener>();
-
     private HLADecoderRegistry _decoderRegistry;
 
-    private InteractionClassHandle _startInteractionClassHandle;
     private ParameterHandle _timeScaleFactorParameterHandle;
-    private InteractionClassHandle _stopInteractionClassHandle;
-
+    
     
 
     public HlaInterfaceImpl() {
     }
 
-    public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName)
+    public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
+        Map<String, String[]> interactionSubscriptions)
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
             FederateServiceInvocationsAreBeingReportedViaMOM {
@@ -130,8 +125,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     
 
         try {
-            getHandles();
-            subscribeInteractions();
+            subscribeInteractions(interactionSubscriptions);
             logger.info("Started Subscription");
 
         } catch (FederateNotExecutionMember e) {
@@ -163,32 +157,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             } 
         } catch (NotConnected ignored) {
         }
-    }
-
-    private void getHandles() throws RTIinternalError, FederateNotExecutionMember, NotConnected {
-        try {
-
-            _startInteractionClassHandle = _ambassador.getInteractionClassHandle("Start");
-            _timeScaleFactorParameterHandle = _ambassador.getParameterHandle(_startInteractionClassHandle,
-                    "TimeScaleFactor");
-            _stopInteractionClassHandle = _ambassador.getInteractionClassHandle("Stop");
-
-        } catch (NameNotFound | InvalidInteractionClassHandle e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        }
-    }
-
-    private void subscribeInteractions() throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress,
-            NotConnected, RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
-        try {
-            _ambassador.subscribeInteractionClass(_startInteractionClassHandle);
-            _ambassador.subscribeInteractionClass(_stopInteractionClassHandle);
-        } catch (InteractionClassNotDefined e) {
-            throw new RTIinternalError("HlaInterfaceFailure", e);
-        }
-    }
-
-    
+    }    
 
     @Override
     public void connectionLost(String faultDescription) throws FederateInternalError {
@@ -199,12 +168,19 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
      * Interactions
      */
 
-    public void addInteractionListener(InteractionListener listener) {
-        _listeners.add(listener);
-    }
-
-    public void removeInteractionListener(InteractionListener listener) {
-        _listeners.add(listener);
+    private void subscribeInteractions(Map<String, String[]> interactionSubscriptions) 
+        throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected, 
+        RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
+        interactionSubscriptions.forEach((key, value) -> {
+            try {
+                InteractionClassHandle handle = _ambassador.getInteractionClassHandle(key);
+                _ambassador.subscribeInteractionClass(handle);
+            } catch (NameNotFound | FederateNotExecutionMember | NotConnected | RTIinternalError 
+                | FederateServiceInvocationsAreBeingReportedViaMOM | InteractionClassNotDefined 
+                | SaveInProgress | RestoreInProgress e) {
+                logger.error("Could not register listener for {}!", key, e);
+            }
+        });
     }
 
     @Override
@@ -231,18 +207,11 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
         logger.info("Received Interaction");
-        if (interactionClass.equals(_startInteractionClassHandle)) {
-            logger.info("Received Start Interaction");
-            try {
-                float timeScaleFactor = _decoderRegistry
-                        .decode("ScaleFactorFloat32", theParameters.get(_timeScaleFactorParameterHandle), Float.class);
-                for (InteractionListener listener : _listeners) {
-                    listener.receivedStart(timeScaleFactor);
-                }
-            } catch (DecoderException e) {
-                System.out.println("Failed to decode parameters for Start interaction");
-                e.printStackTrace();
-            }
+        try {
+            String interactionName = _ambassador.getInteractionClassName(interactionClass);
+            logger.info("Interaction Handle: {}", interactionName);
+        } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
+            logger.error("Error ascertaining interaction details!", e);
         }
     }
 }
