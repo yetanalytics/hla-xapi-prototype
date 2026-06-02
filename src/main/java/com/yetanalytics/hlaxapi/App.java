@@ -1,6 +1,8 @@
 package com.yetanalytics.hlaxapi;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -37,24 +39,13 @@ public class App {
         try {
             logger.info("Attempting RTI Connection");
             hlaInterface.start(config.getLocalSettingsDesignator(), config.getFom(), config.getFederationName(),
-                    config.getFederateName());
+                    config.getFederateName(), getInteractionMap());
         } catch (RTIexception e) {
             System.out.println("Could not connect to the RTI using the local settings designator \""
                     + config.getLocalSettingsDesignator() + "\"");
             e.printStackTrace();
             return;
         }
-
-        hlaInterface.addInteractionListener(new InteractionListener() {
-
-            public void receivedStart(float timeScaleFactor) {
-                logger.info("Scenario Started Event Handler Run");
-            }
-
-            public void receivedStop() {
-                logger.info("Scenario Stopped Event Handler Run");
-            }
-        });
 
         try {
             shutdownLatch.await();
@@ -64,6 +55,7 @@ public class App {
             shutdown(hlaInterface, shutdownLatch, shuttingDown);
         }
     }
+
     private static void shutdown(
             HlaInterface hlaInterface,
             CountDownLatch shutdownLatch,
@@ -81,6 +73,19 @@ public class App {
             logger.warn("Error while stopping HLA interface", e);
         } finally {
             shutdownLatch.countDown();
+
         }
+    }
+
+    //This will be set by config and a parser, not manually
+    //TODO: Redo for multidimentsional params OR just properly implement the config/DSL
+    private static Map<String, String[]> getInteractionMap(){
+        Map<String, String[]> interacMap = new HashMap<>();
+        interacMap.put("LoadScenario", new String[]{"ScenarioName", "InitialFuelAmount"});
+        interacMap.put("ScenarioLoaded", new String[]{"FederateName"});
+        interacMap.put("ScenarioLoadFailure", new String[]{"FederateName", "ErrorMessage"});
+        interacMap.put("Start", new String[]{"TimeScaleFactor"});
+        interacMap.put("Stop", new String[]{});
+        return interacMap;
     }
 }
