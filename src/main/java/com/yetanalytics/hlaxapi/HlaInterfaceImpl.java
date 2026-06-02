@@ -59,7 +59,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private String _federationName;
 
-    private TimeScaleFactorFloat32Coder _callbackTimeScaleFactorCoder;
+    private HLADecoderRegistry _decoderRegistry;
 
     private ParameterHandle _timeScaleFactorParameterHandle;
     
@@ -77,7 +77,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         _ambassador = rtiFactory.getRtiAmbassador();
 
         EncoderFactory encoderFactory = rtiFactory.getEncoderFactory();
-        _callbackTimeScaleFactorCoder = new TimeScaleFactorFloat32Coder(encoderFactory);
+        _decoderRegistry = new HLADecoderRegistry(encoderFactory);
+        _decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
 
         try {
             _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, localSettingsDesignator);
