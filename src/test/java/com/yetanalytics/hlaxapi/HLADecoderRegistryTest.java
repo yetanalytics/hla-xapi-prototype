@@ -173,7 +173,7 @@ class HLADecoderRegistryTest {
 
     static Stream<Arguments> builtInDecodings() {
         return Stream.of(
-                Arguments.of("HLAboolean", new byte[] { 1 }, Boolean.TRUE),
+                Arguments.of("HLAboolean", int32(1, ByteOrder.BIG_ENDIAN), Boolean.TRUE),
                 Arguments.of("HLAinteger16BE", int16((short) -12345, ByteOrder.BIG_ENDIAN), (short) -12345),
                 Arguments.of("HLAinteger16LE", int16((short) -12345, ByteOrder.LITTLE_ENDIAN), (short) -12345),
                 Arguments.of("HLAinteger16", int16((short) 12345, ByteOrder.BIG_ENDIAN), (short) 12345),
