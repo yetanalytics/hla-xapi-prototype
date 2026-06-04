@@ -1,10 +1,13 @@
-.phony: clean, build, run-dev
+.PHONY: clean build run-dev vendor-portico
 
 build:
 	mvn package
 
 clean:
 	mvn clean
+
+vendor-portico:
+	./scripts/vendor-portico.sh
 
 #Example `make run-dev PRTI_LIB=~/prti1516e/lib/*`
 run-dev:
