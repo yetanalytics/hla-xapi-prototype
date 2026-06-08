@@ -15,3 +15,10 @@ make clean build
 make run-rti # if you would like to run a Portico RTI, do this and then open a new terminal for the next line
 make run-dev
 ```
+
+To build and run against a Pitch RTI installation instead of Portico:
+
+```shell
+make clean build-pitch
+make run-dev-pitch PITCH_RTI_LIB="/path/to/prti1516e/lib/*"
+```

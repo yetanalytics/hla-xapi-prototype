@@ -12,6 +12,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
+        <portico.scope>compile</portico.scope>
     </properties>
 
     <dependencyManagement>
@@ -46,6 +47,7 @@
             <groupId>org.porticoproject</groupId>
             <artifactId>portico</artifactId>
             <version>3.0.0-local</version>
+            <scope>${portico.scope}</scope>
         </dependency>
         <!-- Log4j API -->
         <dependency>
@@ -139,4 +141,13 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>pitch-rti</id>
+            <properties>
+                <portico.scope>test</portico.scope>
+            </properties>
+        </profile>
+    </profiles>
 </project>
