@@ -12,5 +12,6 @@ To build and run federate once configured:
 
 ```
 make clean build
+make run-rti # if you would like to run a Portico RTI, do this and then open a new terminal for the next line
 make run-dev
 ```
