@@ -81,7 +81,11 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         _decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
 
         try {
-            _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, localSettingsDesignator);
+            if (localSettingsDesignator == null || localSettingsDesignator.isBlank()) {
+                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE);
+            } else {
+                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, localSettingsDesignator);
+            }
         } catch (UnsupportedCallbackModel | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         } catch (AlreadyConnected ignored) {

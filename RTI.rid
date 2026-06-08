@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<portico>
+  <common>
+    <logging loglevel="INFO" logdir="logs"/>
+    <special/>
+  </common>
+
+  <rti>
+    <network>
+      <connection name="default" transport="tcp-server">
+        <tcp-server address="LOOPBACK" port="52295"/>
+      </connection>
+    </network>
+  </rti>
+
+  <lrc>
+    <network>
+      <connection name="default" transport="tcp-client">
+        <tcp-client address="LOOPBACK" port="52295"/>
+      </connection>
+    </network>
+  </lrc>
+
+  <forwarder>
+    <network>
+      <connection name="upstream" transport="jvm"><jvm/></connection>
+      <connection name="downstream" transport="jvm"><jvm/></connection>
+    </network>
+    <firewall enabled="false">
+      <import/>
+      <export/>
+    </firewall>
+  </forwarder>
+</portico>

@@ -41,12 +41,11 @@
             <artifactId>rti1516e</artifactId>
             <version>1.0.0</version>
         </dependency>
-        <!-- Vendored Portico RTI implementation for encoder tests -->
+        <!-- Vendored Portico RTI implementation -->
         <dependency>
             <groupId>org.porticoproject</groupId>
             <artifactId>portico</artifactId>
             <version>3.0.0-local</version>
-            <scope>test</scope>
         </dependency>
         <!-- Log4j API -->
         <dependency>
