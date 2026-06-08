@@ -4,7 +4,7 @@ An HLA federate capable of converting HLA Interactions into xAPI Statements and 
 
 ### To Run
 
-The development runtime uses the vendored Portico RTI implementation. Portico loads `./RTI.rid` by default, so run commands from the repository root or set `RTI_RID_FILE` to the RID file you want to use.
+The build output does not bundle an RTI implementation. The development runtime targets add either the vendored Portico RTI jar or a local Pitch RTI install on the runtime classpath.
 
 You will need to update `config/Simulation.config` with the appropriate federate information, and `config/fom.xml` (or a new FOM referenced from `Simulation.config`) with the federate's appropriate FOM. The current config should work with the HlaStarterKit Project from Pitch.
 
@@ -16,9 +16,9 @@ make run-rti # if you would like to run a Portico RTI, do this and then open a n
 make run-dev
 ```
 
-To build and run against a Pitch RTI installation instead of Portico:
+To run against a Pitch RTI installation instead of Portico:
 
 ```shell
-make clean build-pitch
+make clean build
 make run-dev-pitch PITCH_RTI_LIB="/path/to/prti1516e/lib/*"
 ```
