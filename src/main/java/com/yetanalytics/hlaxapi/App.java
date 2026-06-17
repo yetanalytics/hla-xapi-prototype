@@ -1,8 +1,6 @@
 package com.yetanalytics.hlaxapi;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -11,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.yetanalytics.hlaxapi.config.ConfigParser;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
-import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 
 import hla.rti1516e.exceptions.RTIexception;
 import hla.rti1516e.exceptions.RTIinternalError;
@@ -33,11 +30,13 @@ public class App {
             throw new RuntimeException(e);
         }
 
+        final String configPath = args.length > 0 ? args[0] : "config/Simulation.config";
+
         final SimulationConfig config;
         try {
-            config = new SimulationConfig("config/Simulation.config");
+            config = new SimulationConfig(configPath);
         } catch (IOException e) {
-            System.out.println("Could not read Simulation.config");
+            System.out.println("Could not read Simulation config: " + configPath);
             return;
         }
 
