@@ -1,0 +1,13 @@
+package com.yetanalytics.hlaxapi.config;
+
+public class LrsConfig {
+    public String host;
+    public String key;
+    public String secret;
+    public int batch;
+
+    @Override
+    public String toString() {
+        return String.format("LrsConfig{host=%s,key=%s,batch=%d}", host, key, batch);
+    }
+}

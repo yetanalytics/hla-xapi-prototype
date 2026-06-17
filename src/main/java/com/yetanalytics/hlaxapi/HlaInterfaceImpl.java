@@ -3,10 +3,11 @@ package com.yetanalytics.hlaxapi;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.yetanalytics.hlaxapi.config.XapiConfig;
 
 import hla.rti1516e.CallbackModel;
 import hla.rti1516e.InteractionClassHandle;
@@ -62,14 +63,12 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     private HLADecoderRegistry _decoderRegistry;
 
     private ParameterHandle _timeScaleFactorParameterHandle;
-    
-    
 
     public HlaInterfaceImpl() {
     }
 
     public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
-        Map<String, String[]> interactionSubscriptions)
+            XapiConfig xapiConfig)
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
             FederateServiceInvocationsAreBeingReportedViaMOM {
@@ -111,7 +110,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             int federateNameIndex = 1;
             while (!joined) {
                 try {
-                    _ambassador.joinFederationExecution(federateName + federateNameSuffix, "xAPI Interaction Processor", federationName,
+                    _ambassador.joinFederationExecution(federateName + federateNameSuffix, "xAPI Interaction Processor",
+                            federationName,
                             new URL[] { url });
                     joined = true;
                 } catch (FederateNameAlreadyInUse e) {
@@ -119,13 +119,16 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
                 }
             }
         } catch (FederateAlreadyExecutionMember ignored) {
-        } catch (CouldNotCreateLogicalTimeFactory | FederationExecutionDoesNotExist | CallNotAllowedFromWithinCallback e) {
+        } catch (CouldNotCreateLogicalTimeFactory | FederationExecutionDoesNotExist
+                | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
-        } 
-    
+        }
+
+        //Get relevant interactions to subscribe to from the xapiConfig
+
 
         try {
-            subscribeInteractions(interactionSubscriptions);
+            subscribeInteractions(xapiConfig);
             logger.info("Started Subscription");
 
         } catch (FederateNotExecutionMember e) {
@@ -137,27 +140,28 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         try {
             try {
                 _ambassador.resignFederationExecution(ResignAction.CANCEL_THEN_DELETE_THEN_DIVEST);
-            } catch (FederateOwnsAttributes | OwnershipAcquisitionPending 
-                | CallNotAllowedFromWithinCallback | InvalidResignAction e) {
+            } catch (FederateOwnsAttributes | OwnershipAcquisitionPending
+                    | CallNotAllowedFromWithinCallback | InvalidResignAction e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             } catch (FederateNotExecutionMember ignored) {
-            } 
+            }
 
             if (_federationName != null) {
                 try {
                     _ambassador.destroyFederationExecution(_federationName);
-                } catch (FederatesCurrentlyJoined 
-                    | FederationExecutionDoesNotExist ignored) {}
+                } catch (FederatesCurrentlyJoined
+                        | FederationExecutionDoesNotExist ignored) {
+                }
             }
 
             try {
                 _ambassador.disconnect();
             } catch (FederateIsExecutionMember | CallNotAllowedFromWithinCallback e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
-            } 
+            }
         } catch (NotConnected ignored) {
         }
-    }    
+    }
 
     @Override
     public void connectionLost(String faultDescription) throws FederateInternalError {
@@ -168,17 +172,17 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
      * Interactions
      */
 
-    private void subscribeInteractions(Map<String, String[]> interactionSubscriptions) 
-        throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected, 
-        RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
-        interactionSubscriptions.forEach((key, value) -> {
+    private void subscribeInteractions(XapiConfig xapiConfig)
+            throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected,
+            RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
+        xapiConfig.statementTriggers.forEach(trigger -> {
             try {
-                InteractionClassHandle handle = _ambassador.getInteractionClassHandle(key);
+                InteractionClassHandle handle = _ambassador.getInteractionClassHandle(trigger.clazz);
                 _ambassador.subscribeInteractionClass(handle);
-            } catch (NameNotFound | FederateNotExecutionMember | NotConnected | RTIinternalError 
-                | FederateServiceInvocationsAreBeingReportedViaMOM | InteractionClassNotDefined 
-                | SaveInProgress | RestoreInProgress e) {
-                logger.error("Could not register listener for {}!", key, e);
+            } catch (NameNotFound | FederateNotExecutionMember | NotConnected | RTIinternalError
+                    | FederateServiceInvocationsAreBeingReportedViaMOM | InteractionClassNotDefined
+                    | SaveInProgress | RestoreInProgress e) {
+                logger.error("Could not register listener for {}!", trigger.clazz, e);
             }
         });
     }

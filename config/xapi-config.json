@@ -1,0 +1,31 @@
+{
+    "statementTriggers": [
+        {
+            "type": "Interaction",
+            "class": "LoadScenario",
+            "criteria": [["key1"], "=", "thing1"],
+            "statement": {
+                "actor": {
+                    "objectType": "Agent",
+                    "name": ["this", ["ScenarioName"]],
+                    "account": {
+                        "homePage": "https://homepage.system.io",
+                        "name": ["Object", "Player", ["Name"], ["Number", "=", 0]]
+                    }
+                },
+                "context": {
+                    "extensions": {
+                        "http://www.extensions.com/car-color": ["query", "Car", ["carColor"], [["carId"], "=", 4]],
+                        "http://www.extensions.com/nested-example": ["query", "Car", ["carColor"], [["carId"], "=", ["this", ["CarId"]]]]
+                    }
+                }
+            }
+        }
+    ],
+    "lrs": {
+        "host": "host string",
+        "key": "key string",
+        "secret": "secret string",
+        "batch": 4
+    }    
+}
