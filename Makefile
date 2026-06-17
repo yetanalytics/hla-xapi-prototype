@@ -1,4 +1,4 @@
-.PHONY: clean build run-dev run-dev-pitch run-rti vendor-portico
+.PHONY: clean build format lint run-dev run-dev-pitch run-rti test vendor-portico verify
 
 APP_JAR := target/hla-xapi-1.0-SNAPSHOT-jar-with-dependencies.jar
 PORTICO_JAR ?= lib/maven-repository/org/porticoproject/portico/3.0.0-local/portico-3.0.0-local.jar
@@ -13,8 +13,20 @@ build:
 clean:
 	mvn clean
 
+format:
+	mvn spotless:apply
+
+lint:
+	mvn spotless:check checkstyle:check
+
+test:
+	mvn test
+
 vendor-portico:
 	./scripts/vendor-portico.sh
+
+verify:
+	mvn verify
 
 run-dev:
 	java -cp "$(APP_JAR):$(PORTICO_JAR)" com.yetanalytics.hlaxapi.App $(SIM_CONFIG)
