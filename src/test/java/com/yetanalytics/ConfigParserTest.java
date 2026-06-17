@@ -28,7 +28,7 @@ public class ConfigParserTest {
 
     private static final Logger logger = LogManager.getLogger(ConfigParserTest.class);
 
-    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":[THIS:Target{[ScenarioName]}],\"account\":{\"homePage\":\"https://qa.empact.io\",\"name\":[\"Object\",\"Player\",[\"Name\"],[\"Number\",\"=\",0]]}},\"context\":{\"extensions\":{\"http://www.extensions.com/car-color\":[QUERY:Car:Target{[carColor]}:Criterion{Target{[carId]} = Value(4)}],\"http://www.extensions.com/nested-example\":[QUERY:Car:Target{[carColor]}:Criterion{Target{[carId]} = This(Target{[CarId]})}]}}}";
+    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":[THIS:Target{[ScenarioName]}],\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":[\"Object\",\"Player\",[\"Name\"],[\"Number\",\"=\",0]]}},\"context\":{\"extensions\":{\"http://www.extensions.com/car-color\":[QUERY:Car:Target{[carColor]}:Criterion{Target{[carId]} = Value(4)}],\"http://www.extensions.com/nested-example\":[QUERY:Car:Target{[carColor]}:Criterion{Target{[carId]} = This(Target{[CarId]})}]}}}";
 
     @Test
     public void parsesConfigFile() throws IOException {

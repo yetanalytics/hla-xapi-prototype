@@ -4,6 +4,7 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -64,16 +65,20 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private ParameterHandle _timeScaleFactorParameterHandle;
 
+    private XapiConfig xapiConfig;
+
     public HlaInterfaceImpl() {
     }
 
     public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
-            XapiConfig xapiConfig)
+            XapiConfig xapiConfigInput)
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
             FederateServiceInvocationsAreBeingReportedViaMOM {
         RtiFactory rtiFactory = RtiFactoryFactory.getRtiFactory();
         _ambassador = rtiFactory.getRtiAmbassador();
+
+        xapiConfig = xapiConfigInput;
 
         EncoderFactory encoderFactory = rtiFactory.getEncoderFactory();
         _decoderRegistry = new HLADecoderRegistry(encoderFactory);
@@ -131,7 +136,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         // Get relevant interactions to subscribe to from the xapiConfig
 
         try {
-            subscribeInteractions(xapiConfig);
+            subscribeInteractions();
             logger.info("Started Subscription");
 
         } catch (FederateNotExecutionMember e) {
@@ -175,7 +180,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
      * Interactions
      */
 
-    private void subscribeInteractions(XapiConfig xapiConfig)
+    private void subscribeInteractions()
             throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected,
             RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
         xapiConfig.statementTriggers.forEach(trigger -> {
@@ -217,6 +222,13 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         try {
             String interactionName = _ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
+            String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
+            xapiConfig.statementTriggers.stream()
+                    .filter(trigger -> trigger.clazz.equals(interactionKey))
+                    .forEach(trigger -> {
+                        logger.info("Processing trigger for interaction {}", trigger.clazz);
+                        TriggerProcessor.processTrigger(trigger);
+                    });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);
         }
