@@ -31,7 +31,13 @@ Use Maven's `verify` lifecycle before opening a PR:
 make verify
 ```
 
-This runs unit tests, Spotless formatting checks, and Checkstyle. To update formatting locally:
+This runs unit tests and builds the package. Formatting and linting are advisory in CI for now. To run them locally:
+
+```shell
+make lint
+```
+
+To update formatting locally:
 
 ```shell
 make format
