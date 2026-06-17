@@ -20,11 +20,12 @@ public class App {
 
         logger.info("Starting Custom Federate");
 
+        final String configPath = args.length > 0 ? args[0] : "config/Simulation.config";
         final SimulationConfig config;
         try {
-            config = new SimulationConfig("config/Simulation.config");
+            config = new SimulationConfig(configPath);
         } catch (IOException e) {
-            System.out.println("Could not read Simulation.config");
+            System.out.println("Could not read Simulation config: " + configPath);
             return;
         }
 
