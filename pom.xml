@@ -157,6 +157,7 @@
                                 <include>**/*.sh</include>
                                 <include>**/*.yaml</include>
                                 <include>**/*.yml</include>
+                                <include>src/main/java/**/*.java</include>
                             </includes>
                             <excludes>
                                 <exclude>lib/**</exclude>
@@ -171,15 +172,6 @@
                             </indent>
                         </format>
                     </formats>
-                    <java>
-                        <excludes>
-                            <exclude>src/test/java/**/*.java</exclude>
-                        </excludes>
-                        <palantirJavaFormat>
-                            <version>2.50.0</version>
-                        </palantirJavaFormat>
-                        <removeUnusedImports/>
-                    </java>
                 </configuration>
             </plugin>
             <plugin>
