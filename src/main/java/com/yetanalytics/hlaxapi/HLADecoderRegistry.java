@@ -288,7 +288,7 @@ public class HLADecoderRegistry {
         return lookupRegisteredDecoder(normalize(hlaType)).resolved(this);
     }
 
-    private RegisteredDecoder lookupRegisteredDecoder(String normalizedType) {
+    public RegisteredDecoder lookupRegisteredDecoder(String normalizedType) {
         RegisteredDecoder registered = decoders.get(normalizedType);
         if (registered == null) {
             throw new IllegalArgumentException("No HLA decoder registered for type " + normalizedType

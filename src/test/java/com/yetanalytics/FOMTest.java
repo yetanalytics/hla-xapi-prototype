@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
+import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.fom.FOMXML;
 import com.yetanalytics.hlaxapi.fom.FOMXML.PathCheckResult;
 
@@ -11,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
 /**
  * Tests for FOM Parsing.
@@ -21,7 +23,10 @@ public class FOMTest {
 
     @BeforeAll
     public static void setUp() {
-        FOMXML.initInstance("src/test/resources/SISO-STD-025.3-2024.xml");
+        
+        FOMXML.initInstance("src/test/resources/SISO-STD-025.3-2024.xml",
+            new HLADecoderRegistry(new HLA1516eEncoderFactory())
+        );
     }
 
     @Test

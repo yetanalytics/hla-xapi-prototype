@@ -15,7 +15,7 @@ import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
 import com.yetanalytics.hlaxapi.App;
-
+import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,10 +31,11 @@ public class FOMXML {
     private Document doc;
     private XPath xPath;
 
-    // 1. Private constructor
-    private FOMXML(String fomFileLocation) {
-        File xmlFile = new File(fomFileLocation);
+    private HLADecoderRegistry decoderRegistry;
 
+    // 1. Private constructor
+    private FOMXML(String fomFileLocation, HLADecoderRegistry decoderRegistry) {
+        File xmlFile = new File(fomFileLocation);
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(false);
 
@@ -46,12 +47,13 @@ public class FOMXML {
         }
 
         setxPath(XPathFactory.newInstance().newXPath());
+        setDecoderRegistry(decoderRegistry);
     }
 
     // 2. Initialization point (Thread-safe)
-    public static synchronized FOMXML initInstance(String fomFileLocation) {
+    public static synchronized FOMXML initInstance(String fomFileLocation, HLADecoderRegistry decoderRegistry) {
         if (instance == null) {
-            instance = new FOMXML(fomFileLocation);
+            instance = new FOMXML(fomFileLocation, decoderRegistry);
         }
         return instance;
     }
@@ -64,7 +66,7 @@ public class FOMXML {
         return instance;
     }
 
-    private static List<String> prims = List.of(
+    /*private static List<String> prims = List.of(
             "HLAASCIIchar",
             "HLAASCIIstring",
             "HLAboolean",
@@ -84,10 +86,15 @@ public class FOMXML {
             "HLAoctetPairLE",
             "HLAopaqueData",
             "HLAunicodeChar",
-            "HLAunicodeString");
+            "HLAunicodeString");*/
 
     private boolean isPrim(String type) {
-        return prims.contains(type);
+        try {
+            decoderRegistry.decoderFor(type);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /**
@@ -266,6 +273,14 @@ public class FOMXML {
 
     public void setxPath(XPath xPath) {
         this.xPath = xPath;
+    }
+
+    public HLADecoderRegistry getDecoderRegistry() {
+        return decoderRegistry;
+    }
+
+    public void setDecoderRegistry(HLADecoderRegistry decoderRegistry) {
+        this.decoderRegistry = decoderRegistry;
     }
 
 }
