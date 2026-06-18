@@ -5,10 +5,10 @@ package com.yetanalytics.hlaxapi.config.model;
  */
 public class Criterion implements Expression {
     public final Expression left; // Target or nested Expression
-    public final com.yetanalytics.hlaxapi.config.model.ComparisonOperator operator;
+    public final ComparisonOperator operator;
     public final Expression right; // ValueExpression, Target, or nested Expression
 
-    public Criterion(Expression left, com.yetanalytics.hlaxapi.config.model.ComparisonOperator operator, Expression right) {
+    public Criterion(Expression left, ComparisonOperator operator, Expression right) {
         this.left = left;
         this.operator = operator;
         this.right = right;

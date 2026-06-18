@@ -111,7 +111,11 @@ public class FOMXML {
         }
 
         public String toString() {
-            return String.format("PathCheckResult{exists=%s, primitiveType=%s, resolvedType=%s}", exists, primitiveType, resolvedType);
+            return String.format(
+                    "PathCheckResult{exists=%s, primitiveType=%s, resolvedType=%s}",
+                    exists,
+                    primitiveType,
+                    resolvedType);
         }
     }
 
@@ -143,9 +147,12 @@ public class FOMXML {
 
 
 
-    private final String findInteractionByNameExp = "//interactionClass[name[text()='%s']]/parameter[name[text()='%s']]/dataType";
-    private final String findObjectByNameExp = "//objectClass[name[text()='%s']]/attribute[name[text()='%s']]/dataType";
-    private final String fixedRecordDataTypeExp = "//fixedRecordData[name[text()='%s']]/field[name[text()='%s']]/dataType";
+    private final String findInteractionByNameExp =
+            "//interactionClass[name[text()='%s']]/parameter[name[text()='%s']]/dataType";
+    private final String findObjectByNameExp =
+            "//objectClass[name[text()='%s']]/attribute[name[text()='%s']]/dataType";
+    private final String fixedRecordDataTypeExp =
+            "//fixedRecordData[name[text()='%s']]/field[name[text()='%s']]/dataType";
     private final String arrayDataTypeExp = "//arrayData[name[text()='%s']]/dataType";
 
     /**
@@ -206,7 +213,8 @@ public class FOMXML {
             currentTypeName = foundType;
         }
 
-        // currentTypeName is now the type at the end of the path (may be primitive, simpleData, enumeratedData, or another custom)
+        // currentTypeName is now the type at the end of the path. It may be
+        // primitive, simpleData, enumeratedData, or another custom type.
         // If it's a primitive, return it. Otherwise try to resolve to a primitive via getRawType.
         if (isPrim(currentTypeName)) {
             return new PathCheckResult(true, currentTypeName, currentTypeName);
