@@ -12,6 +12,9 @@ import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.InjectionHandler;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
+
+import hla.rti1516e.ParameterHandleValueMap;
+
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 
@@ -19,7 +22,8 @@ public class TriggerProcessor {
 
     private static final Logger logger = LogManager.getLogger(TriggerProcessor.class);
 
-    public static String processTrigger(StatementTrigger trigger) {
+    public static String processInteractionTrigger(StatementTrigger trigger, String interactionKey,
+            ParameterHandleValueMap theParameters) {
         if (trigger.statement == null) {
             return null;
         }
@@ -70,7 +74,6 @@ public class TriggerProcessor {
             logger.debug("Could not process statement for trigger", e);
             return null;
         }
-
     }
 
     private static void findInjectionArrays(JsonNode node, List<JsonNode> out) {

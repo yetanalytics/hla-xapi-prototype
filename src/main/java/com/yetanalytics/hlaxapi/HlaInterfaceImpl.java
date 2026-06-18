@@ -1,6 +1,7 @@
 package com.yetanalytics.hlaxapi;
 
 import java.io.File;
+import java.lang.Thread.State;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -9,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.yetanalytics.hlaxapi.config.XapiConfig;
+import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 
 import hla.rti1516e.CallbackModel;
 import hla.rti1516e.InteractionClassHandle;
@@ -223,15 +225,14 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             String interactionName = _ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
-            // TODO: This is just a naive implementation of matching interactions to triggers.
-            // We will need to handle criteria for triggers as well as passing the
-            // interaction itself to the trigger processor.
-            // ALSO NOTE: we will want to add a similar set of handlers for object updates
+            // TODO: Need criteria matching, though maybe that happens in processor, we will definitely want to add a 
+            // similar set of handlers for object updates
             xapiConfig.statementTriggers.stream()
-                    .filter(trigger -> trigger.clazz.equals(interactionKey))
+                    .filter(trigger -> trigger.clazz.equals(interactionKey)
+                            && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.info("Processing trigger for interaction {}", trigger.clazz);
-                        TriggerProcessor.processTrigger(trigger);
+                        TriggerProcessor.processInteractionTrigger(trigger, interactionKey, theParameters);
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);
