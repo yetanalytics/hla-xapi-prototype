@@ -172,6 +172,9 @@
                         </format>
                     </formats>
                     <java>
+                        <excludes>
+                            <exclude>src/test/java/**/*.java</exclude>
+                        </excludes>
                         <palantirJavaFormat>
                             <version>2.50.0</version>
                         </palantirJavaFormat>
@@ -186,7 +189,6 @@
                     <configLocation>config/checkstyle/checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <failOnViolation>true</failOnViolation>
-                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
                     <linkXRef>false</linkXRef>
                 </configuration>
             </plugin>
