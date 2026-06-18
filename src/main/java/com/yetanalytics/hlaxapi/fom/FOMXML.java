@@ -111,8 +111,12 @@ public class FOMXML {
         }
 
         public String toString() {
-            return String.format("PathCheckResult{exists=%s, primitiveType=%s, resolvedType=%s}", exists, primitiveType, resolvedType);
-        }   
+            return String.format(
+                    "PathCheckResult{exists=%s, primitiveType=%s, resolvedType=%s}",
+                    exists,
+                    primitiveType,
+                    resolvedType);
+        }
     }
 
     public PathCheckResult checkInteractionParameterPath(String interactionName, List<Object> pathParts){
@@ -140,12 +144,15 @@ public class FOMXML {
     public PathCheckResult checkObjectParameterPath(String objectName, String param){
         return checkObjectParameterPath(objectName, List.of(param));
     }
-    
-    
-    
-    private final String findInteractionByNameExp = "//interactionClass[name[text()='%s']]/parameter[name[text()='%s']]/dataType";
-    private final String findObjectByNameExp = "//objectClass[name[text()='%s']]/attribute[name[text()='%s']]/dataType";
-    private final String fixedRecordDataTypeExp = "//fixedRecordData[name[text()='%s']]/field[name[text()='%s']]/dataType";
+
+
+
+    private final String findInteractionByNameExp =
+            "//interactionClass[name[text()='%s']]/parameter[name[text()='%s']]/dataType";
+    private final String findObjectByNameExp =
+            "//objectClass[name[text()='%s']]/attribute[name[text()='%s']]/dataType";
+    private final String fixedRecordDataTypeExp =
+            "//fixedRecordData[name[text()='%s']]/field[name[text()='%s']]/dataType";
     private final String arrayDataTypeExp = "//arrayData[name[text()='%s']]/dataType";
 
     /**
@@ -169,7 +176,7 @@ public class FOMXML {
         }
 
         // find parameter dataType for the interaction/object
-        String paramExp = String.format(isInteraction ? findInteractionByNameExp : findObjectByNameExp, 
+        String paramExp = String.format(isInteraction ? findInteractionByNameExp : findObjectByNameExp,
             entityName, (String) first);
         String currentTypeName = (String) xPath.compile(paramExp).evaluate(doc, XPathConstants.STRING);
 
@@ -206,7 +213,8 @@ public class FOMXML {
             currentTypeName = foundType;
         }
 
-        // currentTypeName is now the type at the end of the path (may be primitive, simpleData, enumeratedData, or another custom)
+        // currentTypeName is now the type at the end of the path. It may be
+        // primitive, simpleData, enumeratedData, or another custom type.
         // If it's a primitive, return it. Otherwise try to resolve to a primitive via getRawType.
         if (isPrim(currentTypeName)) {
             return new PathCheckResult(true, currentTypeName, currentTypeName);
@@ -225,15 +233,15 @@ public class FOMXML {
     private final String checkEnumDataTypeExp = "//enumeratedData[name[text()='%s']]/representation";
 
     /**
-     * Given what is presumed to be a custom data type name, check if it's a simpleData or enumeratedData and return 
+     * Given what is presumed to be a custom data type name, check if it's a simpleData or enumeratedData and return
      * the primitive representation if so.
      *
      */
     private String getRawType(String dataTypeName) throws XPathExpressionException{
-        
+
         String simpleExp = String.format(checkSimpleDataTypeExp, dataTypeName);
         String simpleType = (String) xPath.compile(simpleExp).evaluate(doc, XPathConstants.STRING);
-        if (!simpleType.isEmpty()) 
+        if (!simpleType.isEmpty())
             return simpleType;
 
         String enumExp = String.format(checkEnumDataTypeExp, dataTypeName);

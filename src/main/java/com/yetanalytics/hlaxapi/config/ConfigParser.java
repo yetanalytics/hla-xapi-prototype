@@ -14,7 +14,8 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Lightweight parser for the config format described in config-ideas.md.
@@ -22,7 +23,7 @@ import java.util.*;
  */
 public class ConfigParser {
     private static final Logger logger = LogManager.getLogger(ConfigParser.class);
-    
+
     private final ObjectMapper mapper = new ObjectMapper();
     private final JsonNode root;
 
@@ -90,7 +91,8 @@ public class ConfigParser {
             // Otherwise treat as raw array/compound expression
             List<Object> out = new ArrayList<>();
             for (JsonNode el : an) {
-                if (el.isTextual() && (com.yetanalytics.hlaxapi.config.model.LogicalOperator.fromString(el.asText().toLowerCase()) != null)) {
+                if (el.isTextual()
+                        && (LogicalOperator.fromString(el.asText().toLowerCase()) != null)) {
                     out.add(el.asText().toLowerCase());
                 } else {
                     out.add(parseCriteriaNode(el));

@@ -157,6 +157,7 @@
                                 <include>**/*.sh</include>
                                 <include>**/*.yaml</include>
                                 <include>**/*.yml</include>
+                                <include>src/main/java/**/*.java</include>
                             </includes>
                             <excludes>
                                 <exclude>lib/**</exclude>
@@ -171,13 +172,16 @@
                             </indent>
                         </format>
                     </formats>
-                    <java>
-                        <palantirJavaFormat>
-                            <version>2.50.0</version>
-                        </palantirJavaFormat>
-                        <removeUnusedImports/>
-                    </java>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -186,9 +190,17 @@
                     <configLocation>config/checkstyle/checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <failOnViolation>true</failOnViolation>
-                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
                     <linkXRef>false</linkXRef>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>checkstyle-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
