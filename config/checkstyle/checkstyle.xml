@@ -17,8 +17,6 @@
 
     <module name="TreeWalker">
         <module name="AvoidStarImport"/>
-        <module name="NeedBraces"/>
-        <module name="OneStatementPerLine"/>
         <module name="UnusedImports"/>
     </module>
 </module>
