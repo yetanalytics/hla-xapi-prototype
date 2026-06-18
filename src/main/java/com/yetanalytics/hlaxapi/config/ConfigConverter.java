@@ -1,14 +1,13 @@
 package com.yetanalytics.hlaxapi.config;
 
-import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
-import com.yetanalytics.hlaxapi.config.model.ValueExpression;
+import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ThisExpression;
-
+import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,25 +17,33 @@ import java.util.List;
 public class ConfigConverter {
 
     public static Target toTarget(Object raw) {
-        if (raw == null) return null;
+        if (raw == null) {
+            return null;
+        }
         if (raw instanceof List) {
             List<?> l = (List<?>) raw;
             List<Object> parts = new ArrayList<>();
-            for (Object o : l) parts.add(o);
+            for (Object o : l) {
+                parts.add(o);
+            }
             return new Target(parts);
         }
         return null;
     }
 
     public static Object toCriterionOrValue(Object raw) {
-        if (raw == null) return null;
+        if (raw == null) {
+            return null;
+        }
         if (raw instanceof List) {
             List<?> l = (List<?>) raw;
             // If this is an injection-style array starting with "this", treat as ThisExpression
             if (l.size() > 0 && l.get(0) instanceof String && ((String) l.get(0)).equalsIgnoreCase("this")) {
                 // expected form: ["this", targetArray]
                 Target t = null;
-                if (l.size() >= 2) t = toTarget(l.get(1));
+                if (l.size() >= 2) {
+                    t = toTarget(l.get(1));
+                }
                 return new ThisExpression(t);
             }
             // binary comparison (3 elements, middle is a string, and not a logical operator)
@@ -69,7 +76,9 @@ public class ConfigConverter {
 
             // try target
             Target t = toTarget(raw);
-            if (t != null) return t;
+            if (t != null) {
+                return t;
+            }
             // fallback: return raw
             return raw;
         }
@@ -79,7 +88,9 @@ public class ConfigConverter {
 
     public static Expression toExpression(Object raw) {
         Object o = toCriterionOrValue(raw);
-        if (o instanceof Expression) return (Expression) o;
+        if (o instanceof Expression) {
+            return (Expression) o;
+        }
         // wrap primitives
         return new ValueExpression(o);
     }
@@ -89,7 +100,9 @@ public class ConfigConverter {
      */
     public static Criterion toCriterion(Object raw) {
         Object out = toCriterionOrValue(raw);
-        if (out instanceof Criterion) return (Criterion) out;
+        if (out instanceof Criterion) {
+            return (Criterion) out;
+        }
         return null;
     }
 }

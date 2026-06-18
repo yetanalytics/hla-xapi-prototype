@@ -1,5 +1,9 @@
 package com.yetanalytics.hlaxapi.fom;
 
+import com.yetanalytics.hlaxapi.App;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -7,19 +11,10 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Document;
-
 import org.xml.sax.SAXException;
-
-import com.yetanalytics.hlaxapi.App;
-
-
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
 
 public class FOMXML {
 
@@ -111,11 +106,15 @@ public class FOMXML {
         }
 
         public String toString() {
-            return String.format("PathCheckResult{exists=%s, primitiveType=%s, resolvedType=%s}", exists, primitiveType, resolvedType);
-        }   
+            return String.format(
+                    "PathCheckResult{exists=%s, primitiveType=%s, resolvedType=%s}",
+                    exists,
+                    primitiveType,
+                    resolvedType);
+        }
     }
 
-    public PathCheckResult checkInteractionParameterPath(String interactionName, List<Object> pathParts){
+    public PathCheckResult checkInteractionParameterPath(String interactionName, List<Object> pathParts) {
         try {
             return checkParameterPath(interactionName, true, pathParts);
         } catch (XPathExpressionException e) {
@@ -124,7 +123,7 @@ public class FOMXML {
         }
     }
 
-    public PathCheckResult checkInteractionParameterPath(String interactionName, String param){
+    public PathCheckResult checkInteractionParameterPath(String interactionName, String param) {
         return checkInteractionParameterPath(interactionName, List.of(param));
     }
 
@@ -137,15 +136,15 @@ public class FOMXML {
         }
     }
 
-    public PathCheckResult checkObjectParameterPath(String objectName, String param){
+    public PathCheckResult checkObjectParameterPath(String objectName, String param) {
         return checkObjectParameterPath(objectName, List.of(param));
     }
-    
-    
-    
-    private final String findInteractionByNameExp = "//interactionClass[name[text()='%s']]/parameter[name[text()='%s']]/dataType";
+
+    private final String findInteractionByNameExp =
+            "//interactionClass[name[text()='%s']]/parameter[name[text()='%s']]/dataType";
     private final String findObjectByNameExp = "//objectClass[name[text()='%s']]/attribute[name[text()='%s']]/dataType";
-    private final String fixedRecordDataTypeExp = "//fixedRecordData[name[text()='%s']]/field[name[text()='%s']]/dataType";
+    private final String fixedRecordDataTypeExp =
+            "//fixedRecordData[name[text()='%s']]/field[name[text()='%s']]/dataType";
     private final String arrayDataTypeExp = "//arrayData[name[text()='%s']]/dataType";
 
     /**
@@ -157,11 +156,13 @@ public class FOMXML {
      */
     private PathCheckResult checkParameterPath(String entityName, boolean isInteraction, List<Object> pathParts)
             throws XPathExpressionException {
-        if (entityName == null || entityName.isEmpty())
+        if (entityName == null || entityName.isEmpty()) {
             throw new IllegalArgumentException("entity name is required");
+        }
 
-        if (pathParts == null || pathParts.isEmpty())
+        if (pathParts == null || pathParts.isEmpty()) {
             throw new IllegalArgumentException("First element of pathParts must be the parameter name (String)");
+        }
 
         Object first = pathParts.get(0);
         if (!(first instanceof String)) {
@@ -169,8 +170,8 @@ public class FOMXML {
         }
 
         // find parameter dataType for the interaction/object
-        String paramExp = String.format(isInteraction ? findInteractionByNameExp : findObjectByNameExp, 
-            entityName, (String) first);
+        String paramExp =
+                String.format(isInteraction ? findInteractionByNameExp : findObjectByNameExp, entityName, first);
         String currentTypeName = (String) xPath.compile(paramExp).evaluate(doc, XPathConstants.STRING);
 
         if (currentTypeName == null || currentTypeName.isEmpty()) {
@@ -206,7 +207,7 @@ public class FOMXML {
             currentTypeName = foundType;
         }
 
-        // currentTypeName is now the type at the end of the path (may be primitive, simpleData, enumeratedData, or another custom)
+        // currentTypeName is now the type at the end of the path.
         // If it's a primitive, return it. Otherwise try to resolve to a primitive via getRawType.
         if (isPrim(currentTypeName)) {
             return new PathCheckResult(true, currentTypeName, currentTypeName);
@@ -225,21 +226,22 @@ public class FOMXML {
     private final String checkEnumDataTypeExp = "//enumeratedData[name[text()='%s']]/representation";
 
     /**
-     * Given what is presumed to be a custom data type name, check if it's a simpleData or enumeratedData and return 
-     * the primitive representation if so.
+     * Given what is presumed to be a custom data type name, check if it's a
+     * simpleData or enumeratedData and return the primitive representation if so.
      *
      */
-    private String getRawType(String dataTypeName) throws XPathExpressionException{
-        
+    private String getRawType(String dataTypeName) throws XPathExpressionException {
         String simpleExp = String.format(checkSimpleDataTypeExp, dataTypeName);
         String simpleType = (String) xPath.compile(simpleExp).evaluate(doc, XPathConstants.STRING);
-        if (!simpleType.isEmpty()) 
+        if (!simpleType.isEmpty()) {
             return simpleType;
+        }
 
         String enumExp = String.format(checkEnumDataTypeExp, dataTypeName);
         String enumType = (String) xPath.compile(enumExp).evaluate(doc, XPathConstants.STRING);
-        if (!enumType.isEmpty())
+        if (!enumType.isEmpty()) {
             return enumType;
+        }
 
         return null;
     }

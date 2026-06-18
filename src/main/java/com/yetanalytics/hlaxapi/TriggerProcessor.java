@@ -10,10 +10,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.InjectionHandler;
-import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
-import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
+import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.config.model.Target;
 
 public class TriggerProcessor {
 
@@ -34,8 +34,9 @@ public class TriggerProcessor {
             List<JsonNode> injections = new ArrayList<>();
             findInjectionArrays(stmtNode, injections);
             for (JsonNode inj : injections) {
-                if (!inj.isArray() || inj.size() == 0)
+                if (!inj.isArray() || inj.size() == 0) {
                     continue;
+                }
                 String keyword = inj.get(0).asText();
                 InjectionType iType = InjectionType.fromString(keyword);
                 String replacement = null;
@@ -51,8 +52,7 @@ public class TriggerProcessor {
                     Target attr = ConfigConverter.toTarget(rawTarget);
                     Object criteriaRaw = mapper.convertValue(inj.get(3), Object.class);
                     // convert raw criteria into typed Expression tree
-                    Expression criteriaExpr = ConfigConverter
-                            .toExpression(criteriaRaw);
+                    Expression criteriaExpr = ConfigConverter.toExpression(criteriaRaw);
                     replacement = InjectionHandler.handleQuery(clazz, attr, criteriaExpr);
                 }
 
@@ -74,8 +74,9 @@ public class TriggerProcessor {
     }
 
     private static void findInjectionArrays(JsonNode node, List<JsonNode> out) {
-        if (node == null)
+        if (node == null) {
             return;
+        }
         if (node.isArray()) {
             if (node.size() > 0 && node.get(0).isTextual()) {
                 String k = node.get(0).asText();
@@ -85,8 +86,9 @@ public class TriggerProcessor {
                     return;
                 }
             }
-            for (JsonNode el : node)
+            for (JsonNode el : node) {
                 findInjectionArrays(el, out);
+            }
             return;
         }
         if (node.isObject()) {
