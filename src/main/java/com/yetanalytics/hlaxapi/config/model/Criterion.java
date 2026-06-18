@@ -19,4 +19,3 @@ public class Criterion implements Expression {
         return String.format("Criterion{%s %s %s}", left, operator, right);
     }
 }
-

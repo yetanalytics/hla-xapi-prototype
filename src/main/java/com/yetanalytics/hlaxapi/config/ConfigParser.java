@@ -22,7 +22,7 @@ import java.util.*;
  */
 public class ConfigParser {
     private static final Logger logger = LogManager.getLogger(ConfigParser.class);
-    
+
     private final ObjectMapper mapper = new ObjectMapper();
     private final JsonNode root;
 
