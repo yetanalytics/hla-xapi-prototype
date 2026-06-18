@@ -22,3 +22,27 @@ To run against a Pitch RTI installation instead of Portico:
 make clean build
 make run-dev-pitch PITCH_RTI_LIB="/path/to/prti1516e/lib/*"
 ```
+
+### Development Checks
+
+Use Maven's `verify` lifecycle before opening a PR:
+
+```shell
+make verify
+```
+
+This runs unit tests and builds the package. Formatting and linting are advisory in CI for now. To run them locally:
+
+```shell
+make lint
+```
+
+To update formatting locally:
+
+```shell
+make format
+```
+
+Project style is intentionally minimal: Java uses 4-space indentation, no wildcard imports, braces on control
+statements, UTF-8 text, LF line endings, final newlines, and no trailing whitespace. Make recipes keep required tab
+indentation.
