@@ -14,8 +14,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Lightweight parser for the config format described in config-ideas.md.
@@ -23,7 +22,7 @@ import java.util.List;
  */
 public class ConfigParser {
     private static final Logger logger = LogManager.getLogger(ConfigParser.class);
-
+    
     private final ObjectMapper mapper = new ObjectMapper();
     private final JsonNode root;
 
@@ -77,9 +76,7 @@ public class ConfigParser {
 
     private Object parseCriteriaNode(JsonNode node) {
         // criteria syntax: [targetSyntax, operator, value]
-        if (node == null || node.isNull()) {
-            return null;
-        }
+        if (node == null || node.isNull()) return null;
 
         if (node.isArray()) {
             ArrayNode an = (ArrayNode) node;
@@ -93,7 +90,7 @@ public class ConfigParser {
             // Otherwise treat as raw array/compound expression
             List<Object> out = new ArrayList<>();
             for (JsonNode el : an) {
-                if (el.isTextual() && LogicalOperator.fromString(el.asText().toLowerCase()) != null) {
+                if (el.isTextual() && (com.yetanalytics.hlaxapi.config.model.LogicalOperator.fromString(el.asText().toLowerCase()) != null)) {
                     out.add(el.asText().toLowerCase());
                 } else {
                     out.add(parseCriteriaNode(el));
@@ -103,51 +100,34 @@ public class ConfigParser {
         }
 
         // fallback to primitive
-        if (node.isTextual()) {
-            return node.asText();
-        }
-        if (node.isNumber()) {
-            return node.numberValue();
-        }
-        if (node.isBoolean()) {
-            return node.booleanValue();
-        }
+        if (node.isTextual()) return node.asText();
+        if (node.isNumber()) return node.numberValue();
+        if (node.isBoolean()) return node.booleanValue();
         return mapper.convertValue(node, Object.class);
     }
 
     private boolean isLogicalOperator(JsonNode n) {
-        if (!n.isTextual()) {
-            return false;
-        }
+        if (!n.isTextual()) return false;
         String s = n.asText().toLowerCase();
         return LogicalOperator.fromString(s) != null;
     }
 
     private Object parseTargetSyntax(JsonNode node) {
         // target syntax is an array of strings and ints
-        if (node == null || !node.isArray()) {
-            return null;
-        }
+        if (node == null || !node.isArray()) return null;
         List<Object> parts = new ArrayList<>();
         for (JsonNode el : node) {
-            if (el.isTextual()) {
-                parts.add(el.asText());
-            } else if (el.isInt()) {
-                parts.add(el.asInt());
-            } else if (el.isLong()) {
-                parts.add(el.longValue());
-            } else {
-                parts.add(mapper.convertValue(el, Object.class));
-            }
+            if (el.isTextual()) parts.add(el.asText());
+            else if (el.isInt()) parts.add(el.asInt());
+            else if (el.isLong()) parts.add(el.longValue());
+            else parts.add(mapper.convertValue(el, Object.class));
         }
         return parts;
     }
 
     private Object parseValueNode(JsonNode node) {
         // value can be an injection syntax, a primitive, or another criteria
-        if (node == null || node.isNull()) {
-            return null;
-        }
+        if (node == null || node.isNull()) return null;
         if (node.isArray()) {
             ArrayNode an = (ArrayNode) node;
             if (an.size() > 0 && an.get(0).isTextual()) {
@@ -160,15 +140,9 @@ public class ConfigParser {
             // otherwise fallback
             return mapper.convertValue(node, List.class);
         }
-        if (node.isTextual()) {
-            return node.asText();
-        }
-        if (node.isNumber()) {
-            return node.numberValue();
-        }
-        if (node.isBoolean()) {
-            return node.booleanValue();
-        }
+        if (node.isTextual()) return node.asText();
+        if (node.isNumber()) return node.numberValue();
+        if (node.isBoolean()) return node.booleanValue();
         return mapper.convertValue(node, Object.class);
     }
 }

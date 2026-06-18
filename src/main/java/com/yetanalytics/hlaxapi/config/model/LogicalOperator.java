@@ -5,26 +5,17 @@ public enum LogicalOperator {
 
     public final String token;
 
-    LogicalOperator(String token) {
-        this.token = token;
-    }
+    LogicalOperator(String token) { this.token = token; }
 
     @Override
-    public String toString() {
-        return token;
-    }
+    public String toString() { return token; }
 
     public static LogicalOperator fromString(String s) {
-        if (s == null) {
-            return null;
-        }
+        if (s == null) return null;
         switch (s.trim().toLowerCase()) {
-            case "and":
-                return AND;
-            case "or":
-                return OR;
-            default:
-                return null;
+            case "and": return AND;
+            case "or": return OR;
+            default: return null;
         }
     }
 }

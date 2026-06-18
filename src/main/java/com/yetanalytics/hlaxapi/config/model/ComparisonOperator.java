@@ -10,27 +10,17 @@ public enum ComparisonOperator {
     }
 
     @Override
-    public String toString() {
-        return symbol;
-    }
+    public String toString() { return symbol; }
 
     public static ComparisonOperator fromString(String s) {
-        if (s == null) {
-            return null;
-        }
+        if (s == null) return null;
         switch (s.trim()) {
-            case "=":
-                return EQ;
-            case "!=":
-                return NEQ;
-            case "<":
-                return LT;
-            case ">":
-                return GT;
-            case "<=":
-                return LTE;
-            case ">=":
-                return GTE;
+            case "=": return EQ;
+            case "!=": return NEQ;
+            case "<": return LT;
+            case ">": return GT;
+            case "<=": return LTE;
+            case ">=": return GTE;
             default:
                 // allow textual names
                 try {

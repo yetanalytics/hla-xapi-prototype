@@ -5,26 +5,17 @@ public enum InjectionType {
 
     public final String token;
 
-    InjectionType(String token) {
-        this.token = token;
-    }
+    InjectionType(String token) { this.token = token; }
 
     @Override
-    public String toString() {
-        return token;
-    }
+    public String toString() { return token; }
 
     public static InjectionType fromString(String s) {
-        if (s == null) {
-            return null;
-        }
+        if (s == null) return null;
         switch (s.trim().toLowerCase()) {
-            case "this":
-                return THIS;
-            case "query":
-                return QUERY;
-            default:
-                return null;
+            case "this": return THIS;
+            case "query": return QUERY;
+            default: return null;
         }
     }
 }

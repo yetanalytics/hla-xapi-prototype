@@ -24,9 +24,7 @@ public class App {
         final XapiConfig xapiConfig;
         try {
             xapiConfig = ConfigParser.fromEnvOrDefault().parse();
-            logger.info(
-                    "Loaded xapi config: {} triggers",
-                    xapiConfig.statementTriggers == null ? 0 : xapiConfig.statementTriggers.size());
+            logger.info("Loaded xapi config: {} triggers", xapiConfig.statementTriggers == null ? 0 : xapiConfig.statementTriggers.size());
         } catch (Exception e) {
             logger.warn("Could not load xapi config", e);
             throw new RuntimeException(e);

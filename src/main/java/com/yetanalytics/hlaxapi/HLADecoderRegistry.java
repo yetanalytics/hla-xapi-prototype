@@ -153,10 +153,8 @@ public class HLADecoderRegistry {
         registerElement("HLAinteger16LE", Short.class, encoderFactory::createHLAinteger16LE, HLAinteger16LE::getValue);
         registerAlias("HLAinteger16", "HLAinteger16BE");
 
-        registerElement(
-                "HLAinteger32BE", Integer.class, encoderFactory::createHLAinteger32BE, HLAinteger32BE::getValue);
-        registerElement(
-                "HLAinteger32LE", Integer.class, encoderFactory::createHLAinteger32LE, HLAinteger32LE::getValue);
+        registerElement("HLAinteger32BE", Integer.class, encoderFactory::createHLAinteger32BE, HLAinteger32BE::getValue);
+        registerElement("HLAinteger32LE", Integer.class, encoderFactory::createHLAinteger32LE, HLAinteger32LE::getValue);
         registerAlias("HLAinteger32", "HLAinteger32BE");
 
         registerElement("HLAinteger64BE", Long.class, encoderFactory::createHLAinteger64BE, HLAinteger64BE::getValue);
@@ -179,16 +177,13 @@ public class HLADecoderRegistry {
                 element -> Character.valueOf((char) (element.getValue() & 0xFFFF)));
         registerAlias("HLAcharacter", "HLAASCIIchar");
 
-        registerElement("HLAoctetPairBE", Short.class, encoderFactory::createHLAoctetPairBE,
-                HLAoctetPairBE::getValue);
-        registerElement("HLAoctetPairLE", Short.class, encoderFactory::createHLAoctetPairLE,
-                HLAoctetPairLE::getValue);
+        registerElement("HLAoctetPairBE", Short.class, encoderFactory::createHLAoctetPairBE, HLAoctetPairBE::getValue);
+        registerElement("HLAoctetPairLE", Short.class, encoderFactory::createHLAoctetPairLE, HLAoctetPairLE::getValue);
         registerAlias("HLAoctetPair", "HLAoctetPairBE");
 
         registerElement("HLAopaqueData", byte[].class, encoderFactory::createHLAopaqueData, HLAopaqueData::getValue);
         registerElement("HLAASCIIstring", String.class, encoderFactory::createHLAASCIIstring, HLAASCIIstring::getValue);
-        registerElement(
-                "HLAunicodeString", String.class, encoderFactory::createHLAunicodeString, HLAunicodeString::getValue);
+        registerElement("HLAunicodeString", String.class, encoderFactory::createHLAunicodeString, HLAunicodeString::getValue);
     }
 
     private <E extends DataElement, T> void registerElement(
@@ -264,8 +259,7 @@ public class HLADecoderRegistry {
         };
     }
 
-    private static List<Object> extractArrayValues(
-            Iterable<? extends DataElement> array, ElementAdapter elementAdapter) {
+    private static List<Object> extractArrayValues(Iterable<? extends DataElement> array, ElementAdapter elementAdapter) {
         List<Object> values = new ArrayList<Object>();
         for (DataElement element : array) {
             values.add(elementAdapter.extractValue(element));
