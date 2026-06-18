@@ -8,13 +8,21 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.yetanalytics.hlaxapi.cache.FomCatalog;
+import com.yetanalytics.hlaxapi.cache.HlaObjectCache;
+import com.yetanalytics.hlaxapi.config.InjectionHandler;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 
+import hla.rti1516e.AttributeHandle;
+import hla.rti1516e.AttributeHandleSet;
+import hla.rti1516e.AttributeHandleValueMap;
 import hla.rti1516e.CallbackModel;
 import hla.rti1516e.InteractionClassHandle;
 import hla.rti1516e.LogicalTime;
 import hla.rti1516e.MessageRetractionHandle;
 import hla.rti1516e.NullFederateAmbassador;
+import hla.rti1516e.ObjectClassHandle;
+import hla.rti1516e.ObjectInstanceHandle;
 import hla.rti1516e.OrderType;
 import hla.rti1516e.ParameterHandle;
 import hla.rti1516e.ParameterHandleValueMap;
@@ -25,6 +33,7 @@ import hla.rti1516e.RtiFactoryFactory;
 import hla.rti1516e.TransportationTypeHandle;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.exceptions.AlreadyConnected;
+import hla.rti1516e.exceptions.AttributeNotDefined;
 import hla.rti1516e.exceptions.CallNotAllowedFromWithinCallback;
 import hla.rti1516e.exceptions.ConnectionFailed;
 import hla.rti1516e.exceptions.CouldNotCreateLogicalTimeFactory;
@@ -42,11 +51,15 @@ import hla.rti1516e.exceptions.FederationExecutionAlreadyExists;
 import hla.rti1516e.exceptions.FederationExecutionDoesNotExist;
 import hla.rti1516e.exceptions.InconsistentFDD;
 import hla.rti1516e.exceptions.InteractionClassNotDefined;
+import hla.rti1516e.exceptions.InvalidAttributeHandle;
 import hla.rti1516e.exceptions.InvalidInteractionClassHandle;
 import hla.rti1516e.exceptions.InvalidLocalSettingsDesignator;
+import hla.rti1516e.exceptions.InvalidObjectClassHandle;
 import hla.rti1516e.exceptions.InvalidResignAction;
 import hla.rti1516e.exceptions.NameNotFound;
 import hla.rti1516e.exceptions.NotConnected;
+import hla.rti1516e.exceptions.ObjectClassNotDefined;
+import hla.rti1516e.exceptions.ObjectInstanceNotKnown;
 import hla.rti1516e.exceptions.OwnershipAcquisitionPending;
 import hla.rti1516e.exceptions.RTIinternalError;
 import hla.rti1516e.exceptions.RestoreInProgress;
@@ -67,6 +80,10 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private XapiConfig xapiConfig;
 
+    private FomCatalog _fomCatalog;
+
+    private HlaObjectCache _objectCache;
+
     public HlaInterfaceImpl() {
     }
 
@@ -83,6 +100,15 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         EncoderFactory encoderFactory = rtiFactory.getEncoderFactory();
         _decoderRegistry = new HLADecoderRegistry(encoderFactory);
         _decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
+        _fomCatalog = FomCatalog.fromFile(fomPath);
+        _fomCatalog.aliasesToPrimitiveTypes().forEach((alias, primitiveType) -> {
+            if (!_decoderRegistry.supports(alias)) {
+                _decoderRegistry.registerAlias(alias, primitiveType);
+            }
+        });
+        _objectCache = new HlaObjectCache(HlaObjectCache.defaultJdbcUrl(), _fomCatalog, _decoderRegistry,
+                encoderFactory);
+        InjectionHandler.setQueryService(_objectCache.queryService());
 
         try {
             if (localSettingsDesignator == null || localSettingsDesignator.isBlank()) {
@@ -136,6 +162,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         // Get relevant interactions to subscribe to from the xapiConfig
 
         try {
+            subscribeObjectClasses();
             subscribeInteractions();
             logger.info("Started Subscription");
 
@@ -167,6 +194,9 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             } catch (FederateIsExecutionMember | CallNotAllowedFromWithinCallback e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             }
+            if (_objectCache != null) {
+                _objectCache.close();
+            }
         } catch (NotConnected ignored) {
         }
     }
@@ -177,12 +207,149 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     }
 
     /*
+     * Objects
+     */
+
+    private void subscribeObjectClasses()
+            throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected, RTIinternalError {
+        for (FomCatalog.ObjectClassDef clazz : _fomCatalog.objectClasses()) {
+            if (clazz.topLevelAttributeNames().isEmpty()) {
+                continue;
+            }
+            try {
+                ObjectClassHandle classHandle = _ambassador.getObjectClassHandle(clazz.localName());
+                AttributeHandleSet attributeHandles = _ambassador.getAttributeHandleSetFactory().create();
+                for (String attributeName : clazz.topLevelAttributeNames()) {
+                    attributeHandles.add(_ambassador.getAttributeHandle(classHandle, attributeName));
+                }
+                _ambassador.subscribeObjectClassAttributes(classHandle, attributeHandles);
+            } catch (AttributeNotDefined | InvalidObjectClassHandle | NameNotFound | ObjectClassNotDefined e) {
+                logger.error("Could not subscribe object class {}!", clazz.localName(), e);
+            }
+        }
+    }
+
+    @Override
+    public void discoverObjectInstance(
+            ObjectInstanceHandle theObject,
+            ObjectClassHandle theObjectClass,
+            String objectName) throws FederateInternalError {
+        discoverObjectInstance(theObject, theObjectClass, objectName, null);
+    }
+
+    @Override
+    public void discoverObjectInstance(
+            ObjectInstanceHandle theObject,
+            ObjectClassHandle theObjectClass,
+            String objectName,
+            hla.rti1516e.FederateHandle producingFederate) throws FederateInternalError {
+        try {
+            String className = StringUtils.substringAfterLast(_ambassador.getObjectClassName(theObjectClass), ".");
+            _objectCache.discoverObject(theObject.toString(), objectName, className);
+            logger.info("Discovered object {} as {}", objectName, className);
+        } catch (InvalidObjectClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
+            logger.error("Error caching discovered object {}", objectName, e);
+        }
+    }
+
+    @Override
+    public void reflectAttributeValues(
+            ObjectInstanceHandle theObject,
+            AttributeHandleValueMap theAttributes,
+            byte[] userSuppliedTag,
+            OrderType sentOrdering,
+            TransportationTypeHandle theTransport,
+            SupplementalReflectInfo reflectInfo) throws FederateInternalError {
+        reflectAttributeValues(theObject, theAttributes);
+    }
+
+    @Override
+    public void reflectAttributeValues(
+            ObjectInstanceHandle theObject,
+            AttributeHandleValueMap theAttributes,
+            byte[] userSuppliedTag,
+            OrderType sentOrdering,
+            TransportationTypeHandle theTransport,
+            LogicalTime theTime,
+            OrderType receivedOrdering,
+            SupplementalReflectInfo reflectInfo) throws FederateInternalError {
+        reflectAttributeValues(theObject, theAttributes);
+    }
+
+    @Override
+    public void reflectAttributeValues(
+            ObjectInstanceHandle theObject,
+            AttributeHandleValueMap theAttributes,
+            byte[] userSuppliedTag,
+            OrderType sentOrdering,
+            TransportationTypeHandle theTransport,
+            LogicalTime theTime,
+            OrderType receivedOrdering,
+            MessageRetractionHandle retractionHandle,
+            SupplementalReflectInfo reflectInfo) throws FederateInternalError {
+        reflectAttributeValues(theObject, theAttributes);
+    }
+
+    private void reflectAttributeValues(ObjectInstanceHandle theObject, AttributeHandleValueMap theAttributes) {
+        try {
+            ObjectClassHandle classHandle = _ambassador.getKnownObjectClassHandle(theObject);
+            String className = StringUtils.substringAfterLast(_ambassador.getObjectClassName(classHandle), ".");
+            for (AttributeHandle attributeHandle : theAttributes.keySet()) {
+                String attributeName = _ambassador.getAttributeName(classHandle, attributeHandle);
+                _objectCache.reflectAttributeValue(
+                        theObject.toString(),
+                        className,
+                        attributeName,
+                        theAttributes.get(attributeHandle));
+            }
+        } catch (AttributeNotDefined | InvalidAttributeHandle | InvalidObjectClassHandle | ObjectInstanceNotKnown
+                | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
+            logger.error("Error caching reflected object attributes", e);
+        }
+    }
+
+    @Override
+    public void removeObjectInstance(
+            ObjectInstanceHandle theObject,
+            byte[] userSuppliedTag,
+            OrderType sentOrdering,
+            SupplementalRemoveInfo removeInfo) throws FederateInternalError {
+        _objectCache.removeObject(theObject.toString());
+    }
+
+    @Override
+    public void removeObjectInstance(
+            ObjectInstanceHandle theObject,
+            byte[] userSuppliedTag,
+            OrderType sentOrdering,
+            LogicalTime theTime,
+            OrderType receivedOrdering,
+            SupplementalRemoveInfo removeInfo) throws FederateInternalError {
+        _objectCache.removeObject(theObject.toString());
+    }
+
+    @Override
+    public void removeObjectInstance(
+            ObjectInstanceHandle theObject,
+            byte[] userSuppliedTag,
+            OrderType sentOrdering,
+            LogicalTime theTime,
+            OrderType receivedOrdering,
+            MessageRetractionHandle retractionHandle,
+            SupplementalRemoveInfo removeInfo) throws FederateInternalError {
+        _objectCache.removeObject(theObject.toString());
+    }
+
+    /*
      * Interactions
      */
 
     private void subscribeInteractions()
             throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected,
             RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
+        if (xapiConfig.statementTriggers == null) {
+            return;
+        }
         xapiConfig.statementTriggers.forEach(trigger -> {
             try {
                 InteractionClassHandle handle = _ambassador.getInteractionClassHandle(trigger.clazz);
