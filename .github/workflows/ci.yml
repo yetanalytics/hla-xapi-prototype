@@ -21,9 +21,5 @@ jobs:
                   java-version: "21"
                   cache: maven
 
-            - name: Test
-              run: mvn --batch-mode test
-
-            - name: Lint and format
-              continue-on-error: true
-              run: mvn --batch-mode spotless:check checkstyle:check
+            - name: Verify
+              run: mvn --batch-mode verify

@@ -31,7 +31,8 @@ Use Maven's `verify` lifecycle before opening a PR:
 make verify
 ```
 
-This runs unit tests and builds the package. Formatting and linting are advisory in CI for now. To run them locally:
+This runs unit tests, builds the package, and fails if linting or formatting checks do not pass. To run only
+linting locally:
 
 ```shell
 make lint
