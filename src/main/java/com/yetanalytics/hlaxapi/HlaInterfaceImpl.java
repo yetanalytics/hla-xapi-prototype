@@ -61,11 +61,11 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
 
     private static final Logger logger = LogManager.getLogger(HlaInterfaceImpl.class);
 
-    private RTIambassador _ambassador;
+    private RTIambassador ambassador;
 
-    private String _federationName;
+    private String federationName;
 
-    private ParameterHandle _timeScaleFactorParameterHandle;
+    private ParameterHandle timeScaleFactorParameterHandle;
 
     @Autowired
     private XapiConfig xapiConfig;
@@ -74,14 +74,14 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     private SimulationConfig simulationConfig;
 
     @Autowired
-    public TriggerProcessor triggerProcessor;
+    private TriggerProcessor triggerProcessor;
 
     public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
             FederateServiceInvocationsAreBeingReportedViaMOM {
         RtiFactory rtiFactory = RtiFactoryFactory.getRtiFactory();
-        _ambassador = rtiFactory.getRtiAmbassador();
+        ambassador = rtiFactory.getRtiAmbassador();
 
         // Use injected HLADecoderRegistry when available; fall back to creating one
         // decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
@@ -89,18 +89,18 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         try {
             if (simulationConfig.getLocalSettingsDesignator() == null
                     || simulationConfig.getLocalSettingsDesignator().isBlank()) {
-                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE);
+                ambassador.connect(this, CallbackModel.HLA_IMMEDIATE);
             } else {
-                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, simulationConfig.getLocalSettingsDesignator());
+                ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, simulationConfig.getLocalSettingsDesignator());
             }
         } catch (UnsupportedCallbackModel | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         } catch (AlreadyConnected ignored) {
         }
 
-        _federationName = simulationConfig.getFederationName();
+        federationName = simulationConfig.getFederationName();
         try {
-            _ambassador.destroyFederationExecution(simulationConfig.getFederationName());
+            ambassador.destroyFederationExecution(simulationConfig.getFederationName());
         } catch (FederatesCurrentlyJoined | FederationExecutionDoesNotExist ignored) {
         }
 
@@ -112,7 +112,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         }
 
         try {
-            _ambassador.createFederationExecution(simulationConfig.getFederationName(), url);
+            ambassador.createFederationExecution(simulationConfig.getFederationName(), url);
         } catch (FederationExecutionAlreadyExists ignored) {
         }
 
@@ -122,7 +122,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             int federateNameIndex = 1;
             while (!joined) {
                 try {
-                    _ambassador.joinFederationExecution(simulationConfig.getFederateName() + federateNameSuffix,
+                    ambassador.joinFederationExecution(simulationConfig.getFederateName() + federateNameSuffix,
                             "xAPI Interaction Processor",
                             simulationConfig.getFederationName(),
                             new URL[] { url });
@@ -151,23 +151,23 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     public void stop() throws RTIinternalError {
         try {
             try {
-                _ambassador.resignFederationExecution(ResignAction.CANCEL_THEN_DELETE_THEN_DIVEST);
+                ambassador.resignFederationExecution(ResignAction.CANCEL_THEN_DELETE_THEN_DIVEST);
             } catch (FederateOwnsAttributes | OwnershipAcquisitionPending
                     | CallNotAllowedFromWithinCallback | InvalidResignAction e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             } catch (FederateNotExecutionMember ignored) {
             }
 
-            if (_federationName != null) {
+            if (federationName != null) {
                 try {
-                    _ambassador.destroyFederationExecution(_federationName);
+                    ambassador.destroyFederationExecution(federationName);
                 } catch (FederatesCurrentlyJoined
                         | FederationExecutionDoesNotExist ignored) {
                 }
             }
 
             try {
-                _ambassador.disconnect();
+                ambassador.disconnect();
             } catch (FederateIsExecutionMember | CallNotAllowedFromWithinCallback e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             }
@@ -189,8 +189,8 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             RTIinternalError, FederateServiceInvocationsAreBeingReportedViaMOM {
         xapiConfig.statementTriggers.forEach(trigger -> {
             try {
-                InteractionClassHandle handle = _ambassador.getInteractionClassHandle(trigger.clazz);
-                _ambassador.subscribeInteractionClass(handle);
+                InteractionClassHandle handle = ambassador.getInteractionClassHandle(trigger.clazz);
+                ambassador.subscribeInteractionClass(handle);
             } catch (NameNotFound | FederateNotExecutionMember | NotConnected | RTIinternalError
                     | FederateServiceInvocationsAreBeingReportedViaMOM | InteractionClassNotDefined
                     | SaveInProgress | RestoreInProgress e) {
@@ -224,7 +224,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     private void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
         logger.info("Received Interaction");
         try {
-            String interactionName = _ambassador.getInteractionClassName(interactionClass);
+            String interactionName = ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
             // TODO: Need criteria matching, though maybe that happens in processor, we will

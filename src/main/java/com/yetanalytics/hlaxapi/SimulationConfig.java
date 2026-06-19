@@ -29,12 +29,12 @@ public class SimulationConfig {
     private static final String SCENARIO_DIR = "scenarioDir";
     private static final String FOM = "fom";
 
-    private final String _localSettingsDesignator;
-    private final String _federationName;
-    private final String _federateName;
+    private final String localSettingsDesignator;
+    private final String federationName;
+    private final String federateName;
 
-    private final String _scenarioDir;
-    private final String _fom;
+    private final String scenarioDir;
+    private final String fom;
 
     public SimulationConfig(String fileName) throws IOException {
         this(new File(fileName));
@@ -44,41 +44,41 @@ public class SimulationConfig {
         Properties properties = new Properties();
         properties.load(new FileInputStream(file));
 
-        _localSettingsDesignator = properties.getProperty(LOCAL_SETTINGS_DESIGNATOR, "");
-        _federationName = properties.getProperty(FEDERATION_NAME, "HLA Tutorial");
-        _federateName = properties.getProperty(FEDERATE_NAME, "xAPI Processor");
+        localSettingsDesignator = properties.getProperty(LOCAL_SETTINGS_DESIGNATOR, "");
+        federationName = properties.getProperty(FEDERATION_NAME, "HLA Tutorial");
+        federateName = properties.getProperty(FEDERATE_NAME, "xAPI Processor");
 
-        _scenarioDir = properties.getProperty(SCENARIO_DIR, ".");
-        _fom = properties.getProperty(FOM, "fom.xml");
+        scenarioDir = properties.getProperty(SCENARIO_DIR, ".");
+        fom = properties.getProperty(FOM, "fom.xml");
     }
 
     // mainly for tests
     public SimulationConfig(String localSettingsDesignator, String federationName, String federateName,
             String scenarioDir, String fom) {
-        _localSettingsDesignator = localSettingsDesignator;
-        _federationName = federationName;
-        _federateName = federateName;
-        _scenarioDir = scenarioDir;
-        _fom = fom;
+        this.localSettingsDesignator = localSettingsDesignator;
+        this.federationName = federationName;
+        this.federateName = federateName;
+        this.scenarioDir = scenarioDir;
+        this.fom = fom;
     }
 
     public String getLocalSettingsDesignator() {
-        return _localSettingsDesignator;
+        return localSettingsDesignator;
     }
 
     public String getFederationName() {
-        return _federationName;
+        return federationName;
     }
 
     public String getFederateName() {
-        return _federateName;
+        return federateName;
     }
 
     public String getScenarioDir() {
-        return _scenarioDir;
+        return scenarioDir;
     }
 
     public String getFom() {
-        return _fom;
+        return fom;
     }
 }
