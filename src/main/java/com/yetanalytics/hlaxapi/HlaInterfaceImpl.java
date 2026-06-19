@@ -87,7 +87,8 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         // decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
 
         try {
-            if (simulationConfig.getLocalSettingsDesignator() == null || simulationConfig.getLocalSettingsDesignator().isBlank()) {
+            if (simulationConfig.getLocalSettingsDesignator() == null
+                    || simulationConfig.getLocalSettingsDesignator().isBlank()) {
                 _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE);
             } else {
                 _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, simulationConfig.getLocalSettingsDesignator());
@@ -121,7 +122,8 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             int federateNameIndex = 1;
             while (!joined) {
                 try {
-                    _ambassador.joinFederationExecution(simulationConfig.getFederateName() + federateNameSuffix, "xAPI Interaction Processor",
+                    _ambassador.joinFederationExecution(simulationConfig.getFederateName() + federateNameSuffix,
+                            "xAPI Interaction Processor",
                             simulationConfig.getFederationName(),
                             new URL[] { url });
                     joined = true;
@@ -225,7 +227,8 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             String interactionName = _ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
-            // TODO: Need criteria matching, though maybe that happens in processor, we will definitely want to add a
+            // TODO: Need criteria matching, though maybe that happens in processor, we will
+            // definitely want to add a
             // similar set of handlers for object updates
             xapiConfig.statementTriggers.stream()
                     .filter(trigger -> trigger.clazz.equals(interactionKey)

@@ -52,8 +52,9 @@ public class SimulationConfig {
         _fom = properties.getProperty(FOM, "fom.xml");
     }
 
-    //mainly for tests
-    public SimulationConfig(String localSettingsDesignator, String federationName, String federateName, String scenarioDir, String fom) {
+    // mainly for tests
+    public SimulationConfig(String localSettingsDesignator, String federationName, String federateName,
+            String scenarioDir, String fom) {
         _localSettingsDesignator = localSettingsDesignator;
         _federationName = federationName;
         _federateName = federateName;
