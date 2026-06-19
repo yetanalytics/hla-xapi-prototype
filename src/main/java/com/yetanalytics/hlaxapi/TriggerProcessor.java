@@ -1,5 +1,8 @@
 package com.yetanalytics.hlaxapi;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,22 +12,30 @@ import org.apache.logging.log4j.Logger;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
-import com.yetanalytics.hlaxapi.config.InjectionHandler;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
-
-import hla.rti1516e.ParameterHandleValueMap;
 
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 
+@Component
 public class TriggerProcessor {
 
     private static final Logger logger = LogManager.getLogger(TriggerProcessor.class);
 
-    public static String processInteractionTrigger(StatementTrigger trigger, String interactionKey,
-            ParameterHandleValueMap theParameters) {
-        if (trigger.statement == null) {
+    @Autowired
+    private InjectionHandler injectionHandler;
+
+    public TriggerProcessor() {
+    }
+
+    //For tests and non-Spring code, allow injection of a custom InjectionHandler
+    public TriggerProcessor(InjectionHandler injectionHandler) {
+        this.injectionHandler = injectionHandler;   
+    }
+
+    public String processTrigger(StatementTrigger trigger) {
+        if (trigger == null || trigger.statement == null) {
             return null;
         }
 
@@ -47,7 +58,7 @@ public class TriggerProcessor {
 
                     Object rawTarget = mapper.convertValue(inj.get(1), Object.class);
                     Target t = ConfigConverter.toTarget(rawTarget);
-                    replacement = InjectionHandler.handleThis(t);
+                    replacement = injectionHandler.handleThis(t);
                 } else if (iType == InjectionType.QUERY && inj.size() >= 4) {
 
                     String clazz = inj.get(1).asText();
@@ -57,7 +68,7 @@ public class TriggerProcessor {
                     // convert raw criteria into typed Expression tree
                     Expression criteriaExpr = ConfigConverter
                             .toExpression(criteriaRaw);
-                    replacement = InjectionHandler.handleQuery(clazz, attr, criteriaExpr);
+                    replacement = injectionHandler.handleQuery(clazz, attr, criteriaExpr);
                 }
 
                 if (replacement != null) {
@@ -76,7 +87,7 @@ public class TriggerProcessor {
         }
     }
 
-    private static void findInjectionArrays(JsonNode node, List<JsonNode> out) {
+    private void findInjectionArrays(JsonNode node, List<JsonNode> out) {
         if (node == null)
             return;
         if (node.isArray()) {
@@ -95,6 +106,14 @@ public class TriggerProcessor {
         if (node.isObject()) {
             node.forEach(n -> findInjectionArrays(n, out));
         }
+    }
+
+    // Static compatibility method used by tests and non-Spring code: create a temporary
+    // processor with a plain InjectionHandler and delegate.
+    public static String processTriggerStatic(StatementTrigger trigger) {
+        InjectionHandler temp = new InjectionHandler();
+        TriggerProcessor tp = new TriggerProcessor(temp);
+        return tp.processTrigger(trigger);
     }
 
 }

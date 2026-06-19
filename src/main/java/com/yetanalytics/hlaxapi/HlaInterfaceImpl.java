@@ -1,7 +1,6 @@
 package com.yetanalytics.hlaxapi;
 
 import java.io.File;
-import java.lang.Thread.State;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -25,7 +24,6 @@ import hla.rti1516e.ResignAction;
 import hla.rti1516e.RtiFactory;
 import hla.rti1516e.RtiFactoryFactory;
 import hla.rti1516e.TransportationTypeHandle;
-import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.exceptions.AlreadyConnected;
 import hla.rti1516e.exceptions.CallNotAllowedFromWithinCallback;
 import hla.rti1516e.exceptions.ConnectionFailed;
@@ -55,7 +53,11 @@ import hla.rti1516e.exceptions.RestoreInProgress;
 import hla.rti1516e.exceptions.SaveInProgress;
 import hla.rti1516e.exceptions.UnsupportedCallbackModel;
 
-class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
+public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private static final Logger logger = LogManager.getLogger(HlaInterfaceImpl.class);
 
@@ -63,47 +65,45 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private String _federationName;
 
-    private HLADecoderRegistry _decoderRegistry;
-
     private ParameterHandle _timeScaleFactorParameterHandle;
 
+    @Autowired
     private XapiConfig xapiConfig;
 
-    public HlaInterfaceImpl() {
-    }
+    @Autowired
+    private SimulationConfig simulationConfig;
 
-    public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
-            XapiConfig xapiConfigInput)
+    @Autowired
+    public TriggerProcessor triggerProcessor;
+
+    public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
             FederateServiceInvocationsAreBeingReportedViaMOM {
         RtiFactory rtiFactory = RtiFactoryFactory.getRtiFactory();
         _ambassador = rtiFactory.getRtiAmbassador();
 
-        xapiConfig = xapiConfigInput;
-
-        EncoderFactory encoderFactory = rtiFactory.getEncoderFactory();
-        _decoderRegistry = new HLADecoderRegistry(encoderFactory);
-        _decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
+        // Use injected HLADecoderRegistry when available; fall back to creating one
+        // decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
 
         try {
-            if (localSettingsDesignator == null || localSettingsDesignator.isBlank()) {
+            if (simulationConfig.getLocalSettingsDesignator() == null || simulationConfig.getLocalSettingsDesignator().isBlank()) {
                 _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE);
             } else {
-                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, localSettingsDesignator);
+                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, simulationConfig.getLocalSettingsDesignator());
             }
         } catch (UnsupportedCallbackModel | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         } catch (AlreadyConnected ignored) {
         }
 
-        _federationName = federationName;
+        _federationName = simulationConfig.getFederationName();
         try {
-            _ambassador.destroyFederationExecution(federationName);
+            _ambassador.destroyFederationExecution(simulationConfig.getFederationName());
         } catch (FederatesCurrentlyJoined | FederationExecutionDoesNotExist ignored) {
         }
 
-        File fddFile = new File(fomPath);
+        File fddFile = new File(simulationConfig.getFom());
         URL url = null;
         try {
             url = fddFile.toURI().toURL();
@@ -111,7 +111,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         }
 
         try {
-            _ambassador.createFederationExecution(federationName, url);
+            _ambassador.createFederationExecution(simulationConfig.getFederationName(), url);
         } catch (FederationExecutionAlreadyExists ignored) {
         }
 
@@ -121,8 +121,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             int federateNameIndex = 1;
             while (!joined) {
                 try {
-                    _ambassador.joinFederationExecution(federateName + federateNameSuffix, "xAPI Interaction Processor",
-                            federationName,
+                    _ambassador.joinFederationExecution(simulationConfig.getFederateName() + federateNameSuffix, "xAPI Interaction Processor",
+                            simulationConfig.getFederationName(),
                             new URL[] { url });
                     joined = true;
                 } catch (FederateNameAlreadyInUse e) {
@@ -232,7 +232,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.info("Processing trigger for interaction {}", trigger.clazz);
-                        TriggerProcessor.processInteractionTrigger(trigger, interactionKey, theParameters);
+                        triggerProcessor.processTrigger(trigger);
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);

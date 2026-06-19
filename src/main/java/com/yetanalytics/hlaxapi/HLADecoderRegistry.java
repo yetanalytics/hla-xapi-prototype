@@ -14,7 +14,9 @@ import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.DataElementFactory;
 import hla.rti1516e.encoding.DecoderException;
 import hla.rti1516e.encoding.EncoderFactory;
+import hla.rti1516e.encoding.HLAASCIIstring;
 import hla.rti1516e.encoding.HLAboolean;
+import hla.rti1516e.encoding.HLAbyte;
 import hla.rti1516e.encoding.HLAfixedArray;
 import hla.rti1516e.encoding.HLAfloat32BE;
 import hla.rti1516e.encoding.HLAfloat32LE;
@@ -30,10 +32,8 @@ import hla.rti1516e.encoding.HLAoctet;
 import hla.rti1516e.encoding.HLAoctetPairBE;
 import hla.rti1516e.encoding.HLAoctetPairLE;
 import hla.rti1516e.encoding.HLAopaqueData;
-import hla.rti1516e.encoding.HLAASCIIstring;
-import hla.rti1516e.encoding.HLAbyte;
-import hla.rti1516e.encoding.HLAvariableArray;
 import hla.rti1516e.encoding.HLAunicodeString;
+import hla.rti1516e.encoding.HLAvariableArray;
 
 /**
  * Central registry for converting HLA-encoded byte arrays into Java values.
@@ -49,6 +49,12 @@ public class HLADecoderRegistry {
 
     private final EncoderFactory encoderFactory;
     private final Map<String, RegisteredDecoder> decoders = new LinkedHashMap<String, RegisteredDecoder>();
+
+    // No-arg constructor for Spring. When Spring constructs this bean the encoderFactory
+    // will be null; code paths that require it should still use the explicit constructor.
+    public HLADecoderRegistry() {
+        this.encoderFactory = null;
+    }
 
     public HLADecoderRegistry(EncoderFactory encoderFactory) {
         this.encoderFactory = Objects.requireNonNull(encoderFactory, "encoderFactory");
