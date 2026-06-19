@@ -24,7 +24,6 @@ public class FOMXML {
 
     private static final Logger logger = LogManager.getLogger(App.class);
 
-    // 2. Create the Unmarshaller instance
     private Document doc;
     private XPath xPath;
     private HLADecoderRegistry decoderRegistry;
