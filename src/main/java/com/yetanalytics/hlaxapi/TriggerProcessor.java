@@ -108,12 +108,4 @@ public class TriggerProcessor {
         }
     }
 
-    // Static compatibility method used by tests and non-Spring code: create a temporary
-    // processor with a plain InjectionHandler and delegate.
-    public static String processTriggerStatic(StatementTrigger trigger) {
-        InjectionHandler temp = new InjectionHandler();
-        TriggerProcessor tp = new TriggerProcessor(temp);
-        return tp.processTrigger(trigger);
-    }
-
 }

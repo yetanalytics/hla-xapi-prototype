@@ -47,13 +47,12 @@ import hla.rti1516e.encoding.HLAvariableArray;
  */
 public class HLADecoderRegistry {
 
-    private final EncoderFactory encoderFactory;
-    private final Map<String, RegisteredDecoder> decoders = new LinkedHashMap<String, RegisteredDecoder>();
+    private EncoderFactory encoderFactory;
+    private Map<String, RegisteredDecoder> decoders = new LinkedHashMap<String, RegisteredDecoder>();
 
     // No-arg constructor for Spring. When Spring constructs this bean the encoderFactory
     // will be null; code paths that require it should still use the explicit constructor.
     public HLADecoderRegistry() {
-        this.encoderFactory = null;
     }
 
     public HLADecoderRegistry(EncoderFactory encoderFactory) {
