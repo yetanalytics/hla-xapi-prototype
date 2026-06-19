@@ -9,9 +9,6 @@ import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -23,7 +20,6 @@ import java.util.List;
  * It loads the JSON file and performs higher-level parsing into Java objects.
  */
 public class ConfigParser {
-    private static final Logger logger = LogManager.getLogger(ConfigParser.class);
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final JsonNode root;

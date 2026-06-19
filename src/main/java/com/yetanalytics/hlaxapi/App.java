@@ -11,6 +11,7 @@ public class App {
     public static void main(String[] args) {
         logger.info("Initializing Application Context");
 
+        @SuppressWarnings("resource")
         AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 
         ctx.scan("com.yetanalytics.hlaxapi");
