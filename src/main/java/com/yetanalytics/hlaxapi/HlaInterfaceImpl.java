@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 
 import hla.rti1516e.CallbackModel;
 import hla.rti1516e.InteractionClassHandle;
@@ -227,15 +228,17 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             String interactionName = ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
-            // TODO: Need criteria matching, though maybe that happens in processor, we will
-            // definitely want to add a
-            // similar set of handlers for object updates
+
+            //Create Interaction-specific injection context to pass to trigger processor
+            InteractionInjectionContext context = new InteractionInjectionContext(interactionKey, theParameters);
+
+            //pass each matching interaction trigger to trigger processor
             xapiConfig.statementTriggers.stream()
                     .filter(trigger -> trigger.clazz.equals(interactionKey)
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.info("Processing trigger for interaction {}", trigger.clazz);
-                        triggerProcessor.processTrigger(trigger);
+                        triggerProcessor.processTrigger(trigger, context);
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);

@@ -10,7 +10,7 @@ import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.EncoderException;
 
-final class HLAEncodingTestSupport {
+public class HLAEncodingTestSupport {
 
     private HLAEncodingTestSupport() {
     }

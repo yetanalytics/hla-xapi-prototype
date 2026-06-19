@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
-
+import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 
@@ -34,7 +34,7 @@ public class TriggerProcessor {
         this.injectionHandler = injectionHandler;
     }
 
-    public String processTrigger(StatementTrigger trigger) {
+    public String processTrigger(StatementTrigger trigger, InjectionContext context) {
         if (trigger == null || trigger.statement == null) {
             return null;
         }
@@ -58,7 +58,7 @@ public class TriggerProcessor {
 
                     Object rawTarget = mapper.convertValue(inj.get(1), Object.class);
                     Target t = ConfigConverter.toTarget(rawTarget);
-                    replacement = injectionHandler.handleThis(t);
+                    replacement = injectionHandler.handleThis(t, context);
                 } else if (iType == InjectionType.QUERY && inj.size() >= 4) {
 
                     String clazz = inj.get(1).asText();
@@ -68,7 +68,7 @@ public class TriggerProcessor {
                     // convert raw criteria into typed Expression tree
                     Expression criteriaExpr = ConfigConverter
                             .toExpression(criteriaRaw);
-                    replacement = injectionHandler.handleQuery(clazz, attr, criteriaExpr);
+                    replacement = injectionHandler.handleQuery(clazz, attr, criteriaExpr, context);
                 }
 
                 if (replacement != null) {
