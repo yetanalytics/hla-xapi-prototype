@@ -10,9 +10,9 @@ public class App {
 
     public static void main(String[] args) {
         logger.info("Initializing Application Context");
-        
+
         AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
-        
+
         ctx.scan("com.yetanalytics.hlaxapi");
         ctx.refresh();
         ctx.registerShutdownHook();

@@ -31,7 +31,7 @@ public class TriggerProcessor {
 
     //For tests and non-Spring code, allow injection of a custom InjectionHandler
     public TriggerProcessor(InjectionHandler injectionHandler) {
-        this.injectionHandler = injectionHandler;   
+        this.injectionHandler = injectionHandler;
     }
 
     public String processTrigger(StatementTrigger trigger) {

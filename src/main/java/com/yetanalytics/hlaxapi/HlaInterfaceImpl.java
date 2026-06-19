@@ -225,7 +225,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             String interactionName = _ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
-            // TODO: Need criteria matching, though maybe that happens in processor, we will definitely want to add a 
+            // TODO: Need criteria matching, though maybe that happens in processor, we will definitely want to add a
             // similar set of handlers for object updates
             xapiConfig.statementTriggers.stream()
                     .filter(trigger -> trigger.clazz.equals(interactionKey)

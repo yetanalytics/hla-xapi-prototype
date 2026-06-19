@@ -54,7 +54,7 @@ public class AppConfig {
             throw new RuntimeException(e);
         }
     }
-    
+
     @Bean
     public SimulationConfig simulationConfig() {
         String path = System.getenv().getOrDefault("SIM_CONFIG", "config/Simulation.config");
