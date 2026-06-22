@@ -4,13 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
-import com.yetanalytics.hlaxapi.fom.FOMXML;
-import com.yetanalytics.hlaxapi.fom.FOMXML.PathCheckResult;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
+
+import com.yetanalytics.hlaxapi.FOMXML;
+import com.yetanalytics.hlaxapi.FOMXML.PathCheckResult;
+import com.yetanalytics.hlaxapi.HLADecoderRegistry;
+import com.yetanalytics.hlaxapi.SimulationConfig;
 
 /**
  * Tests for FOM Parsing.
@@ -18,16 +21,18 @@ import org.junit.jupiter.api.Test;
 public class FOMTest {
 
     private static final Logger logger = LogManager.getLogger(FOMTest.class);
+    FOMXML fomXml;
 
-    @BeforeAll
-    public static void setUp() {
-        FOMXML.initInstance("src/test/resources/SISO-STD-025.3-2024.xml");
+    @BeforeEach
+    public void setUp() {
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+            "src/test/resources/SISO-STD-025.3-2024.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        fomXml = new FOMXML(simConfig, decoderRegistry);
     }
 
     @Test
     public void InteractionsXML() {
-
-        FOMXML fomXml = FOMXML.getInstance();
 
         // primitive parameter
         PathCheckResult isRandomResult = fomXml.checkInteractionParameterPath("Degrade", "IsRandom");
@@ -84,7 +89,6 @@ public class FOMTest {
 
     @Test
     public void ObjectsXML() {
-        FOMXML fomXml = FOMXML.getInstance();
 
         // Simple object attribute
         PathCheckResult objIdResult = fomXml.checkObjectParameterPath("CyberObject", List.of("ObjectID", "Value"));

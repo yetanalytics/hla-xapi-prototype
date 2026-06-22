@@ -10,8 +10,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.HlaObjectCache;
-import com.yetanalytics.hlaxapi.config.InjectionHandler;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
+import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 
 import hla.rti1516e.AttributeHandle;
 import hla.rti1516e.AttributeHandleSet;
@@ -24,7 +24,6 @@ import hla.rti1516e.NullFederateAmbassador;
 import hla.rti1516e.ObjectClassHandle;
 import hla.rti1516e.ObjectInstanceHandle;
 import hla.rti1516e.OrderType;
-import hla.rti1516e.ParameterHandle;
 import hla.rti1516e.ParameterHandleValueMap;
 import hla.rti1516e.RTIambassador;
 import hla.rti1516e.ResignAction;
@@ -66,68 +65,78 @@ import hla.rti1516e.exceptions.RestoreInProgress;
 import hla.rti1516e.exceptions.SaveInProgress;
 import hla.rti1516e.exceptions.UnsupportedCallbackModel;
 
-class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
+public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private static final Logger logger = LogManager.getLogger(HlaInterfaceImpl.class);
 
-    private RTIambassador _ambassador;
+    private RTIambassador ambassador;
 
-    private String _federationName;
+    private String federationName;
 
-    private HLADecoderRegistry _decoderRegistry;
-
-    private ParameterHandle _timeScaleFactorParameterHandle;
-
+    @Autowired
     private XapiConfig xapiConfig;
 
-    private FomCatalog _fomCatalog;
+    @Autowired
+    private SimulationConfig simulationConfig;
 
-    private HlaObjectCache _objectCache;
+    @Autowired
+    private EncoderFactory encoderFactory;
 
-    public HlaInterfaceImpl() {
-    }
+    @Autowired
+    private HLADecoderRegistry decoderRegistry;
 
-    public void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
-            XapiConfig xapiConfigInput)
+    @Autowired
+    private TriggerProcessor triggerProcessor;
+
+    @Autowired
+    private InjectionHandler injectionHandler;
+
+    private FomCatalog fomCatalog;
+
+    private HlaObjectCache objectCache;
+
+    public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
             FederateServiceInvocationsAreBeingReportedViaMOM {
         RtiFactory rtiFactory = RtiFactoryFactory.getRtiFactory();
-        _ambassador = rtiFactory.getRtiAmbassador();
+        ambassador = rtiFactory.getRtiAmbassador();
 
-        xapiConfig = xapiConfigInput;
-
-        EncoderFactory encoderFactory = rtiFactory.getEncoderFactory();
-        _decoderRegistry = new HLADecoderRegistry(encoderFactory);
-        _decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
-        _fomCatalog = FomCatalog.fromFile(fomPath);
-        _fomCatalog.aliasesToPrimitiveTypes().forEach((alias, primitiveType) -> {
-            if (!_decoderRegistry.supports(alias)) {
-                _decoderRegistry.registerAlias(alias, primitiveType);
+        if (!decoderRegistry.supports("ScaleFactorFloat32")) {
+            decoderRegistry.registerAlias("ScaleFactorFloat32", "HLAfloat32BE");
+        }
+        fomCatalog = FomCatalog.fromFile(simulationConfig.getFom());
+        fomCatalog.aliasesToPrimitiveTypes().forEach((alias, primitiveType) -> {
+            if (!decoderRegistry.supports(alias)) {
+                decoderRegistry.registerAlias(alias, primitiveType);
             }
         });
-        _objectCache = new HlaObjectCache(HlaObjectCache.defaultJdbcUrl(), _fomCatalog, _decoderRegistry,
-                encoderFactory);
-        InjectionHandler.setQueryService(_objectCache.queryService());
+        objectCache = new HlaObjectCache(HlaObjectCache.defaultJdbcUrl(), fomCatalog, decoderRegistry, encoderFactory);
+        injectionHandler.setQueryService(objectCache.queryService());
 
         try {
-            if (localSettingsDesignator == null || localSettingsDesignator.isBlank()) {
-                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE);
+            if (simulationConfig.getLocalSettingsDesignator() == null
+                    || simulationConfig.getLocalSettingsDesignator().isBlank()) {
+                ambassador.connect(this, CallbackModel.HLA_IMMEDIATE);
             } else {
-                _ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, localSettingsDesignator);
+                ambassador.connect(this, CallbackModel.HLA_IMMEDIATE, simulationConfig.getLocalSettingsDesignator());
             }
         } catch (UnsupportedCallbackModel | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         } catch (AlreadyConnected ignored) {
         }
 
-        _federationName = federationName;
+        federationName = simulationConfig.getFederationName();
         try {
-            _ambassador.destroyFederationExecution(federationName);
+            ambassador.destroyFederationExecution(simulationConfig.getFederationName());
         } catch (FederatesCurrentlyJoined | FederationExecutionDoesNotExist ignored) {
         }
 
-        File fddFile = new File(fomPath);
+        File fddFile = new File(simulationConfig.getFom());
         URL url = null;
         try {
             url = fddFile.toURI().toURL();
@@ -135,7 +144,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         }
 
         try {
-            _ambassador.createFederationExecution(federationName, url);
+            ambassador.createFederationExecution(simulationConfig.getFederationName(), url);
         } catch (FederationExecutionAlreadyExists ignored) {
         }
 
@@ -145,8 +154,9 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             int federateNameIndex = 1;
             while (!joined) {
                 try {
-                    _ambassador.joinFederationExecution(federateName + federateNameSuffix, "xAPI Interaction Processor",
-                            federationName,
+                    ambassador.joinFederationExecution(simulationConfig.getFederateName() + federateNameSuffix,
+                            "xAPI Interaction Processor",
+                            simulationConfig.getFederationName(),
                             new URL[] { url });
                     joined = true;
                 } catch (FederateNameAlreadyInUse e) {
@@ -174,28 +184,28 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     public void stop() throws RTIinternalError {
         try {
             try {
-                _ambassador.resignFederationExecution(ResignAction.CANCEL_THEN_DELETE_THEN_DIVEST);
+                ambassador.resignFederationExecution(ResignAction.CANCEL_THEN_DELETE_THEN_DIVEST);
             } catch (FederateOwnsAttributes | OwnershipAcquisitionPending
                     | CallNotAllowedFromWithinCallback | InvalidResignAction e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             } catch (FederateNotExecutionMember ignored) {
             }
 
-            if (_federationName != null) {
+            if (federationName != null) {
                 try {
-                    _ambassador.destroyFederationExecution(_federationName);
+                    ambassador.destroyFederationExecution(federationName);
                 } catch (FederatesCurrentlyJoined
                         | FederationExecutionDoesNotExist ignored) {
                 }
             }
 
             try {
-                _ambassador.disconnect();
+                ambassador.disconnect();
             } catch (FederateIsExecutionMember | CallNotAllowedFromWithinCallback e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             }
-            if (_objectCache != null) {
-                _objectCache.close();
+            if (objectCache != null) {
+                objectCache.close();
             }
         } catch (NotConnected ignored) {
         }
@@ -212,17 +222,17 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private void subscribeObjectClasses()
             throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected, RTIinternalError {
-        for (FomCatalog.ObjectClassDef clazz : _fomCatalog.objectClasses()) {
+        for (FomCatalog.ObjectClassDef clazz : fomCatalog.objectClasses()) {
             if (clazz.topLevelAttributeNames().isEmpty()) {
                 continue;
             }
             try {
-                ObjectClassHandle classHandle = _ambassador.getObjectClassHandle(clazz.localName());
-                AttributeHandleSet attributeHandles = _ambassador.getAttributeHandleSetFactory().create();
+                ObjectClassHandle classHandle = ambassador.getObjectClassHandle(clazz.localName());
+                AttributeHandleSet attributeHandles = ambassador.getAttributeHandleSetFactory().create();
                 for (String attributeName : clazz.topLevelAttributeNames()) {
-                    attributeHandles.add(_ambassador.getAttributeHandle(classHandle, attributeName));
+                    attributeHandles.add(ambassador.getAttributeHandle(classHandle, attributeName));
                 }
-                _ambassador.subscribeObjectClassAttributes(classHandle, attributeHandles);
+                ambassador.subscribeObjectClassAttributes(classHandle, attributeHandles);
             } catch (AttributeNotDefined | InvalidObjectClassHandle | NameNotFound | ObjectClassNotDefined e) {
                 logger.error("Could not subscribe object class {}!", clazz.localName(), e);
             }
@@ -244,8 +254,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             String objectName,
             hla.rti1516e.FederateHandle producingFederate) throws FederateInternalError {
         try {
-            String className = StringUtils.substringAfterLast(_ambassador.getObjectClassName(theObjectClass), ".");
-            _objectCache.discoverObject(theObject.toString(), objectName, className);
+            String className = StringUtils.substringAfterLast(ambassador.getObjectClassName(theObjectClass), ".");
+            objectCache.discoverObject(theObject.toString(), objectName, className);
             logger.info("Discovered object {} as {}", objectName, className);
         } catch (InvalidObjectClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error caching discovered object {}", objectName, e);
@@ -292,11 +302,11 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
     private void reflectAttributeValues(ObjectInstanceHandle theObject, AttributeHandleValueMap theAttributes) {
         try {
-            ObjectClassHandle classHandle = _ambassador.getKnownObjectClassHandle(theObject);
-            String className = StringUtils.substringAfterLast(_ambassador.getObjectClassName(classHandle), ".");
+            ObjectClassHandle classHandle = ambassador.getKnownObjectClassHandle(theObject);
+            String className = StringUtils.substringAfterLast(ambassador.getObjectClassName(classHandle), ".");
             for (AttributeHandle attributeHandle : theAttributes.keySet()) {
-                String attributeName = _ambassador.getAttributeName(classHandle, attributeHandle);
-                _objectCache.reflectAttributeValue(
+                String attributeName = ambassador.getAttributeName(classHandle, attributeHandle);
+                objectCache.reflectAttributeValue(
                         theObject.toString(),
                         className,
                         attributeName,
@@ -314,7 +324,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             byte[] userSuppliedTag,
             OrderType sentOrdering,
             SupplementalRemoveInfo removeInfo) throws FederateInternalError {
-        _objectCache.removeObject(theObject.toString());
+        objectCache.removeObject(theObject.toString());
     }
 
     @Override
@@ -325,7 +335,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             LogicalTime theTime,
             OrderType receivedOrdering,
             SupplementalRemoveInfo removeInfo) throws FederateInternalError {
-        _objectCache.removeObject(theObject.toString());
+        objectCache.removeObject(theObject.toString());
     }
 
     @Override
@@ -337,7 +347,7 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
             OrderType receivedOrdering,
             MessageRetractionHandle retractionHandle,
             SupplementalRemoveInfo removeInfo) throws FederateInternalError {
-        _objectCache.removeObject(theObject.toString());
+        objectCache.removeObject(theObject.toString());
     }
 
     /*
@@ -352,8 +362,8 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
         }
         xapiConfig.statementTriggers.forEach(trigger -> {
             try {
-                InteractionClassHandle handle = _ambassador.getInteractionClassHandle(trigger.clazz);
-                _ambassador.subscribeInteractionClass(handle);
+                InteractionClassHandle handle = ambassador.getInteractionClassHandle(trigger.clazz);
+                ambassador.subscribeInteractionClass(handle);
             } catch (NameNotFound | FederateNotExecutionMember | NotConnected | RTIinternalError
                     | FederateServiceInvocationsAreBeingReportedViaMOM | InteractionClassNotDefined
                     | SaveInProgress | RestoreInProgress e) {
@@ -387,18 +397,18 @@ class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
     private void receiveInteraction(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
         logger.info("Received Interaction");
         try {
-            String interactionName = _ambassador.getInteractionClassName(interactionClass);
+            String interactionName = ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
-            // TODO: This is just a naive implementation of matching interactions to triggers.
-            // We will need to handle criteria for triggers as well as passing the
-            // interaction itself to the trigger processor.
-            // ALSO NOTE: we will want to add a similar set of handlers for object updates
+            // TODO: Need criteria matching, though maybe that happens in processor, we will
+            // definitely want to add a
+            // similar set of handlers for object updates
             xapiConfig.statementTriggers.stream()
-                    .filter(trigger -> trigger.clazz.equals(interactionKey))
+                    .filter(trigger -> trigger.clazz.equals(interactionKey)
+                            && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.info("Processing trigger for interaction {}", trigger.clazz);
-                        TriggerProcessor.processTrigger(trigger);
+                        triggerProcessor.processTrigger(trigger);
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);

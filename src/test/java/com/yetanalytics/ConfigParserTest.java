@@ -1,28 +1,29 @@
 package com.yetanalytics;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.yetanalytics.hlaxapi.App;
-import com.yetanalytics.hlaxapi.TriggerProcessor;
-import com.yetanalytics.hlaxapi.config.ConfigConverter;
-import com.yetanalytics.hlaxapi.config.ConfigParser;
-import com.yetanalytics.hlaxapi.config.LrsConfig;
-import com.yetanalytics.hlaxapi.config.XapiConfig;
-import com.yetanalytics.hlaxapi.config.model.Criterion;
-import com.yetanalytics.hlaxapi.config.model.Expression;
-import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
-import com.yetanalytics.hlaxapi.config.model.ThisExpression;
-import com.yetanalytics.hlaxapi.config.model.Target;
-import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
-import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
+
+import com.yetanalytics.hlaxapi.InjectionHandler;
+import com.yetanalytics.hlaxapi.TriggerProcessor;
+import com.yetanalytics.hlaxapi.config.ConfigConverter;
+import com.yetanalytics.hlaxapi.config.ConfigParser;
+import com.yetanalytics.hlaxapi.config.XapiConfig;
+import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
+import com.yetanalytics.hlaxapi.config.model.Criterion;
+import com.yetanalytics.hlaxapi.config.model.Expression;
+import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
+import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
+import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.ThisExpression;
 
 public class ConfigParserTest {
 
@@ -33,6 +34,9 @@ public class ConfigParserTest {
     @Test
     public void parsesConfigFile() throws IOException {
         XapiConfig config = ConfigParser.fromFile("src/test/resources/config-test.json").parse();
+
+        TriggerProcessor triggerProcessor = new TriggerProcessor(new InjectionHandler());
+
         assertNotNull(config);
         assertNotNull(config.statementTriggers);
         assertEquals(1, config.statementTriggers.size());
@@ -43,7 +47,8 @@ public class ConfigParserTest {
             assertNotNull(trigger.statement);
             logger.info(trigger);
 
-            String statement = TriggerProcessor.processTrigger(trigger);
+
+            String statement = triggerProcessor.processTrigger(trigger);
             assertEquals(statement, CONFIG_STATEMENT_RESULT);
 
         });

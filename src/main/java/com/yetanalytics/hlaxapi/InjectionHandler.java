@@ -1,4 +1,6 @@
-package com.yetanalytics.hlaxapi.config;
+package com.yetanalytics.hlaxapi;
+
+import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,21 +13,22 @@ import java.util.Optional;
  * Stubs for injection handlers. In the real app these will implement logic to
  * resolve injection syntaxes like ["this", [target]] or ["query", ...].
  */
+@Component
 public class InjectionHandler {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static volatile CacheQueryService queryService;
+    private volatile CacheQueryService queryService;
 
-    public static void setQueryService(CacheQueryService cacheQueryService) {
-        queryService = cacheQueryService;
+    public void setQueryService(CacheQueryService cacheQueryService) {
+        this.queryService = cacheQueryService;
     }
 
-    public static String handleThis(Target t) {
+    public String handleThis(Target t) {
         return null;
     }
 
-    public static String handleQuery(String clazz, Target attrTarget, Expression criteria) {
+    public String handleQuery(String clazz, Target attrTarget, Expression criteria) {
         CacheQueryService service = queryService;
         if (service == null) {
             return null;

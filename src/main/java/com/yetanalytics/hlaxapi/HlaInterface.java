@@ -1,7 +1,5 @@
 package com.yetanalytics.hlaxapi;
 
-import com.yetanalytics.hlaxapi.config.XapiConfig;
-
 import hla.rti1516e.exceptions.ConnectionFailed;
 import hla.rti1516e.exceptions.CouldNotOpenFDD;
 import hla.rti1516e.exceptions.ErrorReadingFDD;
@@ -24,8 +22,7 @@ public interface HlaInterface {
      * @param federationName          Name of the federation to join
      * @param federateName            The name you want for your federate
      */
-    void start(String localSettingsDesignator, String fomPath, String federationName, String federateName,
-            XapiConfig xapiConfig)
+    void start()
             throws RestoreInProgress,
             SaveInProgress,
             NotConnected,
@@ -42,9 +39,4 @@ public interface HlaInterface {
      */
     void stop() throws RTIinternalError;
 
-    public static class Factory {
-        public static HlaInterface newInterface() {
-            return new HlaInterfaceImpl();
-        }
-    }
 }
