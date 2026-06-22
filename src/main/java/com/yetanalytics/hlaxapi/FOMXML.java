@@ -1,4 +1,4 @@
-package com.yetanalytics.hlaxapi.fom;
+package com.yetanalytics.hlaxapi;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -10,31 +10,26 @@ import javax.xml.xpath.XPathFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 
 import org.xml.sax.SAXException;
-
-import com.yetanalytics.hlaxapi.App;
-
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
+@Component
 public class FOMXML {
 
     private static final Logger logger = LogManager.getLogger(App.class);
 
-    private static volatile FOMXML instance;
-
-    // 2. Create the Unmarshaller instance
     private Document doc;
     private XPath xPath;
+    private HLADecoderRegistry decoderRegistry;
 
-    // 1. Private constructor
-    private FOMXML(String fomFileLocation) {
-        File xmlFile = new File(fomFileLocation);
-
+    public FOMXML(SimulationConfig simConfig, HLADecoderRegistry decoderRegistry) {
+        File xmlFile = new File(simConfig.getFom());
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(false);
 
@@ -46,48 +41,16 @@ public class FOMXML {
         }
 
         setxPath(XPathFactory.newInstance().newXPath());
+        setDecoderRegistry(decoderRegistry);
     }
-
-    // 2. Initialization point (Thread-safe)
-    public static synchronized FOMXML initInstance(String fomFileLocation) {
-        if (instance == null) {
-            instance = new FOMXML(fomFileLocation);
-        }
-        return instance;
-    }
-
-    // 3. Global access point (Throws exception if accessed before init)
-    public static FOMXML getInstance() {
-        if (instance == null) {
-            throw new IllegalStateException("FOMXMLMapper is not initialized. Call initInstance() first.");
-        }
-        return instance;
-    }
-
-    private static List<String> prims = List.of(
-            "HLAASCIIchar",
-            "HLAASCIIstring",
-            "HLAboolean",
-            "HLAbyte",
-            "HLAfloat32BE",
-            "HLAfloat32LE",
-            "HLAfloat64BE",
-            "HLAfloat64LE",
-            "HLAinteger16BE",
-            "HLAinteger16LE",
-            "HLAinteger32BE",
-            "HLAinteger32LE",
-            "HLAinteger64BE",
-            "HLAinteger64LE",
-            "HLAoctet",
-            "HLAoctetPairBE",
-            "HLAoctetPairLE",
-            "HLAopaqueData",
-            "HLAunicodeChar",
-            "HLAunicodeString");
 
     private boolean isPrim(String type) {
-        return prims.contains(type);
+        try {
+            decoderRegistry.decoderFor(type);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /**
@@ -266,6 +229,14 @@ public class FOMXML {
 
     public void setxPath(XPath xPath) {
         this.xPath = xPath;
+    }
+
+    public HLADecoderRegistry getDecoderRegistry() {
+        return decoderRegistry;
+    }
+
+    public void setDecoderRegistry(HLADecoderRegistry decoderRegistry) {
+        this.decoderRegistry = decoderRegistry;
     }
 
 }

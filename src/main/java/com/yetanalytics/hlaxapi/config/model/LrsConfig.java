@@ -1,4 +1,4 @@
-package com.yetanalytics.hlaxapi.config;
+package com.yetanalytics.hlaxapi.config.model;
 
 public class LrsConfig {
     public String host;

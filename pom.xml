@@ -27,6 +27,20 @@
         </dependencies>
     </dependencyManagement>
 
+    <profiles>
+        <profile>
+            <id>skip-spotless-in-vscode</id>
+            <activation>
+                <property>
+                    <name>m2e.version</name>
+                </property>
+            </activation>
+            <properties>
+                <spotless.check.skip>true</spotless.check.skip>
+            </properties>
+        </profile>
+    </profiles>
+
     <repositories>
         <repository>
             <id>vendored-libs</id>
@@ -84,6 +98,12 @@
             <artifactId>commons-lang3</artifactId>
             <version>3.20.0</version>
             <scope>compile</scope>
+        </dependency>
+        <!-- Lightweight Spring context for DI (no Spring Boot) -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>6.1.18</version>
         </dependency>
     </dependencies>
 
