@@ -233,13 +233,11 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
 
-            
+            // Create Interaction-specific injection context to pass to trigger processor
+            InteractionInjectionContext context = new InteractionInjectionContext(interactionKey,
+                    getMapWithParameterNames(interactionClass, theParameters));
 
-            //Create Interaction-specific injection context to pass to trigger processor
-            InteractionInjectionContext context = new InteractionInjectionContext(interactionKey, 
-                getMapWithParameterNames(interactionClass, theParameters));
-
-            //pass each matching interaction trigger to trigger processor
+            // pass each matching interaction trigger to trigger processor
             xapiConfig.statementTriggers.stream()
                     .filter(trigger -> trigger.clazz.equals(interactionKey)
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
@@ -252,7 +250,8 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         }
     }
 
-    private Map<String, byte[]> getMapWithParameterNames(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
+    private Map<String, byte[]> getMapWithParameterNames(InteractionClassHandle interactionClass,
+            ParameterHandleValueMap theParameters) {
         Map<String, byte[]> parameters = new HashMap<String, byte[]>();
         theParameters.forEach((handle, value) -> {
             String paramName;
@@ -261,11 +260,11 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                 parameters.put(paramName, value);
             } catch (InteractionParameterNotDefined | InvalidParameterHandle | InvalidInteractionClassHandle
                     | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
-                throw new RuntimeException("Exception processing parameter "+handle+" for interaction "
-                + interactionClass, e);
+                throw new RuntimeException("Exception processing parameter " + handle + " for interaction "
+                        + interactionClass, e);
             }
         });
         return parameters;
-        
+
     }
 }

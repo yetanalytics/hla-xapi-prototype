@@ -3,8 +3,6 @@ package com.yetanalytics.hlaxapi;
 import java.util.List;
 import java.util.Map;
 
-import javax.xml.stream.util.StreamReaderDelegate;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,15 +70,15 @@ public class InjectionHandler {
         if (targetParts.size() == 0) return null;
 
         Object thisPart  = targetParts.getFirst();
-        
+
         //TODO: handle recursive case for nested. This is just a stand-in that works for one-level ops
 
         return paramMap.entrySet().stream()
             .filter(entry -> entry.getKey().equals(thisPart))
             .map(entry -> entry.getValue())
             .findAny()
-            .orElse(null);    
-        
+            .orElse(null);
+
     }
 
     public String handleThis(Target t, ObjectInjectionContext context) {
