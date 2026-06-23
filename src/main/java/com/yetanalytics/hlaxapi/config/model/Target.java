@@ -12,14 +12,6 @@ public class Target implements Expression {
         this.parts = parts;
     }
 
-    public void printParts() {
-        System.out.print("Target parts: ");
-        for (Object part : parts) {
-            System.out.print(part + " ");
-        }
-        System.out.println();
-    }
-
     @Override
     public String toString() {
         return "Target{" + parts.toString() + "}";

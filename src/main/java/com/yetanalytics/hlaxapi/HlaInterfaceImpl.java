@@ -3,6 +3,8 @@ package com.yetanalytics.hlaxapi;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -43,8 +45,10 @@ import hla.rti1516e.exceptions.FederationExecutionAlreadyExists;
 import hla.rti1516e.exceptions.FederationExecutionDoesNotExist;
 import hla.rti1516e.exceptions.InconsistentFDD;
 import hla.rti1516e.exceptions.InteractionClassNotDefined;
+import hla.rti1516e.exceptions.InteractionParameterNotDefined;
 import hla.rti1516e.exceptions.InvalidInteractionClassHandle;
 import hla.rti1516e.exceptions.InvalidLocalSettingsDesignator;
+import hla.rti1516e.exceptions.InvalidParameterHandle;
 import hla.rti1516e.exceptions.InvalidResignAction;
 import hla.rti1516e.exceptions.NameNotFound;
 import hla.rti1516e.exceptions.NotConnected;
@@ -229,8 +233,11 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
 
+            
+
             //Create Interaction-specific injection context to pass to trigger processor
-            InteractionInjectionContext context = new InteractionInjectionContext(interactionKey, theParameters);
+            InteractionInjectionContext context = new InteractionInjectionContext(interactionKey, 
+                getMapWithParameterNames(interactionClass, theParameters));
 
             //pass each matching interaction trigger to trigger processor
             xapiConfig.statementTriggers.stream()
@@ -243,5 +250,22 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);
         }
+    }
+
+    private Map<String, byte[]> getMapWithParameterNames(InteractionClassHandle interactionClass, ParameterHandleValueMap theParameters) {
+        Map<String, byte[]> parameters = new HashMap<String, byte[]>();
+        theParameters.forEach((handle, value) -> {
+            String paramName;
+            try {
+                paramName = ambassador.getParameterName(interactionClass, handle);
+                parameters.put(paramName, value);
+            } catch (InteractionParameterNotDefined | InvalidParameterHandle | InvalidInteractionClassHandle
+                    | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
+                throw new RuntimeException("Exception processing parameter "+handle+" for interaction "
+                + interactionClass, e);
+            }
+        });
+        return parameters;
+        
     }
 }

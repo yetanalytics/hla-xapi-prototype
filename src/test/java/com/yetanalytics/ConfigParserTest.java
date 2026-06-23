@@ -6,15 +6,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.lang.reflect.Parameter;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
+import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
+import com.yetanalytics.hlaxapi.FOMXML;
+import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.HLAEncodingTestSupport;
 import com.yetanalytics.hlaxapi.InjectionHandler;
+import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.TriggerProcessor;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.ConfigParser;
@@ -36,19 +44,27 @@ public class ConfigParserTest {
 
     private static final Logger logger = LogManager.getLogger(ConfigParserTest.class);
 
-    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":[THIS(interaction):Target{[ScenarioName]}:CONTEXT:LoadScenario],\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":[QUERY:Player:Target{[Name]}:Criterion{Value(Number) = Value(0)}]}},\"context\":{\"extensions\":{\"http://www.extensions.com/car-color\":[QUERY:Car:Target{[carColor]}:Criterion{Target{[carId]} = Value(4)}],\"http://www.extensions.com/nested-example\":[QUERY:Car:Target{[carColor]}:Criterion{Target{[carId]} = This(Target{[CarId]})}]}}}";
+    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"description!\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"sample\"}},\"context\":{\"extensions\":{\"https://yetanalytics.com/test-numbers-and-aliases\":1.2345}}}";
 
     @Test
     public void parsesConfigFile() throws IOException {
-        XapiConfig config = ConfigParser.fromFile("src/test/resources/config-test.json").parse();
+        XapiConfig config = ConfigParser.fromFile("src/test/resources/config-test-2.json").parse();
 
-        TriggerProcessor triggerProcessor = new TriggerProcessor(new InjectionHandler());
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null, 
+            "src/test/resources/SISO-STD-025.3-2024.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
 
-        TestParameterHandleValueMap paramMap = new TestParameterHandleValueMap();
-        // populate an example parameter (encoded as ASCII string here)
-        paramMap.put(new TestParameterHandle("ScenarioName"), "ScenarioNameTest".getBytes());
 
-        InteractionInjectionContext injectionContext = new InteractionInjectionContext("LoadScenario", paramMap);
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+
+        Map<String, byte[]> paramMap = new HashMap<String, byte[]>();
+        paramMap.put("Description", HLAEncodingTestSupport.asciiString("description!"));
+        paramMap.put("Duration", HLAEncodingTestSupport.float64(1.2345, ByteOrder.BIG_ENDIAN));
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
 
         assertNotNull(config);
         assertNotNull(config.statementTriggers);

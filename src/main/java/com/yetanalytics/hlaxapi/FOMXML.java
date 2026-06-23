@@ -28,6 +28,7 @@ public class FOMXML {
     private XPath xPath;
     private HLADecoderRegistry decoderRegistry;
 
+    //automatically injected by spring
     public FOMXML(SimulationConfig simConfig, HLADecoderRegistry decoderRegistry) {
         File xmlFile = new File(simConfig.getFom());
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();

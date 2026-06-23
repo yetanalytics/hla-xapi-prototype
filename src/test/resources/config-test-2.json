@@ -7,10 +7,15 @@
             "statement": {
                 "actor": {
                     "objectType": "Agent",
-                    "name": ["this", ["ScenarioName"]],
+                    "name": ["this", ["Description"]],
                     "account": {
                         "homePage": "https://homepage.system.io",
                         "name": "sample"
+                    }
+                },
+                "context": {
+                    "extensions": {
+                        "https://yetanalytics.com/test-numbers-and-aliases": ["this", ["Duration"]]
                     }
                 }
             }

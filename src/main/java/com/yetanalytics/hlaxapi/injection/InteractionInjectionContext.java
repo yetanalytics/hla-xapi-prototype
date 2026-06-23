@@ -1,25 +1,25 @@
 package com.yetanalytics.hlaxapi.injection;
 
-import hla.rti1516e.ParameterHandleValueMap;
+import java.util.Map;
+
 
 public class InteractionInjectionContext extends InjectionContext {
 
-    ParameterHandleValueMap parameterMap;
-
+    Map<String, byte[]> parameterMap;
 
     public InteractionInjectionContext() {
     }
 
-    public InteractionInjectionContext(String hlaClass, ParameterHandleValueMap parameterMap) {
+    public InteractionInjectionContext(String hlaClass, Map<String, byte[]> parameterMap) {
         setHlaClass(hlaClass);
         this.parameterMap = parameterMap;
     }
 
-    public ParameterHandleValueMap getParameterMap() {
+    public Map<String, byte[]> getParameterMap() {
         return parameterMap;
     }
 
-    public void setParameterMap(ParameterHandleValueMap parameterMap) {
+    public void setParameterMap(Map<String, byte[]> parameterMap) {
         this.parameterMap = parameterMap;
     }
 
