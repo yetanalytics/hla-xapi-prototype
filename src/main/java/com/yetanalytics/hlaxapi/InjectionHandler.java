@@ -33,7 +33,7 @@ public class InjectionHandler {
     @Autowired
     private HLADecoderRegistry hlaDecoderRegistry;
 
-    public String handleThis(Target t, InjectionContext context) {
+    public Object handleThis(Target t, InjectionContext context) {
         if (context instanceof InteractionInjectionContext) {
             return handleThis(t, (InteractionInjectionContext) context);
         } else if (context instanceof ObjectInjectionContext) {
@@ -43,7 +43,7 @@ public class InjectionHandler {
         }
     }
 
-    public String handleThis(Target t, InteractionInjectionContext context) {
+    public Object handleThis(Target t, InteractionInjectionContext context) {
 
         byte[] value = interrogateParameters(t.parts, context.getParameterMap());
         if (value == null) return null;
@@ -63,7 +63,7 @@ public class InjectionHandler {
             return null;
         }
         // placeholder: return a demo string showing the target and interaction context
-        return render(result);
+        return result;
     }
 
     private byte[] interrogateParameters(List<Object> targetParts, Map<String, byte[]> paramMap) {
@@ -81,24 +81,18 @@ public class InjectionHandler {
 
     }
 
-    public String handleThis(Target t, ObjectInjectionContext context) {
+    public Object handleThis(Target t, ObjectInjectionContext context) {
         // placeholder: return a demo string showing the target and interaction context
         return "[THIS(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]";
     }
 
-    public String handleQuery(String clazz, Target attrTarget, Expression criteria, InjectionContext context) {
+    public Object handleQuery(String clazz, Target attrTarget, Expression criteria, InjectionContext context) {
         // placeholder: return a demo string showing the criteria expression
         // TODO: Query methods for both types like interation has
         return "[QUERY:" + clazz
                 + ":" + (attrTarget == null ? "null" : attrTarget.toString())
                 + ":" + (criteria == null ? "null" : criteria.toString())
                 + "]";
-    }
-
-    private String render(Object replacement) {
-        //TODO: Expand for special type handling.
-        String formatString = (replacement instanceof String)? "\"%s\"" : "%s";
-        return String.format(formatString, replacement.toString());
     }
 
     //for test

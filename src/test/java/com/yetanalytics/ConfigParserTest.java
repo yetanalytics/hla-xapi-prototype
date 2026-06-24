@@ -44,11 +44,11 @@ public class ConfigParserTest {
 
     private static final Logger logger = LogManager.getLogger(ConfigParserTest.class);
 
-    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"description!\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"sample\"}},\"context\":{\"extensions\":{\"https://yetanalytics.com/test-numbers-and-aliases\":1.2345}}}";
+    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"Player One\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"sample\"}},\"object\":{\"id\":\"https://yetanalytics.com/objects/description!\",\"definition\":{\"name\":{\"en-us\":\"description!\"}}},\"context\":{\"extensions\":{\"https://yetanalytics.com/test-numbers-and-aliases\":1.2345}}}";
 
     @Test
     public void parsesConfigFile() throws IOException {
-        XapiConfig config = ConfigParser.fromFile("src/test/resources/config-test-2.json").parse();
+        XapiConfig config = ConfigParser.fromFile("src/test/resources/config-test.json").parse();
 
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null, 
             "src/test/resources/SISO-STD-025.3-2024.xml");
@@ -135,6 +135,35 @@ public class ConfigParserTest {
         ThisExpression te = (ThisExpression) c.right;
         assertNotNull(te.target);
         assertEquals(List.of("attr"), te.target.parts);
+    }
+
+    @Test
+    public void inlinePlaceholderProcessing() throws IOException {
+        // Setup same as parsesConfigFile
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+                "src/test/resources/SISO-STD-025.3-2024.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
+
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+
+        Map<String, byte[]> paramMap = new HashMap<String, byte[]>();
+        paramMap.put("Description", HLAEncodingTestSupport.asciiString("description!"));
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
+
+        // Statement contains an inline placeholder in a string using <<...>> containing JSON array
+        String stmt = "{\"actor\":{\"name\":\"prefix-<<[\\\"this\\\", [\\\"Description\\\"]]>>-suffix\"}}";
+
+        com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
+        st.statement = stmt;
+
+        String out = triggerProcessor.processTrigger(st, injectionContext);
+        assertNotNull(out);
+        // Expect the placeholder to be replaced by the parameter value (description!) inside the string
+        assertTrue(out.contains("prefix-description!-suffix"));
     }
 
     // Stub implementations of HLA ParameterHandle and ParameterHandleValueMap for

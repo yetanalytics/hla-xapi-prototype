@@ -3,20 +3,23 @@
         {
             "type": "Interaction",
             "class": "LoadScenario",
-            "criteria": [["key1"], "=", "thing1"],
+            "criteria": [["this", "key1"], "=", "thing1"],
             "statement": {
                 "actor": {
                     "objectType": "Agent",
-                    "name": ["this", ["ScenarioName"]],
+                    "name": "Player One",
                     "account": {
                         "homePage": "https://homepage.system.io",
-                        "name": ["query", "Player", ["Name"], ["Number", "=", 0]]
+                        "name": "sample"
                     }
+                },
+                "object": {
+                    "id": "https://yetanalytics.com/objects/<<[\"this\", [\"Description\"]]>>",
+                    "definition": {"name": {"en-us": ["this", ["Description"]]}}
                 },
                 "context": {
                     "extensions": {
-                        "http://www.extensions.com/car-color": ["query", "Car", ["carColor"], [["carId"], "=", 4]],
-                        "http://www.extensions.com/nested-example": ["query", "Car", ["carColor"], [["carId"], "=", ["this", ["CarId"]]]]
+                        "https://yetanalytics.com/test-numbers-and-aliases": ["this", ["Duration"]]
                     }
                 }
             }
