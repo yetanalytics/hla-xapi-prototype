@@ -1,0 +1,627 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objectModel
+    xmlns="http://standards.ieee.org/IEEE1516-2010"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://standards.ieee.org/IEEE1516-2010 http://standards.ieee.org/downloads/1516/1516.2-2010/IEEE1516-DIF-2010.xsd">
+    <modelIdentification>
+        <name>HLA FedeREPL Predator Prey FOM</name>
+        <type>FOM</type>
+        <version>0.1</version>
+        <modificationDate>2026-06-16</modificationDate>
+        <securityClassification>Unclassified</securityClassification>
+        <purpose>Development FOM for a simple grid-based predator-prey simulation federate.</purpose>
+        <applicationDomain>Engineering</applicationDomain>
+        <description>
+            Describes a toroidal two-dimensional world containing carrots, rabbits, and wolves.
+            Carrots grow and rot. Rabbits eat carrots. Wolves eat rabbits. Animals move,
+            reproduce, and die when hunger reaches their configured species limit.
+        </description>
+        <useLimitation>
+            Rudimentary development model intended to exercise HLA tooling; not yet a stable
+            federation contract.
+        </useLimitation>
+        <keyword>
+            <keywordValue>predator-prey</keywordValue>
+        </keyword>
+        <keyword>
+            <keywordValue>grid simulation</keywordValue>
+        </keyword>
+        <reference>
+            <type>Source</type>
+            <identification>src/sim/hla_federepl/sim.clj</identification>
+        </reference>
+    </modelIdentification>
+
+    <objects>
+        <objectClass>
+            <name>HLAobjectRoot</name>
+            <sharing>Neither</sharing>
+            <semantics>Root object class.</semantics>
+            <objectClass>
+                <name>World</name>
+                <sharing>PublishSubscribe</sharing>
+                <semantics>
+                    The square toroidal grid being simulated. The current Clojure model represents
+                    the world as a vector of vector cells.
+                </semantics>
+                <attribute>
+                    <name>WorldId</name>
+                    <dataType>UUIDString</dataType>
+                    <updateType>Static</updateType>
+                    <updateCondition>Provided when the world object is registered.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Federation-unique identifier for the world instance.</semantics>
+                </attribute>
+                <attribute>
+                    <name>Size</name>
+                    <dataType>CellIndex</dataType>
+                    <updateType>Static</updateType>
+                    <updateCondition>Provided when the world object is registered.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>
+                        Number of cells on each side of the square grid. Valid positions are in the
+                        inclusive range zero to Size minus one.
+                    </semantics>
+                </attribute>
+                <attribute>
+                    <name>StepNumber</name>
+                    <dataType>StepCount</dataType>
+                    <updateType>Periodic</updateType>
+                    <updateCondition>Updated after each simulation step.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Count of completed simulation steps for this world.</semantics>
+                </attribute>
+                <attribute>
+                    <name>CarrotCount</name>
+                    <dataType>PopulationCount</dataType>
+                    <updateType>Periodic</updateType>
+                    <updateCondition>Updated after each simulation step.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Current number of carrot instances in the world.</semantics>
+                </attribute>
+                <attribute>
+                    <name>RabbitCount</name>
+                    <dataType>PopulationCount</dataType>
+                    <updateType>Periodic</updateType>
+                    <updateCondition>Updated after each simulation step.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Current number of rabbit instances in the world.</semantics>
+                </attribute>
+                <attribute>
+                    <name>WolfCount</name>
+                    <dataType>PopulationCount</dataType>
+                    <updateType>Periodic</updateType>
+                    <updateCondition>Updated after each simulation step.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Current number of wolf instances in the world.</semantics>
+                </attribute>
+            </objectClass>
+            <objectClass>
+                <name>SimEntity</name>
+                <sharing>PublishSubscribe</sharing>
+                <semantics>
+                    Base class for one simulated entity occupying a grid cell. At most one entity of
+                    each concrete type may occupy a cell.
+                </semantics>
+                <attribute>
+                    <name>EntityId</name>
+                    <dataType>UUIDString</dataType>
+                    <updateType>Static</updateType>
+                    <updateCondition>Provided when the entity object is registered.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>UUID assigned by new-carrot, new-rabbit, or new-wolf.</semantics>
+                </attribute>
+                <attribute>
+                    <name>EntityType</name>
+                    <dataType>EntityTypeEnum</dataType>
+                    <updateType>Static</updateType>
+                    <updateCondition>Provided when the entity object is registered.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Concrete simulation type: carrot, rabbit, or wolf.</semantics>
+                </attribute>
+                <attribute>
+                    <name>Position</name>
+                    <dataType>GridPosition</dataType>
+                    <updateType>Conditional</updateType>
+                    <updateCondition>
+                        Updated when the entity is created, moves, or is otherwise relocated.
+                    </updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Current [x, y] cell coordinates in the world grid.</semantics>
+                </attribute>
+                <objectClass>
+                    <name>Carrot</name>
+                    <sharing>PublishSubscribe</sharing>
+                    <semantics>
+                        Food source that grows into neighboring cells and is removed when eaten or
+                        when its age exceeds the configured maximum.
+                    </semantics>
+                    <attribute>
+                        <name>Age</name>
+                        <dataType>StepCount</dataType>
+                        <updateType>Periodic</updateType>
+                        <updateCondition>Incremented by step-age-carrot.</updateCondition>
+                        <valueRequired>true</valueRequired>
+                        <ownership>NoTransfer</ownership>
+                        <sharing>PublishSubscribe</sharing>
+                        <transportation>HLAreliable</transportation>
+                        <order>Receive</order>
+                        <semantics>Number of simulation steps since the carrot was created.</semantics>
+                    </attribute>
+                </objectClass>
+                <objectClass>
+                    <name>Rabbit</name>
+                    <sharing>PublishSubscribe</sharing>
+                    <semantics>
+                        Animal that eats carrots, reproduces with nearby rabbits, moves one cell per
+                        step, and starves if hunger reaches the configured rabbit maximum.
+                    </semantics>
+                    <attribute>
+                        <name>Hunger</name>
+                        <dataType>StepCount</dataType>
+                        <updateType>Periodic</updateType>
+                        <updateCondition>
+                            Reset to zero by eating; otherwise incremented by step-hunger-animal.
+                        </updateCondition>
+                        <valueRequired>true</valueRequired>
+                        <ownership>NoTransfer</ownership>
+                        <sharing>PublishSubscribe</sharing>
+                        <transportation>HLAreliable</transportation>
+                        <order>Receive</order>
+                        <semantics>Number of simulation steps since this rabbit last ate.</semantics>
+                    </attribute>
+                </objectClass>
+                <objectClass>
+                    <name>Wolf</name>
+                    <sharing>PublishSubscribe</sharing>
+                    <semantics>
+                        Animal that eats rabbits, reproduces with nearby wolves, moves one cell per
+                        step, and starves if hunger reaches the configured wolf maximum.
+                    </semantics>
+                    <attribute>
+                        <name>Hunger</name>
+                        <dataType>StepCount</dataType>
+                        <updateType>Periodic</updateType>
+                        <updateCondition>
+                            Reset to zero by eating; otherwise incremented by step-hunger-animal.
+                        </updateCondition>
+                        <valueRequired>true</valueRequired>
+                        <ownership>NoTransfer</ownership>
+                        <sharing>PublishSubscribe</sharing>
+                        <transportation>HLAreliable</transportation>
+                        <order>Receive</order>
+                        <semantics>Number of simulation steps since this wolf last ate.</semantics>
+                    </attribute>
+                </objectClass>
+            </objectClass>
+        </objectClass>
+    </objects>
+
+    <interactions>
+        <interactionClass>
+            <name>HLAinteractionRoot</name>
+            <sharing>Neither</sharing>
+            <transportation>HLAreliable</transportation>
+            <order>Receive</order>
+            <semantics>Root interaction class.</semantics>
+            <interactionClass>
+                <name>InitializeWorld</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>Requests creation of a new square world and initial population.</semantics>
+                <parameter>
+                    <name>WorldSize</name>
+                    <dataType>CellIndex</dataType>
+                    <semantics>Number of cells per side.</semantics>
+                </parameter>
+                <parameter>
+                    <name>InitialCarrots</name>
+                    <dataType>PopulationCount</dataType>
+                    <semantics>Number of carrots to place initially.</semantics>
+                </parameter>
+                <parameter>
+                    <name>InitialRabbits</name>
+                    <dataType>PopulationCount</dataType>
+                    <semantics>Number of rabbits to place initially.</semantics>
+                </parameter>
+                <parameter>
+                    <name>InitialWolves</name>
+                    <dataType>PopulationCount</dataType>
+                    <semantics>Number of wolves to place initially.</semantics>
+                </parameter>
+            </interactionClass>
+            <interactionClass>
+                <name>StepCompleted</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>Reports that the ordered step pipeline has completed.</semantics>
+                <parameter>
+                    <name>StepNumber</name>
+                    <dataType>StepCount</dataType>
+                    <semantics>Count of completed simulation steps.</semantics>
+                </parameter>
+            </interactionClass>
+            <interactionClass>
+                <name>EntityCreated</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>Reports creation of a carrot, rabbit, or wolf.</semantics>
+                <parameter>
+                    <name>EntityId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID of the new entity.</semantics>
+                </parameter>
+                <parameter>
+                    <name>EntityType</name>
+                    <dataType>EntityTypeEnum</dataType>
+                    <semantics>Type of entity created.</semantics>
+                </parameter>
+                <parameter>
+                    <name>Position</name>
+                    <dataType>GridPosition</dataType>
+                    <semantics>Cell where the entity was placed.</semantics>
+                </parameter>
+            </interactionClass>
+            <interactionClass>
+                <name>EntityMoved</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>Reports one animal movement produced by step-move.</semantics>
+                <parameter>
+                    <name>EntityId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID of the rabbit or wolf that moved.</semantics>
+                </parameter>
+                <parameter>
+                    <name>EntityType</name>
+                    <dataType>EntityTypeEnum</dataType>
+                    <semantics>Animal type that moved.</semantics>
+                </parameter>
+                <parameter>
+                    <name>FromPosition</name>
+                    <dataType>GridPosition</dataType>
+                    <semantics>Cell occupied before movement.</semantics>
+                </parameter>
+                <parameter>
+                    <name>ToPosition</name>
+                    <dataType>GridPosition</dataType>
+                    <semantics>Cell occupied after movement.</semantics>
+                </parameter>
+            </interactionClass>
+            <interactionClass>
+                <name>EntityAte</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>
+                    Reports a rabbit eating a carrot or a wolf eating a rabbit during step-eat.
+                </semantics>
+                <parameter>
+                    <name>PredatorId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID of the consuming entity.</semantics>
+                </parameter>
+                <parameter>
+                    <name>PredatorType</name>
+                    <dataType>EntityTypeEnum</dataType>
+                    <semantics>Rabbit for carrot consumption; wolf for rabbit consumption.</semantics>
+                </parameter>
+                <parameter>
+                    <name>PreyId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID of the consumed entity.</semantics>
+                </parameter>
+                <parameter>
+                    <name>PreyType</name>
+                    <dataType>EntityTypeEnum</dataType>
+                    <semantics>Carrot or rabbit.</semantics>
+                </parameter>
+                <parameter>
+                    <name>Position</name>
+                    <dataType>GridPosition</dataType>
+                    <semantics>Cell where the interaction occurred.</semantics>
+                </parameter>
+            </interactionClass>
+            <interactionClass>
+                <name>EntityReproduced</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>
+                    Reports animal reproduction produced by step-reproduce-animal.
+                </semantics>
+                <parameter>
+                    <name>ParentOneId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID of one parent.</semantics>
+                </parameter>
+                <parameter>
+                    <name>ParentTwoId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID of the selected mate.</semantics>
+                </parameter>
+                <parameter>
+                    <name>ChildId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID assigned to the offspring.</semantics>
+                </parameter>
+                <parameter>
+                    <name>EntityType</name>
+                    <dataType>EntityTypeEnum</dataType>
+                    <semantics>Rabbit or wolf.</semantics>
+                </parameter>
+                <parameter>
+                    <name>ChildPosition</name>
+                    <dataType>GridPosition</dataType>
+                    <semantics>Cell where the offspring was placed.</semantics>
+                </parameter>
+                <parameter>
+                    <name>ChildHunger</name>
+                    <dataType>StepCount</dataType>
+                    <semantics>Average hunger value inherited from the parents.</semantics>
+                </parameter>
+            </interactionClass>
+            <interactionClass>
+                <name>EntityRemoved</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>
+                    Reports removal of an entity due to eating, carrot rot, starvation, or reset.
+                </semantics>
+                <parameter>
+                    <name>EntityId</name>
+                    <dataType>UUIDString</dataType>
+                    <semantics>UUID of the removed entity.</semantics>
+                </parameter>
+                <parameter>
+                    <name>EntityType</name>
+                    <dataType>EntityTypeEnum</dataType>
+                    <semantics>Type of entity removed.</semantics>
+                </parameter>
+                <parameter>
+                    <name>Position</name>
+                    <dataType>GridPosition</dataType>
+                    <semantics>Last cell occupied by the entity.</semantics>
+                </parameter>
+                <parameter>
+                    <name>Reason</name>
+                    <dataType>RemovalReasonEnum</dataType>
+                    <semantics>Cause of removal.</semantics>
+                </parameter>
+            </interactionClass>
+            <interactionClass>
+                <name>SimulationParametersChanged</name>
+                <sharing>PublishSubscribe</sharing>
+                <transportation>HLAreliable</transportation>
+                <order>Receive</order>
+                <semantics>
+                    Reports a change to the optional step parameters used by the simulation.
+                </semantics>
+                <parameter>
+                    <name>CarrotGrowthRate</name>
+                    <dataType>Probability</dataType>
+                    <semantics>Probability that a carrot spreads during a step.</semantics>
+                </parameter>
+                <parameter>
+                    <name>RabbitGrowthRate</name>
+                    <dataType>Probability</dataType>
+                    <semantics>Probability that a rabbit pair produces offspring.</semantics>
+                </parameter>
+                <parameter>
+                    <name>WolfGrowthRate</name>
+                    <dataType>Probability</dataType>
+                    <semantics>Probability that a wolf pair produces offspring.</semantics>
+                </parameter>
+                <parameter>
+                    <name>MaxCarrotAge</name>
+                    <dataType>StepCount</dataType>
+                    <semantics>Age threshold used by step-age-carrot.</semantics>
+                </parameter>
+                <parameter>
+                    <name>MaxRabbitHunger</name>
+                    <dataType>StepCount</dataType>
+                    <semantics>Rabbit hunger threshold used by step-hunger-animal.</semantics>
+                </parameter>
+                <parameter>
+                    <name>MaxWolfHunger</name>
+                    <dataType>StepCount</dataType>
+                    <semantics>Wolf hunger threshold used by step-hunger-animal.</semantics>
+                </parameter>
+            </interactionClass>
+        </interactionClass>
+    </interactions>
+
+    <dimensions/>
+
+    <transportations>
+        <transportation>
+            <name>HLAreliable</name>
+            <reliable>Yes</reliable>
+            <semantics>
+                Reliable transport for state updates and lifecycle events in the development FOM.
+            </semantics>
+        </transportation>
+    </transportations>
+
+    <switches>
+        <autoProvide isEnabled="true"/>
+        <attributeScopeAdvisory isEnabled="false"/>
+        <attributeRelevanceAdvisory isEnabled="false"/>
+        <objectClassRelevanceAdvisory isEnabled="false"/>
+        <interactionRelevanceAdvisory isEnabled="false"/>
+        <serviceReporting isEnabled="false"/>
+        <exceptionReporting isEnabled="false"/>
+        <delaySubscriptionEvaluation isEnabled="false"/>
+        <automaticResignAction resignAction="CancelThenDeleteThenDivest"/>
+    </switches>
+
+    <dataTypes>
+        <basicDataRepresentations>
+            <basicData>
+                <name>HLAinteger32BE</name>
+                <size>32</size>
+                <interpretation>Signed 32-bit integer.</interpretation>
+                <endian>Big</endian>
+                <encoding>32-bit two's complement big-endian integer.</encoding>
+            </basicData>
+            <basicData>
+                <name>HLAfloat32BE</name>
+                <size>32</size>
+                <interpretation>IEEE 754 single precision floating point number.</interpretation>
+                <endian>Big</endian>
+                <encoding>32-bit IEEE 754 big-endian float.</encoding>
+            </basicData>
+            <basicData>
+                <name>HLAunicodeChar</name>
+                <size>16</size>
+                <interpretation>One UTF-16 code unit.</interpretation>
+                <endian>Big</endian>
+                <encoding>UTF-16 big-endian code unit.</encoding>
+            </basicData>
+        </basicDataRepresentations>
+        <simpleDataTypes>
+            <simpleData>
+                <name>CellIndex</name>
+                <representation>HLAinteger32BE</representation>
+                <units>cell</units>
+                <resolution>1</resolution>
+                <accuracy>1</accuracy>
+                <semantics>Non-negative grid coordinate or grid size value.</semantics>
+            </simpleData>
+            <simpleData>
+                <name>StepCount</name>
+                <representation>HLAinteger32BE</representation>
+                <units>step</units>
+                <resolution>1</resolution>
+                <accuracy>1</accuracy>
+                <semantics>Non-negative count of simulation steps.</semantics>
+            </simpleData>
+            <simpleData>
+                <name>PopulationCount</name>
+                <representation>HLAinteger32BE</representation>
+                <units>entity</units>
+                <resolution>1</resolution>
+                <accuracy>1</accuracy>
+                <semantics>Non-negative count of simulated entities.</semantics>
+            </simpleData>
+            <simpleData>
+                <name>Probability</name>
+                <representation>HLAfloat32BE</representation>
+                <units>ratio</units>
+                <resolution>0.001</resolution>
+                <accuracy>0.001</accuracy>
+                <semantics>Probability in the inclusive range zero to one.</semantics>
+            </simpleData>
+        </simpleDataTypes>
+        <enumeratedDataTypes>
+            <enumeratedData>
+                <name>EntityTypeEnum</name>
+                <representation>HLAinteger32BE</representation>
+                <semantics>Concrete entity types used by the simulation.</semantics>
+                <enumerator>
+                    <name>Carrot</name>
+                    <value>1</value>
+                </enumerator>
+                <enumerator>
+                    <name>Rabbit</name>
+                    <value>2</value>
+                </enumerator>
+                <enumerator>
+                    <name>Wolf</name>
+                    <value>3</value>
+                </enumerator>
+            </enumeratedData>
+            <enumeratedData>
+                <name>RemovalReasonEnum</name>
+                <representation>HLAinteger32BE</representation>
+                <semantics>Reason an entity disappeared from the world.</semantics>
+                <enumerator>
+                    <name>Eaten</name>
+                    <value>1</value>
+                </enumerator>
+                <enumerator>
+                    <name>Rotted</name>
+                    <value>2</value>
+                </enumerator>
+                <enumerator>
+                    <name>Starved</name>
+                    <value>3</value>
+                </enumerator>
+                <enumerator>
+                    <name>Reset</name>
+                    <value>4</value>
+                </enumerator>
+            </enumeratedData>
+        </enumeratedDataTypes>
+        <arrayDataTypes>
+            <arrayData>
+                <name>UUIDString</name>
+                <dataType>HLAunicodeChar</dataType>
+                <cardinality>36</cardinality>
+                <encoding>HLAfixedArray</encoding>
+                <semantics>Canonical textual UUID representation, including hyphens.</semantics>
+            </arrayData>
+        </arrayDataTypes>
+        <fixedRecordDataTypes>
+            <fixedRecordData>
+                <name>GridPosition</name>
+                <encoding>HLAfixedRecord</encoding>
+                <semantics>Integer coordinates of a cell in the square toroidal grid.</semantics>
+                <field>
+                    <name>X</name>
+                    <dataType>CellIndex</dataType>
+                    <semantics>Horizontal grid coordinate.</semantics>
+                </field>
+                <field>
+                    <name>Y</name>
+                    <dataType>CellIndex</dataType>
+                    <semantics>Vertical grid coordinate.</semantics>
+                </field>
+            </fixedRecordData>
+        </fixedRecordDataTypes>
+    </dataTypes>
+
+    <notes>
+    </notes>
+</objectModel>
