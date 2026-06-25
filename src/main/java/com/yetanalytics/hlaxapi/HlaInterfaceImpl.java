@@ -37,7 +37,6 @@ import hla.rti1516e.exceptions.FederateNameAlreadyInUse;
 import hla.rti1516e.exceptions.FederateNotExecutionMember;
 import hla.rti1516e.exceptions.FederateOwnsAttributes;
 import hla.rti1516e.exceptions.FederateServiceInvocationsAreBeingReportedViaMOM;
-import hla.rti1516e.exceptions.FederatesCurrentlyJoined;
 import hla.rti1516e.exceptions.FederationExecutionAlreadyExists;
 import hla.rti1516e.exceptions.FederationExecutionDoesNotExist;
 import hla.rti1516e.exceptions.InconsistentFDD;
@@ -62,8 +61,6 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     private static final Logger logger = LogManager.getLogger(HlaInterfaceImpl.class);
 
     private RTIambassador ambassador;
-
-    private String federationName;
 
     private ParameterHandle timeScaleFactorParameterHandle;
 
@@ -96,12 +93,6 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         } catch (UnsupportedCallbackModel | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         } catch (AlreadyConnected ignored) {
-        }
-
-        federationName = simulationConfig.getFederationName();
-        try {
-            ambassador.destroyFederationExecution(simulationConfig.getFederationName());
-        } catch (FederatesCurrentlyJoined | FederationExecutionDoesNotExist ignored) {
         }
 
         File fddFile = new File(simulationConfig.getFom());
@@ -156,14 +147,6 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                     | CallNotAllowedFromWithinCallback | InvalidResignAction e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             } catch (FederateNotExecutionMember ignored) {
-            }
-
-            if (federationName != null) {
-                try {
-                    ambassador.destroyFederationExecution(federationName);
-                } catch (FederatesCurrentlyJoined
-                        | FederationExecutionDoesNotExist ignored) {
-                }
             }
 
             try {
