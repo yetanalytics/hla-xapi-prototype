@@ -174,13 +174,16 @@ public class TriggerProcessor {
         return NullNode.instance;
     }
 
+    /**
+     * If the value is a String, and this is not embedded inside another string, add quotes.
+     * TODO: Expand if needed for other datatype renders
+     * @param replacement
+     * @param embedded
+     * @return actual string to put in result
+     */
     private String render(Object replacement, Boolean embedded) {
-        // TODO: Expand for special type handling.
         String formatString = (replacement instanceof String && embedded) ? "\"%s\"" : "%s";
         return String.format(formatString, replacement.toString());
     }
-
-    // Legacy parsing method removed; processNode handles both array injections and
-    // inline placeholders.
 
 }
