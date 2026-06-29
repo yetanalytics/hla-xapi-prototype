@@ -47,7 +47,7 @@ public class ConfigParserTest {
 
     private static final Logger logger = LogManager.getLogger(ConfigParserTest.class);
 
-    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"c5988e0e-c521-4ff7-ba83-df1a63eb72bf\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"c5988e0e-c521-4ff7-ba83-df1a63eb72bf\"}},\"context\":{\"extensions\":{\"https://yetanalytics.com/extensions/from-x\":4,\"https://yetanalytics.com/extensions/from-y\":12}},\"result\":{\"response\":\"[5, 13]\"}}";
+    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"c5988e0e-c521-4ff7-ba83-df1a63eb72bf\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"Mr. c5988e0e-c521-4ff7-ba83-df1a63eb72bf\"}},\"context\":{\"extensions\":{\"https://yetanalytics.com/extensions/from-x\":4,\"https://yetanalytics.com/extensions/from-y\":12}},\"result\":{\"response\":\"[5, 13]\"}}";
 
     @Test
     public void parsesConfigFile() throws IOException {

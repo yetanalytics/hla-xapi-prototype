@@ -64,6 +64,7 @@ public class TriggerProcessor {
 
         try {
             if (node.isObject()) {
+                // no injection possible, just process children
                 ObjectNode out = mapper.createObjectNode();
                 node.fieldNames().forEachRemaining(field -> {
                     JsonNode child = node.get(field);
@@ -82,6 +83,7 @@ public class TriggerProcessor {
                         return handleInjectionArray(node, context, mapper, false);
                     }
                 }
+                // if not, process each element instead
                 ArrayNode out = mapper.createArrayNode();
                 for (JsonNode el : node) {
                     out.add(processNode(el, context, mapper));
@@ -90,6 +92,8 @@ public class TriggerProcessor {
             }
 
             if (node.isTextual()) {
+                // if it's stringy, we need to check for escaped/encoded injection array(s) and route them through the
+                // handlers, then replace that text in the string with the result(s)
                 String txt = node.asText();
                 Matcher m = INLINE_PLACEHOLDER.matcher(txt);
                 if (!m.find()) {

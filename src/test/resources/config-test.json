@@ -10,7 +10,7 @@
                     "name": ["this", ["EntityId"]],
                     "account": {
                         "homePage": "https://homepage.system.io",
-                        "name": ["this", ["EntityId"]]
+                        "name": "Mr. <<[\"this\", [\"EntityId\"]]>>"
                     }
                 },
                 "context": {
