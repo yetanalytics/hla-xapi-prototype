@@ -151,6 +151,19 @@ public class HLADecoderRegistry {
         return typedValue;
     }
 
+    public EncoderFactory getEncoderFactory() {
+        return encoderFactory;
+    }
+
+    public DataElement createElement(String hlaType) {
+        String normalizedType = normalize(hlaType);
+        RegisteredDecoder registered = lookupRegisteredDecoder(normalizedType).resolved(this);
+        if (registered.elementAdapter() == null) {
+            throw new IllegalArgumentException("HLA type " + hlaType + " is not backed by a DataElement");
+        }
+        return registered.elementAdapter().createElement();
+    }
+
     private void registerStandardDecoders(EncoderFactory encoderFactory) {
         registerElement("HLAboolean", Boolean.class, encoderFactory::createHLAboolean, HLAboolean::getValue);
 

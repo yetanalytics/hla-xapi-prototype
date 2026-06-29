@@ -31,6 +31,9 @@ verify:
 run-dev:
 	java -cp "$(APP_JAR):$(PORTICO_JAR)" com.yetanalytics.hlaxapi.App $(SIM_CONFIG)
 
+run-debug-portico:
+	java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005 -cp "$(APP_JAR):$(PORTICO_JAR)" com.yetanalytics.hlaxapi.App $(SIM_CONFIG)
+
 run-dev-pitch:
 	java -cp "$(APP_JAR):$(PITCH_RTI_LIB)" com.yetanalytics.hlaxapi.App $(PITCH_SIM_CONFIG)
 
