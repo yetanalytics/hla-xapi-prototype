@@ -1,11 +1,13 @@
 package com.yetanalytics;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.lang.reflect.Parameter;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -34,6 +36,7 @@ import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 
 import hla.rti1516e.ParameterHandle;
@@ -44,14 +47,14 @@ public class ConfigParserTest {
 
     private static final Logger logger = LogManager.getLogger(ConfigParserTest.class);
 
-    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"Player One\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"sample\"}},\"object\":{\"id\":\"https://yetanalytics.com/objects/description!\",\"definition\":{\"name\":{\"en-us\":\"description!\"}}},\"context\":{\"extensions\":{\"https://yetanalytics.com/test-numbers-and-aliases\":1.2345}}}";
+    final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"c5988e0e-c521-4ff7-ba83-df1a63eb72bf\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"c5988e0e-c521-4ff7-ba83-df1a63eb72bf\"}},\"context\":{\"extensions\":{\"https://yetanalytics.com/extensions/from-x\":4,\"https://yetanalytics.com/extensions/from-y\":12}},\"result\":{\"response\":\"[5, 13]\"}}";
 
     @Test
     public void parsesConfigFile() throws IOException {
         XapiConfig config = ConfigParser.fromFile("src/test/resources/config-test.json").parse();
 
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null, 
-            "src/test/resources/SISO-STD-025.3-2024.xml");
+            "config/HlaFedereplFOM.xml");
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
         InjectionHandler ih = new InjectionHandler();
         ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
@@ -61,10 +64,18 @@ public class ConfigParserTest {
         TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
 
         Map<String, byte[]> paramMap = new HashMap<String, byte[]>();
-        paramMap.put("Description", HLAEncodingTestSupport.asciiString("description!"));
-        paramMap.put("Duration", HLAEncodingTestSupport.float64(1.2345, ByteOrder.BIG_ENDIAN));
+        paramMap.put("EntityId", HLAEncodingTestSupport.asciiString("c5988e0e-c521-4ff7-ba83-df1a63eb72bf"));
+        
+        byte[] fromX = HLAEncodingTestSupport.int32(4, ByteOrder.BIG_ENDIAN);
+        byte[] fromY = HLAEncodingTestSupport.int32(12, ByteOrder.BIG_ENDIAN);
+        paramMap.put("FromPosition", HLAEncodingTestSupport.fixedRecord(fromX, fromY));
 
-        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
+        byte[] toX = HLAEncodingTestSupport.int32(5, ByteOrder.BIG_ENDIAN);
+        byte[] toY = HLAEncodingTestSupport.int32(13, ByteOrder.BIG_ENDIAN);
+        paramMap.put("ToPosition", HLAEncodingTestSupport.fixedRecord(toX, toY));
+        
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
 
         assertNotNull(config);
         assertNotNull(config.statementTriggers);
@@ -87,6 +98,21 @@ public class ConfigParserTest {
         assertEquals(config.lrsConfig.key, "key string");
         assertEquals(config.lrsConfig.secret, "secret string");
         assertNotNull(config.lrsConfig);
+    }
+
+    @Test
+    public void fixedRecordHelperConcatenatesEncodedFieldsInOrder() {
+        byte[] first = HLAEncodingTestSupport.int32(12, ByteOrder.BIG_ENDIAN);
+        byte[] second = HLAEncodingTestSupport.asciiString("abc");
+
+        byte[] record = HLAEncodingTestSupport.fixedRecord(first, second);
+        byte[] expected = ByteBuffer.allocate(first.length + second.length)
+                .order(ByteOrder.BIG_ENDIAN)
+                .put(first)
+                .put(second)
+                .array();
+
+        assertArrayEquals(expected, record);
     }
 
     @Test
@@ -271,6 +297,27 @@ public class ConfigParserTest {
         String out = triggerProcessor.processTrigger(st, injectionContext);
         assertNotNull(out);
         assertTrue(out.contains("first=description!, second=description!"));
+    }
+
+    @Test
+    public void inlinePlaceholderKeepsWholeValueAsStringWhenInjectionReturnsStructuredData() {
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Object handleThis(Target t, InjectionContext context) {
+                return List.of("alpha", "beta");
+            }
+        };
+
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", new HashMap<>());
+
+        String stmt = "{\"actor\":{\"name\":\"<<[\\\"this\\\", [\\\"Description\\\"]]>>\"}}";
+        com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
+        st.statement = stmt;
+
+        String out = triggerProcessor.processTrigger(st, injectionContext);
+        assertNotNull(out);
+        assertTrue(out.contains("\"name\":\"[alpha, beta]\""));
     }
 
     // Stub implementations of HLA ParameterHandle and ParameterHandleValueMap for

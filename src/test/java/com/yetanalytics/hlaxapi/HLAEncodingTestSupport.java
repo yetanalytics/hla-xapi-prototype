@@ -55,6 +55,18 @@ public class HLAEncodingTestSupport {
                 .array();
     }
 
+    public static byte[] fixedRecord(byte[]... encodedFields) {
+        int size = 0;
+        for (byte[] encodedField : encodedFields) {
+            size += encodedField.length;
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(size).order(ByteOrder.BIG_ENDIAN);
+        for (byte[] encodedField : encodedFields) {
+            buffer.put(encodedField);
+        }
+        return buffer.array();
+    }
+
     public static byte[] fixedArray(byte[]... encodedElements) {
         int size = Integer.BYTES;
         for (byte[] encodedElement : encodedElements) {

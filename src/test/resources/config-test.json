@@ -2,25 +2,25 @@
     "statementTriggers": [
         {
             "type": "Interaction",
-            "class": "LoadScenario",
+            "class": "EntityMoved",
             "criteria": [["this", "key1"], "=", "thing1"],
             "statement": {
                 "actor": {
                     "objectType": "Agent",
-                    "name": "Player One",
+                    "name": ["this", ["EntityId"]],
                     "account": {
                         "homePage": "https://homepage.system.io",
-                        "name": "sample"
+                        "name": ["this", ["EntityId"]]
                     }
-                },
-                "object": {
-                    "id": "https://yetanalytics.com/objects/<<[\"this\", [\"Description\"]]>>",
-                    "definition": {"name": {"en-us": ["this", ["Description"]]}}
                 },
                 "context": {
-                    "extensions": {
-                        "https://yetanalytics.com/test-numbers-and-aliases": ["this", ["Duration"]]
+                    "extensions":{
+                        "https://yetanalytics.com/extensions/from-x": ["this", ["FromPosition", "X"]],
+                        "https://yetanalytics.com/extensions/from-y": ["this", ["FromPosition", "Y"]]
                     }
+                },
+                "result": {
+                    "response": "[<<[\"this\", [\"ToPosition\", \"X\"]]>>, <<[\"this\", [\"ToPosition\", \"Y\"]]>>]"
                 }
             }
         }

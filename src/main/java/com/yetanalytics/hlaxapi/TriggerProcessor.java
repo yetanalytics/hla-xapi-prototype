@@ -98,9 +98,6 @@ public class TriggerProcessor {
 
                 m.reset();
                 StringBuffer sb = new StringBuffer();
-                int replacementCount = 0;
-                boolean wholeTextPlaceholder = false;
-                JsonNode wholeTextReplacement = null;
 
                 while (m.find()) {
                     String inner = m.group(1);
@@ -114,35 +111,17 @@ public class TriggerProcessor {
                         if (repNode == null) {
                             m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
                         } else {
-                            replacementCount++;
-                            if (replacementCount == 1 && txt.equals(m.group(0))) {
-                                wholeTextPlaceholder = true;
-                                wholeTextReplacement = repNode;
-                            } else {
-                                wholeTextPlaceholder = false;
-                                wholeTextReplacement = null;
-                            }
-
-                            String replacementSerialized;
-                            if (repNode.isValueNode()) {
-                                replacementSerialized = repNode.asText();
-                            } else {
-                                replacementSerialized = mapper.writeValueAsString(repNode);
-                            }
-                            m.appendReplacement(sb, Matcher.quoteReplacement(replacementSerialized));
+                            String replacementText = repNode.isValueNode()
+                                    ? repNode.asText()
+                                    : mapper.writeValueAsString(repNode);
+                            m.appendReplacement(sb, Matcher.quoteReplacement(replacementText));
                         }
                     } catch (Exception e) {
                         m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
                     }
                 }
                 m.appendTail(sb);
-                String replaced = sb.toString();
-
-                if (wholeTextPlaceholder && replacementCount == 1 && wholeTextReplacement != null
-                        && !wholeTextReplacement.isTextual()) {
-                    return wholeTextReplacement;
-                }
-                return TextNode.valueOf(replaced);
+                return TextNode.valueOf(sb.toString());
             }
 
             return node;
