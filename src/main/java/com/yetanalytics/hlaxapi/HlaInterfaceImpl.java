@@ -3,6 +3,8 @@ package com.yetanalytics.hlaxapi;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -12,6 +14,7 @@ import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.HlaObjectCache;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 
 import hla.rti1516e.AttributeHandle;
 import hla.rti1516e.AttributeHandleSet;
@@ -45,15 +48,16 @@ import hla.rti1516e.exceptions.FederateNameAlreadyInUse;
 import hla.rti1516e.exceptions.FederateNotExecutionMember;
 import hla.rti1516e.exceptions.FederateOwnsAttributes;
 import hla.rti1516e.exceptions.FederateServiceInvocationsAreBeingReportedViaMOM;
-import hla.rti1516e.exceptions.FederatesCurrentlyJoined;
 import hla.rti1516e.exceptions.FederationExecutionAlreadyExists;
 import hla.rti1516e.exceptions.FederationExecutionDoesNotExist;
 import hla.rti1516e.exceptions.InconsistentFDD;
 import hla.rti1516e.exceptions.InteractionClassNotDefined;
 import hla.rti1516e.exceptions.InvalidAttributeHandle;
+import hla.rti1516e.exceptions.InteractionParameterNotDefined;
 import hla.rti1516e.exceptions.InvalidInteractionClassHandle;
 import hla.rti1516e.exceptions.InvalidLocalSettingsDesignator;
 import hla.rti1516e.exceptions.InvalidObjectClassHandle;
+import hla.rti1516e.exceptions.InvalidParameterHandle;
 import hla.rti1516e.exceptions.InvalidResignAction;
 import hla.rti1516e.exceptions.NameNotFound;
 import hla.rti1516e.exceptions.NotConnected;
@@ -74,8 +78,6 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     private static final Logger logger = LogManager.getLogger(HlaInterfaceImpl.class);
 
     private RTIambassador ambassador;
-
-    private String federationName;
 
     @Autowired
     private XapiConfig xapiConfig;
@@ -128,12 +130,6 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         } catch (UnsupportedCallbackModel | CallNotAllowedFromWithinCallback e) {
             throw new RTIinternalError("HlaInterfaceFailure", e);
         } catch (AlreadyConnected ignored) {
-        }
-
-        federationName = simulationConfig.getFederationName();
-        try {
-            ambassador.destroyFederationExecution(simulationConfig.getFederationName());
-        } catch (FederatesCurrentlyJoined | FederationExecutionDoesNotExist ignored) {
         }
 
         File fddFile = new File(simulationConfig.getFom());
@@ -189,14 +185,6 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                     | CallNotAllowedFromWithinCallback | InvalidResignAction e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             } catch (FederateNotExecutionMember ignored) {
-            }
-
-            if (federationName != null) {
-                try {
-                    ambassador.destroyFederationExecution(federationName);
-                } catch (FederatesCurrentlyJoined
-                        | FederationExecutionDoesNotExist ignored) {
-                }
             }
 
             try {
@@ -400,18 +388,39 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             String interactionName = ambassador.getInteractionClassName(interactionClass);
             logger.info("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
-            // TODO: Need criteria matching, though maybe that happens in processor, we will
-            // definitely want to add a
-            // similar set of handlers for object updates
+
+            // Create Interaction-specific injection context to pass to trigger processor
+            InteractionInjectionContext context = new InteractionInjectionContext(interactionKey,
+                    getMapWithParameterNames(interactionClass, theParameters));
+
+            // pass each matching interaction trigger to trigger processor
             xapiConfig.statementTriggers.stream()
                     .filter(trigger -> trigger.clazz.equals(interactionKey)
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.info("Processing trigger for interaction {}", trigger.clazz);
-                        triggerProcessor.processTrigger(trigger);
+                        triggerProcessor.processTrigger(trigger, context);
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);
         }
+    }
+
+    private Map<String, byte[]> getMapWithParameterNames(InteractionClassHandle interactionClass,
+            ParameterHandleValueMap theParameters) {
+        Map<String, byte[]> parameters = new HashMap<String, byte[]>();
+        theParameters.forEach((handle, value) -> {
+            String paramName;
+            try {
+                paramName = ambassador.getParameterName(interactionClass, handle);
+                parameters.put(paramName, value);
+            } catch (InteractionParameterNotDefined | InvalidParameterHandle | InvalidInteractionClassHandle
+                    | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
+                throw new RuntimeException("Exception processing parameter " + handle + " for interaction "
+                        + interactionClass, e);
+            }
+        });
+        return parameters;
+
     }
 }

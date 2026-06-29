@@ -2,22 +2,24 @@
     "statementTriggers": [
         {
             "type": "Interaction",
-            "class": "LoadScenario",
-            "criteria": [["key1"], "=", "thing1"],
+            "class": "EntityMoved",
+            "criteria": [["this", "key1"], "=", "thing1"],
             "statement": {
                 "actor": {
                     "objectType": "Agent",
-                    "name": ["this", ["ScenarioName"]],
+                    "name": ["this", ["EntityId"]],
                     "account": {
                         "homePage": "https://homepage.system.io",
-                        "name": ["Object", "Player", ["Name"], ["Number", "=", 0]]
+                        "name": ["this", ["EntityId"]]
                     }
                 },
                 "context": {
-                    "extensions": {
-                        "http://www.extensions.com/car-color": ["query", "Car", ["carColor"], [["carId"], "=", 4]],
-                        "http://www.extensions.com/nested-example": ["query", "Car", ["carColor"], [["carId"], "=", ["this", ["CarId"]]]]
+                    "extensions":{
+                        "https://yetanalytics.com/extensions/from-position": "[<<[\"this\", [\"FromPosition\", \"X\"]]>>, <<[\"this\", [\"FromPosition\", \"Y\"]]>>]"
                     }
+                },
+                "result": {
+                    "response": "[<<[\"this\", [\"ToPosition\", \"X\"]]>>, <<[\"this\", [\"ToPosition\", \"Y\"]]>>]"
                 }
             }
         }

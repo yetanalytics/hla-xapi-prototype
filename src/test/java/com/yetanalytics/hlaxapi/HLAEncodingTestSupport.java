@@ -10,7 +10,7 @@ import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.EncoderException;
 
-final class HLAEncodingTestSupport {
+public class HLAEncodingTestSupport {
 
     private HLAEncodingTestSupport() {
     }
@@ -19,35 +19,35 @@ final class HLAEncodingTestSupport {
         return new HLA1516eEncoderFactory();
     }
 
-    static byte[] int16(short value, ByteOrder byteOrder) {
+    public static byte[] int16(short value, ByteOrder byteOrder) {
         return ByteBuffer.allocate(Short.BYTES).order(byteOrder).putShort(value).array();
     }
 
-    static byte[] int32(int value, ByteOrder byteOrder) {
+    public static byte[] int32(int value, ByteOrder byteOrder) {
         return ByteBuffer.allocate(Integer.BYTES).order(byteOrder).putInt(value).array();
     }
 
-    static byte[] int64(long value, ByteOrder byteOrder) {
+    public static byte[] int64(long value, ByteOrder byteOrder) {
         return ByteBuffer.allocate(Long.BYTES).order(byteOrder).putLong(value).array();
     }
 
-    static byte[] float32(float value, ByteOrder byteOrder) {
+    public static byte[] float32(float value, ByteOrder byteOrder) {
         return ByteBuffer.allocate(Float.BYTES).order(byteOrder).putFloat(value).array();
     }
 
-    static byte[] float64(double value, ByteOrder byteOrder) {
+    public static byte[] float64(double value, ByteOrder byteOrder) {
         return ByteBuffer.allocate(Double.BYTES).order(byteOrder).putDouble(value).array();
     }
 
-    static byte[] asciiString(String value) {
+    public static byte[] asciiString(String value) {
         return variableBytes(value.getBytes(StandardCharsets.US_ASCII));
     }
 
-    static byte[] unicodeString(String value) {
+    public static byte[] unicodeString(String value) {
         return encoded(testEncoderFactory().createHLAunicodeString(value));
     }
 
-    static byte[] variableBytes(byte[] value) {
+    public static byte[] variableBytes(byte[] value) {
         return ByteBuffer.allocate(Integer.BYTES + value.length)
                 .order(ByteOrder.BIG_ENDIAN)
                 .putInt(value.length)
@@ -55,7 +55,19 @@ final class HLAEncodingTestSupport {
                 .array();
     }
 
-    static byte[] fixedArray(byte[]... encodedElements) {
+    public static byte[] fixedRecord(byte[]... encodedFields) {
+        int size = 0;
+        for (byte[] encodedField : encodedFields) {
+            size += encodedField.length;
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(size).order(ByteOrder.BIG_ENDIAN);
+        for (byte[] encodedField : encodedFields) {
+            buffer.put(encodedField);
+        }
+        return buffer.array();
+    }
+
+    public static byte[] fixedArray(byte[]... encodedElements) {
         int size = Integer.BYTES;
         for (byte[] encodedElement : encodedElements) {
             size += encodedElement.length;
@@ -69,7 +81,7 @@ final class HLAEncodingTestSupport {
         return buffer.array();
     }
 
-    static byte[] variableArray(byte[]... encodedElements) {
+    public static byte[] variableArray(byte[]... encodedElements) {
         int size = Integer.BYTES;
         for (byte[] encodedElement : encodedElements) {
             size += encodedElement.length;

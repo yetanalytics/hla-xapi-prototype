@@ -12,11 +12,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import org.xml.sax.SAXException;
 
+import hla.rti1516e.encoding.DataElement;
+import hla.rti1516e.encoding.DataElementFactory;
+import hla.rti1516e.encoding.HLAfixedRecord;
+import hla.rti1516e.encoding.HLAvariableArray;
+
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -28,6 +36,7 @@ public class FOMXML {
     private XPath xPath;
     private HLADecoderRegistry decoderRegistry;
 
+    //automatically injected by spring
     public FOMXML(SimulationConfig simConfig, HLADecoderRegistry decoderRegistry) {
         File xmlFile = new File(simConfig.getFom());
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -138,10 +147,7 @@ public class FOMXML {
             throw new IllegalArgumentException("First element of pathParts must be the parameter name (String)");
         }
 
-        // find parameter dataType for the interaction/object
-        String paramExp = String.format(isInteraction ? findInteractionByNameExp : findObjectByNameExp,
-            entityName, (String) first);
-        String currentTypeName = (String) xPath.compile(paramExp).evaluate(doc, XPathConstants.STRING);
+        String currentTypeName = getParameterType(entityName, (String) first, isInteraction);
 
         if (currentTypeName == null || currentTypeName.isEmpty()) {
             return new PathCheckResult(false, null, null);
@@ -200,7 +206,14 @@ public class FOMXML {
      * the primitive representation if so.
      *
      */
-    private String getRawType(String dataTypeName) throws XPathExpressionException{
+    public String getRawType(String dataTypeName) throws XPathExpressionException{
+
+        if (dataTypeName == null || dataTypeName.isEmpty()) {
+            return null;
+        }
+        if (isPrim(dataTypeName)) {
+            return dataTypeName;
+        }
 
         String simpleExp = String.format(checkSimpleDataTypeExp, dataTypeName);
         String simpleType = (String) xPath.compile(simpleExp).evaluate(doc, XPathConstants.STRING);
@@ -239,4 +252,92 @@ public class FOMXML {
         this.decoderRegistry = decoderRegistry;
     }
 
+    public String getParameterType(String entityName, String parameterName, boolean isInteraction)
+            throws XPathExpressionException {
+        String exp = String.format(isInteraction ? findInteractionByNameExp : findObjectByNameExp,
+                entityName, parameterName);
+        return (String) xPath.compile(exp).evaluate(doc, XPathConstants.STRING);
+    }
+
+    public String getArrayElementType(String arrayType) throws XPathExpressionException {
+        String exp = String.format(arrayDataTypeExp, arrayType);
+        return (String) xPath.compile(exp).evaluate(doc, XPathConstants.STRING);
+    }
+
+    public String getFixedRecordFieldType(String recordType, String fieldName)
+            throws XPathExpressionException {
+        String exp = String.format(fixedRecordDataTypeExp, recordType, fieldName);
+        return (String) xPath.compile(exp).evaluate(doc, XPathConstants.STRING);
+    }
+
+    public boolean isFixedRecordType(String typeName) throws XPathExpressionException {
+        String exp = String.format("//fixedRecordData[name[text()='%s']]/name", typeName);
+        String found = (String) xPath.compile(exp).evaluate(doc, XPathConstants.STRING);
+        return found != null && !found.isEmpty();
+    }
+
+    public boolean isArrayType(String typeName) throws XPathExpressionException {
+        String exp = String.format("//arrayData[name[text()='%s']]/name", typeName);
+        String found = (String) xPath.compile(exp).evaluate(doc, XPathConstants.STRING);
+        return found != null && !found.isEmpty();
+    }
+
+    public List<FixedRecordField> getFixedRecordFields(String fixedRecordType)
+            throws XPathExpressionException {
+        String exp = String.format("//fixedRecordData[name[text()='%s']]/field", fixedRecordType);
+        NodeList fieldNodes = (NodeList) xPath.compile(exp).evaluate(doc, XPathConstants.NODESET);
+        List<FixedRecordField> fields = new ArrayList<>();
+        for (int i = 0; i < fieldNodes.getLength(); i++) {
+            Node fieldNode = fieldNodes.item(i);
+            String fieldName = (String) xPath.compile("name/text()").evaluate(fieldNode, XPathConstants.STRING);
+            String dataType = (String) xPath.compile("dataType/text()").evaluate(fieldNode, XPathConstants.STRING);
+            fields.add(new FixedRecordField(fieldName, dataType));
+        }
+        return fields;
+    }
+
+    public DataElement createDataElementForType(String typeName) {
+        try {
+            String hlaType = getRawType(typeName);
+            if (hlaType != null) {
+                return decoderRegistry.createElement(hlaType);
+            }
+            if (isFixedRecordType(typeName)) {
+                return createFixedRecordElement(typeName);
+            }
+            if (isArrayType(typeName)) {
+                return createArrayElement(typeName);
+            }
+            throw new IllegalArgumentException("Unsupported data type: " + typeName);
+        } catch (XPathExpressionException e) {
+            throw new IllegalStateException("Failed to resolve HLA type for " + typeName, e);
+        }
+    }
+
+    private HLAfixedRecord createFixedRecordElement(String fixedRecordType) throws XPathExpressionException {
+        HLAfixedRecord record = decoderRegistry.getEncoderFactory().createHLAfixedRecord();
+        for (FOMXML.FixedRecordField field : getFixedRecordFields(fixedRecordType)) {
+            record.add(createDataElementForType(field.dataType));
+        }
+        return record;
+    }
+
+    private HLAvariableArray<DataElement> createArrayElement(String arrayType) throws XPathExpressionException {
+        String elementType = getArrayElementType(arrayType);
+        if (elementType == null || elementType.isEmpty()) {
+            throw new IllegalArgumentException("Unknown array element type for " + arrayType);
+        }
+        DataElementFactory<DataElement> factory = index -> createDataElementForType(elementType);
+        return decoderRegistry.getEncoderFactory().createHLAvariableArray(factory);
+    }
+
+    public static final class FixedRecordField {
+        public final String name;
+        public final String dataType;
+
+        public FixedRecordField(String name, String dataType) {
+            this.name = name;
+            this.dataType = dataType;
+        }
+    }
 }
