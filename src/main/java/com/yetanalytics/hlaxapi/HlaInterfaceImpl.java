@@ -4,12 +4,15 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
@@ -77,6 +80,9 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
 
     @Autowired
     private TriggerProcessor triggerProcessor;
+
+    @Autowired
+    private XapiClient xapiClient;
 
     public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
@@ -226,7 +232,12 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.info("Processing trigger for interaction {}", trigger.clazz);
-                        triggerProcessor.processTrigger(trigger, context);
+                        String xapi = triggerProcessor.processTrigger(trigger, context);
+                        try {
+                            List<UUID> ids = xapiClient.postStatementFromString(xapi);
+                        } catch (JsonProcessingException e) {
+                            logger.error("Error parsing or posting statement {}", xapi, e);
+                        }
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);

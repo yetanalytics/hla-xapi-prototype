@@ -20,14 +20,20 @@
                 },
                 "result": {
                     "response": "[<<[\"this\", [\"ToPosition\", \"X\"]]>>, <<[\"this\", [\"ToPosition\", \"Y\"]]>>]"
+                },
+                "verb": {
+                    "id": "http://yetanalytics.com/verbs/moved"
+                },
+                "object": {
+                    "id": "http://yetanalytics.com/objects/7"
                 }
             }
         }
     ],
     "lrs": {
-        "host": "host string",
-        "key": "key string",
-        "secret": "secret string",
-        "batch": 4
+        "host": "http://localhost:8080/xapi",
+        "key": "my_key",
+        "secret": "my_secret",
+        "batch": 100
     }    
 }
