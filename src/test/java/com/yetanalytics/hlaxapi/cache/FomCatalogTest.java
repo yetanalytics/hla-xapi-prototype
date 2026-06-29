@@ -4,14 +4,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.yetanalytics.hlaxapi.FOMXML;
+import com.yetanalytics.hlaxapi.HLADecoderRegistry;
+import com.yetanalytics.hlaxapi.SimulationConfig;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
 class FomCatalogTest {
 
     @Test
     void flattensPrimitiveAliasesEnumsAndFixedRecords() {
-        FomCatalog catalog = FomCatalog.fromFile("config/fom.xml");
+        FomCatalog catalog = catalog("config/fom.xml");
         FomCatalog.ObjectClassDef car = catalog.objectClass("Car").orElseThrow();
 
         assertTrue(car.attribute("FuelLevel").orElseThrow().leaf());
@@ -27,7 +31,7 @@ class FomCatalogTest {
 
     @Test
     void includesInheritedObjectAttributesAndArrayMetadata() {
-        FomCatalog catalog = FomCatalog.fromFile("src/test/resources/SISO-STD-025.3-2024.xml");
+        FomCatalog catalog = catalog("src/test/resources/SISO-STD-025.3-2024.xml");
 
         FomCatalog.ObjectClassDef network = catalog.objectClass("Network").orElseThrow();
         assertEquals("HLAASCIIstring", network.attribute("Name").orElseThrow().primitiveType());
@@ -43,5 +47,11 @@ class FomCatalogTest {
         assertEquals("Position.Lat", FomCatalog.targetPath(List.of("Position", "Lat")));
         assertEquals("TargetModifiers[0].Key", FomCatalog.targetPath(List.of("TargetModifiers", 0, "Key")));
         assertEquals("TargetModifiers[].Key", FomCatalog.wildcardArrayIndexes("TargetModifiers[12].Key"));
+    }
+
+    private FomCatalog catalog(String fomPath) {
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null, fomPath);
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        return FomCatalog.fromFomXml(new FOMXML(simConfig, decoderRegistry));
     }
 }

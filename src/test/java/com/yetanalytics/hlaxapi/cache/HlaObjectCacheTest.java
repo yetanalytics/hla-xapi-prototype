@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
+import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
@@ -16,18 +18,23 @@ import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.EncoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.HLAfixedRecord;
+import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
 class HlaObjectCacheTest {
 
     private final EncoderFactory encoderFactory = new HLA1516eEncoderFactory();
-    private final FomCatalog catalog = FomCatalog.fromFile("config/fom.xml");
     private final HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(encoderFactory);
+    private final FOMXML fomXml = new FOMXML(
+            new SimulationConfig(null, null, null, null, "config/fom.xml"),
+            decoderRegistry);
+    private final FomCatalog catalog = FomCatalog.fromFomXml(fomXml);
 
     @Test
     void initializesSchemaAndSeedsFomMetadata() throws SQLException {
@@ -112,8 +119,32 @@ class HlaObjectCacheTest {
         }
     }
 
+    @Test
+    void persistentCacheStartsFreshOnInitialization(@TempDir Path tempDir) throws SQLException {
+        String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("cache.sqlite");
+
+        try (HlaObjectCache cache = newCache(jdbcUrl)) {
+            cache.discoverObject("object-1", "Car One", "Car");
+            cache.reflectAttributeValue("object-1", "Car", "FuelLevel",
+                    encoded(encoderFactory.createHLAinteger32BE(75)));
+
+            assertEquals(1, count(cache, "SELECT COUNT(*) FROM object_instance"));
+            assertEquals(1, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
+        }
+
+        try (HlaObjectCache cache = newCache(jdbcUrl)) {
+            assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_instance"));
+            assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
+            assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
+        }
+    }
+
     private HlaObjectCache newCache() {
-        return new HlaObjectCache("jdbc:sqlite::memory:", catalog, decoderRegistry, encoderFactory);
+        return newCache("jdbc:sqlite::memory:");
+    }
+
+    private HlaObjectCache newCache(String jdbcUrl) {
+        return new HlaObjectCache(jdbcUrl, catalog, fomXml, decoderRegistry);
     }
 
     private byte[] position(double lat, double lon) {
