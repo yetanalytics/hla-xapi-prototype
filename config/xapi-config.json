@@ -2,16 +2,24 @@
     "statementTriggers": [
         {
             "type": "Interaction",
-            "class": "LoadScenario",
+            "class": "EntityMoved",
             "criteria": [["this", "key1"], "=", "thing1"],
             "statement": {
                 "actor": {
                     "objectType": "Agent",
-                    "name": ["this", ["ScenarioName"]],
+                    "name": ["this", ["EntityId"]],
                     "account": {
                         "homePage": "https://homepage.system.io",
-                        "name": "sample"
+                        "name": ["this", ["EntityId"]]
                     }
+                },
+                "context": {
+                    "extensions":{
+                        "https://yetanalytics.com/extensions/from-position": "[<<[\"this\", [\"FromPosition\", \"X\"]]>>, <<[\"this\", [\"FromPosition\", \"Y\"]]>>]"
+                    }
+                },
+                "result": {
+                    "response": "[<<[\"this\", [\"ToPosition\", \"X\"]]>>, <<[\"this\", [\"ToPosition\", \"Y\"]]>>]"
                 }
             }
         }

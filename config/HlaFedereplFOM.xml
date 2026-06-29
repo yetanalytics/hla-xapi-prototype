@@ -35,7 +35,6 @@
     <objects>
         <objectClass>
             <name>HLAobjectRoot</name>
-            <sharing>Neither</sharing>
             <semantics>Root object class.</semantics>
             <objectClass>
                 <name>World</name>
@@ -46,7 +45,7 @@
                 </semantics>
                 <attribute>
                     <name>WorldId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <updateType>Static</updateType>
                     <updateCondition>Provided when the world object is registered.</updateCondition>
                     <valueRequired>true</valueRequired>
@@ -129,7 +128,7 @@
                 </semantics>
                 <attribute>
                     <name>EntityId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <updateType>Static</updateType>
                     <updateCondition>Provided when the entity object is registered.</updateCondition>
                     <valueRequired>true</valueRequired>
@@ -236,9 +235,6 @@
     <interactions>
         <interactionClass>
             <name>HLAinteractionRoot</name>
-            <sharing>Neither</sharing>
-            <transportation>HLAreliable</transportation>
-            <order>Receive</order>
             <semantics>Root interaction class.</semantics>
             <interactionClass>
                 <name>InitializeWorld</name>
@@ -287,7 +283,7 @@
                 <semantics>Reports creation of a carrot, rabbit, or wolf.</semantics>
                 <parameter>
                     <name>EntityId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID of the new entity.</semantics>
                 </parameter>
                 <parameter>
@@ -309,7 +305,7 @@
                 <semantics>Reports one animal movement produced by step-move.</semantics>
                 <parameter>
                     <name>EntityId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID of the rabbit or wolf that moved.</semantics>
                 </parameter>
                 <parameter>
@@ -338,7 +334,7 @@
                 </semantics>
                 <parameter>
                     <name>PredatorId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID of the consuming entity.</semantics>
                 </parameter>
                 <parameter>
@@ -348,7 +344,7 @@
                 </parameter>
                 <parameter>
                     <name>PreyId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID of the consumed entity.</semantics>
                 </parameter>
                 <parameter>
@@ -372,17 +368,17 @@
                 </semantics>
                 <parameter>
                     <name>ParentOneId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID of one parent.</semantics>
                 </parameter>
                 <parameter>
                     <name>ParentTwoId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID of the selected mate.</semantics>
                 </parameter>
                 <parameter>
                     <name>ChildId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID assigned to the offspring.</semantics>
                 </parameter>
                 <parameter>
@@ -411,7 +407,7 @@
                 </semantics>
                 <parameter>
                     <name>EntityId</name>
-                    <dataType>UUIDString</dataType>
+                    <dataType>HLAASCIIstring</dataType>
                     <semantics>UUID of the removed entity.</semantics>
                 </parameter>
                 <parameter>
@@ -486,6 +482,8 @@
 
     <switches>
         <autoProvide isEnabled="true"/>
+        <conveyRegionDesignatorSets isEnabled="false"/>
+        <conveyProducingFederate isEnabled="false"/>
         <attributeScopeAdvisory isEnabled="false"/>
         <attributeRelevanceAdvisory isEnabled="false"/>
         <objectClassRelevanceAdvisory isEnabled="false"/>
@@ -511,13 +509,6 @@
                 <interpretation>IEEE 754 single precision floating point number.</interpretation>
                 <endian>Big</endian>
                 <encoding>32-bit IEEE 754 big-endian float.</encoding>
-            </basicData>
-            <basicData>
-                <name>HLAunicodeChar</name>
-                <size>16</size>
-                <interpretation>One UTF-16 code unit.</interpretation>
-                <endian>Big</endian>
-                <encoding>UTF-16 big-endian code unit.</encoding>
             </basicData>
         </basicDataRepresentations>
         <simpleDataTypes>
@@ -594,15 +585,7 @@
                 </enumerator>
             </enumeratedData>
         </enumeratedDataTypes>
-        <arrayDataTypes>
-            <arrayData>
-                <name>UUIDString</name>
-                <dataType>HLAunicodeChar</dataType>
-                <cardinality>36</cardinality>
-                <encoding>HLAfixedArray</encoding>
-                <semantics>Canonical textual UUID representation, including hyphens.</semantics>
-            </arrayData>
-        </arrayDataTypes>
+        <arrayDataTypes/>
         <fixedRecordDataTypes>
             <fixedRecordData>
                 <name>GridPosition</name>

@@ -1,28 +1,25 @@
 package com.yetanalytics.hlaxapi;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
+import com.yetanalytics.hlaxapi.config.model.Expression;
+import com.yetanalytics.hlaxapi.config.model.InjectionType;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
-import com.yetanalytics.hlaxapi.config.model.Expression;
-import com.yetanalytics.hlaxapi.config.model.InjectionType;
 
 @Component
 public class TriggerProcessor {
@@ -95,16 +92,16 @@ public class TriggerProcessor {
             if (node.isTextual()) {
                 String txt = node.asText();
                 Matcher m = INLINE_PLACEHOLDER.matcher(txt);
-                if (!m.find())
+                if (!m.find()) {
                     return node;
+                }
 
-                // If the entire text equals a single placeholder, and replacement is a full
-                // JSON node,
-                // return that node instead of a text node.
                 m.reset();
                 StringBuffer sb = new StringBuffer();
-                // track whether whole-string equals placeholder (not used currently)
-                List<JsonNode> replacements = new ArrayList<>();
+                int replacementCount = 0;
+                boolean wholeTextPlaceholder = false;
+                JsonNode wholeTextReplacement = null;
+
                 while (m.find()) {
                     String inner = m.group(1);
                     try {
@@ -115,10 +112,17 @@ public class TriggerProcessor {
                             repNode = handleInjectionArray(injNode, context, mapper, true);
                         }
                         if (repNode == null) {
-                            // parsing succeeded but not an injection array; leave placeholder alone
                             m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
                         } else {
-                            replacements.add(repNode);
+                            replacementCount++;
+                            if (replacementCount == 1 && txt.equals(m.group(0))) {
+                                wholeTextPlaceholder = true;
+                                wholeTextReplacement = repNode;
+                            } else {
+                                wholeTextPlaceholder = false;
+                                wholeTextReplacement = null;
+                            }
+
                             String replacementSerialized;
                             if (repNode.isValueNode()) {
                                 replacementSerialized = repNode.asText();
@@ -128,22 +132,16 @@ public class TriggerProcessor {
                             m.appendReplacement(sb, Matcher.quoteReplacement(replacementSerialized));
                         }
                     } catch (Exception e) {
-                        // inner JSON invalid: leave placeholder text unchanged
                         m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
                     }
                 }
                 m.appendTail(sb);
                 String replaced = sb.toString();
 
-                // if the original text was exactly a single placeholder and replacement was a
-                // non-text node,
-                // return that node directly
-                if (replacements.size() == 1 && txt.trim()
-                        .equals("<<" + mapper.writeValueAsString(replacements.get(0)) + "==>REPLACEMARKER>>")) {
-                    // This is a fallback path unlikely to be hit; return text node instead
-                    return TextNode.valueOf(replaced);
+                if (wholeTextPlaceholder && replacementCount == 1 && wholeTextReplacement != null
+                        && !wholeTextReplacement.isTextual()) {
+                    return wholeTextReplacement;
                 }
-
                 return TextNode.valueOf(replaced);
             }
 

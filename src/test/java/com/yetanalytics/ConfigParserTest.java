@@ -90,6 +90,88 @@ public class ConfigParserTest {
     }
 
     @Test
+    public void handlesFixedRecordFieldAccess() {
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+                "src/test/resources/SISO-STD-025.3-2024.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
+
+        byte[] eventTime = java.nio.ByteBuffer.allocate(Integer.BYTES * 2)
+                .order(java.nio.ByteOrder.BIG_ENDIAN)
+                .putInt(12)
+                .putInt(34567)
+                .array();
+
+        Map<String, byte[]> paramMap = new java.util.HashMap<>();
+        paramMap.put("EventTime", eventTime);
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
+        com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("EventTime", "Hours"));
+
+        Object result = ih.handleThis(target, injectionContext);
+        assertEquals(12, result);
+    }
+
+    @Test
+    public void handlesFixedRecordGridPositionFieldAccess() {
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+                "config/HlaFedereplFOM.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
+
+        byte[] gridPosition = java.nio.ByteBuffer.allocate(Integer.BYTES * 2)
+                .order(java.nio.ByteOrder.BIG_ENDIAN)
+                .putInt(5)
+                .putInt(7)
+                .array();
+
+        Map<String, byte[]> paramMap = new java.util.HashMap<>();
+        paramMap.put("ToPosition", gridPosition);
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
+        com.yetanalytics.hlaxapi.config.model.Target xTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "X"));
+        com.yetanalytics.hlaxapi.config.model.Target yTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "Y"));
+
+        Object xResult = ih.handleThis(xTarget, injectionContext);
+        Object yResult = ih.handleThis(yTarget, injectionContext);
+
+        assertEquals(5, xResult);
+        assertEquals(7, yResult);
+    }
+
+    @Test
+    public void handlesFixedRecordFieldAccessInsideArray() {
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+                "src/test/resources/SISO-STD-025.3-2024.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
+
+        byte[] key = HLAEncodingTestSupport.asciiString("sample-key");
+        byte[] value = HLAEncodingTestSupport.variableBytes("sample-value".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        byte[] pair = java.nio.ByteBuffer.allocate(key.length + value.length)
+                .order(java.nio.ByteOrder.BIG_ENDIAN)
+                .put(key)
+                .put(value)
+                .array();
+        byte[] arrayBytes = HLAEncodingTestSupport.variableArray(pair);
+
+        Map<String, byte[]> paramMap = new java.util.HashMap<>();
+        paramMap.put("TargetModifiers", arrayBytes);
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
+        com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("TargetModifiers", 0, "Key"));
+
+        Object result = ih.handleThis(target, injectionContext);
+        assertEquals("sample-key", result);
+    }
+
+    @Test
     public void convertsBinaryCriterion() {
         // raw form: [ ["Event"], "=", 5 ]
         List<Object> target = List.of("Event");
@@ -164,6 +246,31 @@ public class ConfigParserTest {
         assertNotNull(out);
         // Expect the placeholder to be replaced by the parameter value (description!) inside the string
         assertTrue(out.contains("prefix-description!-suffix"));
+    }
+
+    @Test
+    public void inlinePlaceholderProcessingHandlesMultiplePlaceholders() throws IOException {
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+            "src/test/resources/SISO-STD-025.3-2024.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
+
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+
+        Map<String, byte[]> paramMap = new java.util.HashMap<String, byte[]>();
+        paramMap.put("Description", HLAEncodingTestSupport.asciiString("description!"));
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
+
+        String stmt = "{\"actor\":{\"name\":\"first=<<[\\\"this\\\", [\\\"Description\\\"]]>>, second=<<[\\\"this\\\", [\\\"Description\\\"]]>>\"}}";
+        com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
+        st.statement = stmt;
+
+        String out = triggerProcessor.processTrigger(st, injectionContext);
+        assertNotNull(out);
+        assertTrue(out.contains("first=description!, second=description!"));
     }
 
     // Stub implementations of HLA ParameterHandle and ParameterHandleValueMap for
