@@ -1,10 +1,10 @@
 package com.yetanalytics.hlaxapi.cache;
 
+import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.DecoderException;
 import hla.rti1516e.encoding.EncoderException;
-import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.HLAfixedRecord;
 import hla.rti1516e.encoding.HLAvariableArray;
 import java.util.ArrayList;
@@ -12,20 +12,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import javax.xml.xpath.XPathExpressionException;
 
 public class HlaValueFlattener {
 
-    private final FomCatalog catalog;
+    private final FOMXML fomXml;
     private final HLADecoderRegistry decoderRegistry;
-    private final EncoderFactory encoderFactory;
 
-    public HlaValueFlattener(
-            FomCatalog catalog,
-            HLADecoderRegistry decoderRegistry,
-            EncoderFactory encoderFactory) {
-        this.catalog = Objects.requireNonNull(catalog, "catalog");
+    public HlaValueFlattener(FOMXML fomXml, HLADecoderRegistry decoderRegistry) {
+        this.fomXml = Objects.requireNonNull(fomXml, "fomXml");
         this.decoderRegistry = Objects.requireNonNull(decoderRegistry, "decoderRegistry");
-        this.encoderFactory = Objects.requireNonNull(encoderFactory, "encoderFactory");
     }
 
     public List<DecodedAttributeValue> flatten(String attributeName, String dataType, byte[] bytes) {
@@ -33,21 +29,21 @@ public class HlaValueFlattener {
         Objects.requireNonNull(dataType, "dataType");
         Objects.requireNonNull(bytes, "bytes");
         try {
-            DataElement element = createElement(dataType);
+            DataElement element = fomXml.createDataElementForType(dataType);
             element.decode(bytes);
             List<DecodedAttributeValue> values = new ArrayList<>();
             Object value = extractValue(attributeName, dataType, element, values);
-            String primitiveType = catalog.primitiveType(dataType);
+            String primitiveType = primitiveType(dataType);
             if (primitiveType != null) {
                 return values;
             }
             values.add(0, new DecodedAttributeValue(
                     attributeName,
                     dataType,
-                    primitiveType,
+                    null,
                     value,
                     bytes,
-                    primitiveType != null));
+                    false));
             return values;
         } catch (DecoderException | EncoderException | IllegalArgumentException e) {
             return List.of(new DecodedAttributeValue(attributeName, dataType, null, null, bytes, false));
@@ -59,38 +55,38 @@ public class HlaValueFlattener {
             String dataType,
             DataElement element,
             List<DecodedAttributeValue> values) throws DecoderException, EncoderException {
-        String primitiveType = catalog.primitiveType(dataType);
+        String primitiveType = primitiveType(dataType);
         if (primitiveType != null) {
-            Object value = decoderRegistry.decode(primitiveType, element.toByteArray());
+            byte[] elementBytes = element.toByteArray();
+            Object value = decoderRegistry.decode(primitiveType, elementBytes);
             values.add(new DecodedAttributeValue(
                     pathKey,
                     dataType,
                     primitiveType,
                     value,
-                    element.toByteArray(),
+                    elementBytes,
                     true));
             return value;
         }
 
-        FomCatalog.FixedRecordDef fixedRecord = catalog.fixedRecord(dataType).orElse(null);
-        if (fixedRecord != null) {
-            HLAfixedRecord record = (HLAfixedRecord) element;
-            Map<String, Object> fields = new LinkedHashMap<>();
-            for (int i = 0; i < fixedRecord.fields().size(); i++) {
-                FomCatalog.FieldDef field = fixedRecord.fields().get(i);
-                String fieldPath = pathKey + "." + field.name();
-                fields.put(field.name(), extractValue(fieldPath, field.dataType(), record.get(i), values));
+        List<FOMXML.FixedRecordField> fields = fixedRecordFields(dataType);
+        if (!fields.isEmpty() && element instanceof HLAfixedRecord record) {
+            Map<String, Object> fieldValues = new LinkedHashMap<>();
+            for (int i = 0; i < fields.size(); i++) {
+                FOMXML.FixedRecordField field = fields.get(i);
+                String fieldPath = pathKey + "." + field.name;
+                fieldValues.put(field.name, extractValue(fieldPath, field.dataType, record.get(i), values));
             }
-            return fields;
+            return fieldValues;
         }
 
-        FomCatalog.ArrayDef array = catalog.array(dataType).orElse(null);
-        if (array != null && element instanceof HLAvariableArray<?> variableArray) {
+        String elementType = arrayElementType(dataType);
+        if (elementType != null && element instanceof HLAvariableArray<?> variableArray) {
             List<Object> arrayValues = new ArrayList<>();
             int index = 0;
             for (DataElement child : variableArray) {
                 String childPath = pathKey + "[" + index + "]";
-                arrayValues.add(extractValue(childPath, array.elementType(), child, values));
+                arrayValues.add(extractValue(childPath, elementType, child, values));
                 index++;
             }
             return arrayValues;
@@ -99,52 +95,34 @@ public class HlaValueFlattener {
         return null;
     }
 
-    private DataElement createElement(String dataType) {
-        String primitiveType = catalog.primitiveType(dataType);
-        if (primitiveType != null) {
-            return createPrimitiveElement(primitiveType);
+    private String primitiveType(String dataType) {
+        try {
+            return fomXml.resolvePrimitiveType(dataType);
+        } catch (XPathExpressionException e) {
+            throw new IllegalArgumentException("Could not resolve primitive type for " + dataType, e);
         }
-
-        FomCatalog.FixedRecordDef fixedRecord = catalog.fixedRecord(dataType).orElse(null);
-        if (fixedRecord != null) {
-            HLAfixedRecord record = encoderFactory.createHLAfixedRecord();
-            for (FomCatalog.FieldDef field : fixedRecord.fields()) {
-                record.add(createElement(field.dataType()));
-            }
-            return record;
-        }
-
-        FomCatalog.ArrayDef array = catalog.array(dataType).orElse(null);
-        if (array != null) {
-            return encoderFactory.createHLAvariableArray(index -> createElement(array.elementType()));
-        }
-
-        throw new IllegalArgumentException("Unsupported FOM data type " + dataType);
     }
 
-    private DataElement createPrimitiveElement(String primitiveType) {
-        return switch (primitiveType) {
-            case "HLAASCIIchar" -> encoderFactory.createHLAASCIIchar();
-            case "HLAASCIIstring" -> encoderFactory.createHLAASCIIstring();
-            case "HLAboolean" -> encoderFactory.createHLAboolean();
-            case "HLAbyte" -> encoderFactory.createHLAbyte();
-            case "HLAfloat32BE" -> encoderFactory.createHLAfloat32BE();
-            case "HLAfloat32LE" -> encoderFactory.createHLAfloat32LE();
-            case "HLAfloat64BE" -> encoderFactory.createHLAfloat64BE();
-            case "HLAfloat64LE" -> encoderFactory.createHLAfloat64LE();
-            case "HLAinteger16BE" -> encoderFactory.createHLAinteger16BE();
-            case "HLAinteger16LE" -> encoderFactory.createHLAinteger16LE();
-            case "HLAinteger32BE" -> encoderFactory.createHLAinteger32BE();
-            case "HLAinteger32LE" -> encoderFactory.createHLAinteger32LE();
-            case "HLAinteger64BE" -> encoderFactory.createHLAinteger64BE();
-            case "HLAinteger64LE" -> encoderFactory.createHLAinteger64LE();
-            case "HLAoctet" -> encoderFactory.createHLAoctet();
-            case "HLAoctetPairBE" -> encoderFactory.createHLAoctetPairBE();
-            case "HLAoctetPairLE" -> encoderFactory.createHLAoctetPairLE();
-            case "HLAopaqueData" -> encoderFactory.createHLAopaqueData();
-            case "HLAunicodeChar" -> encoderFactory.createHLAunicodeChar();
-            case "HLAunicodeString" -> encoderFactory.createHLAunicodeString();
-            default -> throw new IllegalArgumentException("Unsupported HLA primitive type " + primitiveType);
-        };
+    private List<FOMXML.FixedRecordField> fixedRecordFields(String dataType) {
+        try {
+            if (!fomXml.isFixedRecordType(dataType)) {
+                return List.of();
+            }
+            return fomXml.getFixedRecordFields(dataType);
+        } catch (XPathExpressionException e) {
+            throw new IllegalArgumentException("Could not resolve fixed record fields for " + dataType, e);
+        }
+    }
+
+    private String arrayElementType(String dataType) {
+        try {
+            if (!fomXml.isArrayType(dataType)) {
+                return null;
+            }
+            String elementType = fomXml.getArrayElementType(dataType);
+            return elementType == null || elementType.isBlank() ? null : elementType;
+        } catch (XPathExpressionException e) {
+            throw new IllegalArgumentException("Could not resolve array element type for " + dataType, e);
+        }
     }
 }

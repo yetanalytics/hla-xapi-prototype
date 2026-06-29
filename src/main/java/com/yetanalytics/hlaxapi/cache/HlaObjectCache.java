@@ -2,15 +2,14 @@ package com.yetanalytics.hlaxapi.cache;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
-import hla.rti1516e.encoding.EncoderFactory;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,12 +31,12 @@ public class HlaObjectCache implements AutoCloseable {
     public HlaObjectCache(
             String jdbcUrl,
             FomCatalog catalog,
-            HLADecoderRegistry decoderRegistry,
-            EncoderFactory encoderFactory) {
+            FOMXML fomXml,
+            HLADecoderRegistry decoderRegistry) {
         try {
             this.connection = DriverManager.getConnection(Objects.requireNonNull(jdbcUrl, "jdbcUrl"));
             this.catalog = Objects.requireNonNull(catalog, "catalog");
-            this.valueFlattener = new HlaValueFlattener(catalog, decoderRegistry, encoderFactory);
+            this.valueFlattener = new HlaValueFlattener(fomXml, decoderRegistry);
             this.queryService = new CacheQueryService(this);
             initializeSchema();
             seedFomMetadata();
@@ -63,12 +62,12 @@ public class HlaObjectCache implements AutoCloseable {
         return queryService;
     }
 
-    public void discoverObject(String objectHandle, String objectName, String className) {
+    public synchronized void discoverObject(String objectHandle, String objectName, String className) {
         FomCatalog.ObjectClassDef clazz = requireClass(className);
         ensureObject(objectHandle, objectName, clazz.localName());
     }
 
-    public void removeObject(String objectHandle) {
+    public synchronized void removeObject(String objectHandle) {
         try (PreparedStatement statement = connection.prepareStatement(
                 "UPDATE object_instance SET removed_at = ? WHERE object_handle = ?")) {
             statement.setString(1, Instant.now().toString());
@@ -79,7 +78,7 @@ public class HlaObjectCache implements AutoCloseable {
         }
     }
 
-    public void reflectAttributeValue(
+    public synchronized void reflectAttributeValue(
             String objectHandle,
             String className,
             String attributeName,
@@ -102,7 +101,7 @@ public class HlaObjectCache implements AutoCloseable {
         }
     }
 
-    public Optional<CachedValue> findCurrentValue(long instanceId, String pathKey) {
+    public synchronized Optional<CachedValue> findCurrentValue(long instanceId, String pathKey) {
         String normalizedPath = FomCatalog.wildcardArrayIndexes(pathKey);
         String sql = """
                 SELECT c.value_type, c.value_json, c.value_blob, c.raw_bytes
@@ -128,7 +127,7 @@ public class HlaObjectCache implements AutoCloseable {
         }
     }
 
-    public Optional<CachedValue> findCurrentValue(String objectHandle, String pathKey) {
+    public synchronized Optional<CachedValue> findCurrentValue(String objectHandle, String pathKey) {
         String sql = """
                 SELECT id
                 FROM object_instance
@@ -147,7 +146,7 @@ public class HlaObjectCache implements AutoCloseable {
         }
     }
 
-    public List<CachedObject> currentObjects(String className) {
+    public synchronized List<CachedObject> currentObjects(String className) {
         FomCatalog.ObjectClassDef clazz = requireClass(className);
         String sql = """
                 SELECT id, object_handle, object_name
@@ -178,7 +177,7 @@ public class HlaObjectCache implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         try {
             connection.close();
         } catch (SQLException e) {
@@ -232,6 +231,11 @@ public class HlaObjectCache implements AutoCloseable {
 
     private void initializeSchema() throws SQLException {
         try (Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA foreign_keys = OFF");
+            statement.execute("DROP TABLE IF EXISTS object_attribute_current");
+            statement.execute("DROP TABLE IF EXISTS object_instance");
+            statement.execute("DROP TABLE IF EXISTS fom_attribute");
+            statement.execute("DROP TABLE IF EXISTS fom_object_class");
             statement.execute("PRAGMA foreign_keys = ON");
             statement.execute("""
                     CREATE TABLE IF NOT EXISTS fom_object_class (
@@ -268,9 +272,6 @@ public class HlaObjectCache implements AutoCloseable {
                         instance_id INTEGER NOT NULL REFERENCES object_instance(id),
                         attribute_id INTEGER NOT NULL REFERENCES fom_attribute(id),
                         value_type TEXT NOT NULL,
-                        value_text TEXT,
-                        value_num REAL,
-                        value_bool INTEGER,
                         value_blob BLOB,
                         value_json TEXT,
                         raw_bytes BLOB,
@@ -282,12 +283,6 @@ public class HlaObjectCache implements AutoCloseable {
             statement.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_object_handle ON object_instance(object_handle)");
             statement.execute("CREATE INDEX IF NOT EXISTS idx_fom_attribute_class_path "
                     + "ON fom_attribute(class_id, path_key)");
-            statement.execute("CREATE INDEX IF NOT EXISTS idx_current_text "
-                    + "ON object_attribute_current(attribute_id, value_text)");
-            statement.execute("CREATE INDEX IF NOT EXISTS idx_current_num "
-                    + "ON object_attribute_current(attribute_id, value_num)");
-            statement.execute("CREATE INDEX IF NOT EXISTS idx_current_bool "
-                    + "ON object_attribute_current(attribute_id, value_bool)");
             statement.execute("PRAGMA user_version = " + SCHEMA_VERSION);
         }
     }
@@ -355,14 +350,10 @@ public class HlaObjectCache implements AutoCloseable {
             long observedSequence) {
         String sql = """
                 INSERT INTO object_attribute_current
-                    (instance_id, attribute_id, value_type, value_text, value_num, value_bool, value_blob,
-                     value_json, raw_bytes, observed_at, sequence)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (instance_id, attribute_id, value_type, value_blob, value_json, raw_bytes, observed_at, sequence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(instance_id, attribute_id) DO UPDATE SET
                     value_type = excluded.value_type,
-                    value_text = excluded.value_text,
-                    value_num = excluded.value_num,
-                    value_bool = excluded.value_bool,
                     value_blob = excluded.value_blob,
                     value_json = excluded.value_json,
                     raw_bytes = excluded.raw_bytes,
@@ -375,10 +366,16 @@ public class HlaObjectCache implements AutoCloseable {
             statement.setLong(1, instanceId);
             statement.setInt(2, attributeId);
             statement.setString(3, valueType);
-            bindValueColumns(statement, 4, objectValue);
-            statement.setBytes(9, value.rawBytes());
-            statement.setString(10, observedAt);
-            statement.setLong(11, observedSequence);
+            if (objectValue instanceof byte[] bytes) {
+                statement.setBytes(4, bytes);
+                statement.setNull(5, java.sql.Types.VARCHAR);
+            } else {
+                statement.setNull(4, java.sql.Types.BLOB);
+                statement.setString(5, serializeJson(objectValue));
+            }
+            statement.setBytes(6, value.rawBytes());
+            statement.setString(7, observedAt);
+            statement.setLong(8, observedSequence);
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new IllegalStateException("Could not upsert current object attribute", e);
@@ -432,53 +429,9 @@ public class HlaObjectCache implements AutoCloseable {
         return Optional.empty();
     }
 
-    private void bindValueColumns(PreparedStatement statement, int startIndex, Object value) throws SQLException {
-        setNullableString(statement, startIndex, value instanceof Character ? value.toString() : value);
-        setNullableNumber(statement, startIndex + 1, value);
-        setNullableBoolean(statement, startIndex + 2, value);
-        setNullableBlob(statement, startIndex + 3, value);
-        setNullableJson(statement, startIndex + 4, value);
-    }
-
-    private void setNullableString(PreparedStatement statement, int index, Object value) throws SQLException {
-        if (value instanceof String stringValue) {
-            statement.setString(index, stringValue);
-        } else {
-            statement.setNull(index, Types.VARCHAR);
-        }
-    }
-
-    private void setNullableNumber(PreparedStatement statement, int index, Object value) throws SQLException {
-        if (value instanceof Number number) {
-            statement.setDouble(index, number.doubleValue());
-        } else {
-            statement.setNull(index, Types.DOUBLE);
-        }
-    }
-
-    private void setNullableBoolean(PreparedStatement statement, int index, Object value) throws SQLException {
-        if (value instanceof Boolean booleanValue) {
-            statement.setInt(index, booleanValue ? 1 : 0);
-        } else {
-            statement.setNull(index, Types.INTEGER);
-        }
-    }
-
-    private void setNullableBlob(PreparedStatement statement, int index, Object value) throws SQLException {
-        if (value instanceof byte[] bytes) {
-            statement.setBytes(index, bytes);
-        } else {
-            statement.setNull(index, Types.BLOB);
-        }
-    }
-
-    private void setNullableJson(PreparedStatement statement, int index, Object value) throws SQLException {
-        if (value instanceof byte[]) {
-            statement.setNull(index, Types.VARCHAR);
-            return;
-        }
+    private String serializeJson(Object value) throws SQLException {
         try {
-            statement.setString(index, mapper.writeValueAsString(value));
+            return mapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new SQLException("Could not serialize cached value as JSON", e);
         }

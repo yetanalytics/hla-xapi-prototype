@@ -1,7 +1,6 @@
 package com.yetanalytics.hlaxapi.cache;
 
-import java.io.File;
-import java.io.IOException;
+import com.yetanalytics.hlaxapi.FOMXML;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,60 +11,23 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.XPathExpressionException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
 /**
  * FOM-derived object metadata used by the SQLite cache.
  */
 public final class FomCatalog {
 
-    private static final Set<String> PRIMITIVE_TYPES = Set.of(
-            "HLAASCIIchar",
-            "HLAASCIIstring",
-            "HLAboolean",
-            "HLAbyte",
-            "HLAfloat32BE",
-            "HLAfloat32LE",
-            "HLAfloat64BE",
-            "HLAfloat64LE",
-            "HLAinteger16BE",
-            "HLAinteger16LE",
-            "HLAinteger32BE",
-            "HLAinteger32LE",
-            "HLAinteger64BE",
-            "HLAinteger64LE",
-            "HLAoctet",
-            "HLAoctetPairBE",
-            "HLAoctetPairLE",
-            "HLAopaqueData",
-            "HLAunicodeChar",
-            "HLAunicodeString");
-
     private final Map<String, ObjectClassDef> classesByName;
     private final Map<Integer, ObjectClassDef> classesById;
-    private final Map<String, String> simpleRepresentations;
-    private final Map<String, String> enumeratedRepresentations;
-    private final Map<String, FixedRecordDef> fixedRecords;
-    private final Map<String, ArrayDef> arrays;
     private final Map<Integer, FomAttribute> attributesById;
 
-    private FomCatalog(
-            Map<String, ObjectClassDef> classesByName,
-            Map<String, String> simpleRepresentations,
-            Map<String, String> enumeratedRepresentations,
-            Map<String, FixedRecordDef> fixedRecords,
-            Map<String, ArrayDef> arrays) {
+    private FomCatalog(Map<String, ObjectClassDef> classesByName) {
         this.classesByName = Collections.unmodifiableMap(classesByName);
-        this.simpleRepresentations = Collections.unmodifiableMap(simpleRepresentations);
-        this.enumeratedRepresentations = Collections.unmodifiableMap(enumeratedRepresentations);
-        this.fixedRecords = Collections.unmodifiableMap(fixedRecords);
-        this.arrays = Collections.unmodifiableMap(arrays);
 
         Map<Integer, ObjectClassDef> byId = new LinkedHashMap<>();
         Map<Integer, FomAttribute> attrsById = new LinkedHashMap<>();
@@ -79,32 +41,17 @@ public final class FomCatalog {
         this.attributesById = Collections.unmodifiableMap(attrsById);
     }
 
-    public static FomCatalog fromFile(String fomPath) {
-        Objects.requireNonNull(fomPath, "fomPath");
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(false);
-            Document document = factory.newDocumentBuilder().parse(new File(fomPath));
-            return fromDocument(document);
-        } catch (IOException | ParserConfigurationException | SAXException e) {
-            throw new IllegalArgumentException("Could not parse FOM XML: " + fomPath, e);
-        }
-    }
-
-    static FomCatalog fromDocument(Document document) {
-        Map<String, String> simpleTypes = parseRepresentations(document, "simpleData");
-        Map<String, String> enumTypes = parseRepresentations(document, "enumeratedData");
-        Map<String, FixedRecordDef> fixedRecords = parseFixedRecords(document);
-        Map<String, ArrayDef> arrays = parseArrays(document);
-
-        CatalogBuilder builder = new CatalogBuilder(simpleTypes, enumTypes, fixedRecords, arrays);
+    public static FomCatalog fromFomXml(FOMXML fomXml) {
+        Objects.requireNonNull(fomXml, "fomXml");
+        CatalogBuilder builder = new CatalogBuilder(fomXml);
+        Document document = fomXml.getDoc();
         Element objects = firstElement(document.getDocumentElement(), "objects");
         if (objects != null) {
             for (Element objectClass : childElements(objects, "objectClass")) {
                 builder.parseObjectClass(objectClass, null, new ArrayList<>());
             }
         }
-        return new FomCatalog(builder.classesByName, simpleTypes, enumTypes, fixedRecords, arrays);
+        return new FomCatalog(builder.classesByName);
     }
 
     public Collection<ObjectClassDef> objectClasses() {
@@ -131,57 +78,6 @@ public final class FomCatalog {
         return objectClass(className).flatMap(clazz -> clazz.attribute(pathKey));
     }
 
-    public Map<String, String> aliasesToPrimitiveTypes() {
-        Map<String, String> aliases = new LinkedHashMap<>();
-        aliases.putAll(simpleRepresentations);
-        aliases.putAll(enumeratedRepresentations);
-        return aliases;
-    }
-
-    public TypeKind typeKind(String typeName) {
-        String localType = localName(typeName);
-        if (PRIMITIVE_TYPES.contains(localType)) {
-            return TypeKind.PRIMITIVE;
-        }
-        if (simpleRepresentations.containsKey(localType)) {
-            return TypeKind.SIMPLE;
-        }
-        if (enumeratedRepresentations.containsKey(localType)) {
-            return TypeKind.ENUMERATED;
-        }
-        if (fixedRecords.containsKey(localType)) {
-            return TypeKind.FIXED_RECORD;
-        }
-        if (arrays.containsKey(localType)) {
-            return TypeKind.ARRAY;
-        }
-        return TypeKind.UNKNOWN;
-    }
-
-    public Optional<FixedRecordDef> fixedRecord(String typeName) {
-        return Optional.ofNullable(fixedRecords.get(localName(typeName)));
-    }
-
-    public Optional<ArrayDef> array(String typeName) {
-        return Optional.ofNullable(arrays.get(localName(typeName)));
-    }
-
-    public String primitiveType(String typeName) {
-        String localType = localName(typeName);
-        if (PRIMITIVE_TYPES.contains(localType)) {
-            return localType;
-        }
-        String simple = simpleRepresentations.get(localType);
-        if (simple != null) {
-            return primitiveType(simple);
-        }
-        String enumerated = enumeratedRepresentations.get(localType);
-        if (enumerated != null) {
-            return primitiveType(enumerated);
-        }
-        return null;
-    }
-
     public static String targetPath(List<Object> targetParts) {
         if (targetParts == null || targetParts.isEmpty()) {
             return null;
@@ -200,6 +96,13 @@ public final class FomCatalog {
         return path.toString();
     }
 
+    public static String topLevelTargetPart(List<Object> targetParts) {
+        if (targetParts == null || targetParts.isEmpty() || !(targetParts.get(0) instanceof String part)) {
+            return null;
+        }
+        return part;
+    }
+
     public static String wildcardArrayIndexes(String pathKey) {
         if (pathKey == null) {
             return null;
@@ -214,56 +117,6 @@ public final class FomCatalog {
         String trimmed = hlaName.trim();
         int index = trimmed.lastIndexOf('.');
         return index >= 0 ? trimmed.substring(index + 1) : trimmed;
-    }
-
-    private static Map<String, String> parseRepresentations(Document document, String elementName) {
-        Map<String, String> representations = new LinkedHashMap<>();
-        NodeList nodes = document.getElementsByTagName(elementName);
-        for (int i = 0; i < nodes.getLength(); i++) {
-            Element element = (Element) nodes.item(i);
-            String name = text(element, "name");
-            String representation = text(element, "representation");
-            if (name != null && representation != null) {
-                representations.put(name, representation);
-            }
-        }
-        return representations;
-    }
-
-    private static Map<String, FixedRecordDef> parseFixedRecords(Document document) {
-        Map<String, FixedRecordDef> records = new LinkedHashMap<>();
-        NodeList nodes = document.getElementsByTagName("fixedRecordData");
-        for (int i = 0; i < nodes.getLength(); i++) {
-            Element element = (Element) nodes.item(i);
-            String name = text(element, "name");
-            if (name == null) {
-                continue;
-            }
-            List<FieldDef> fields = new ArrayList<>();
-            for (Element field : childElements(element, "field")) {
-                String fieldName = text(field, "name");
-                String fieldType = text(field, "dataType");
-                if (fieldName != null && fieldType != null) {
-                    fields.add(new FieldDef(fieldName, fieldType));
-                }
-            }
-            records.put(name, new FixedRecordDef(name, fields));
-        }
-        return records;
-    }
-
-    private static Map<String, ArrayDef> parseArrays(Document document) {
-        Map<String, ArrayDef> arrayDefs = new LinkedHashMap<>();
-        NodeList nodes = document.getElementsByTagName("arrayData");
-        for (int i = 0; i < nodes.getLength(); i++) {
-            Element element = (Element) nodes.item(i);
-            String name = text(element, "name");
-            String dataType = text(element, "dataType");
-            if (name != null && dataType != null) {
-                arrayDefs.put(name, new ArrayDef(name, dataType));
-            }
-        }
-        return arrayDefs;
     }
 
     private static String text(Element parent, String tagName) {
@@ -295,27 +148,6 @@ public final class FomCatalog {
             }
         }
         return elements;
-    }
-
-    public enum TypeKind {
-        PRIMITIVE,
-        SIMPLE,
-        ENUMERATED,
-        FIXED_RECORD,
-        ARRAY,
-        UNKNOWN
-    }
-
-    public record FieldDef(String name, String dataType) {
-    }
-
-    public record FixedRecordDef(String name, List<FieldDef> fields) {
-        public FixedRecordDef {
-            fields = List.copyOf(fields);
-        }
-    }
-
-    public record ArrayDef(String name, String elementType) {
     }
 
     public record ObjectClassDef(
@@ -369,23 +201,13 @@ public final class FomCatalog {
 
     private static final class CatalogBuilder {
 
-        private final Map<String, String> simpleRepresentations;
-        private final Map<String, String> enumeratedRepresentations;
-        private final Map<String, FixedRecordDef> fixedRecords;
-        private final Map<String, ArrayDef> arrays;
+        private final FOMXML fomXml;
         private final Map<String, ObjectClassDef> classesByName = new LinkedHashMap<>();
         private int nextClassId = 1;
         private int nextAttributeId = 1;
 
-        private CatalogBuilder(
-                Map<String, String> simpleRepresentations,
-                Map<String, String> enumeratedRepresentations,
-                Map<String, FixedRecordDef> fixedRecords,
-                Map<String, ArrayDef> arrays) {
-            this.simpleRepresentations = simpleRepresentations;
-            this.enumeratedRepresentations = enumeratedRepresentations;
-            this.fixedRecords = fixedRecords;
-            this.arrays = arrays;
+        private CatalogBuilder(FOMXML fomXml) {
+            this.fomXml = fomXml;
         }
 
         private void parseObjectClass(Element element, String parentName, List<AttributeSource> inheritedAttributes) {
@@ -425,9 +247,9 @@ public final class FomCatalog {
                 String dataType,
                 List<FomAttribute> attributes) {
             String primitive = primitiveType(dataType);
-            FixedRecordDef fixedRecord = fixedRecords.get(localName(dataType));
-            ArrayDef array = arrays.get(localName(dataType));
-            boolean leaf = primitive != null || fixedRecord == null && array == null;
+            List<FOMXML.FixedRecordField> fields = fixedRecordFields(dataType);
+            String arrayElementType = arrayElementType(dataType);
+            boolean leaf = primitive != null || fields.isEmpty() && arrayElementType == null;
 
             attributes.add(new FomAttribute(
                     nextAttributeId++,
@@ -438,39 +260,49 @@ public final class FomCatalog {
                     primitive,
                     leaf));
 
-            if (fixedRecord != null) {
-                for (FieldDef field : fixedRecord.fields()) {
+            if (!fields.isEmpty()) {
+                for (FOMXML.FixedRecordField field : fields) {
                     flattenAttribute(
                             classId,
                             attributeName,
-                            pathKey + "." + field.name(),
-                            field.dataType(),
+                            pathKey + "." + field.name,
+                            field.dataType,
                             attributes);
                 }
-            } else if (array != null) {
-                flattenAttribute(
-                        classId,
-                        attributeName,
-                        pathKey + "[]",
-                        array.elementType(),
-                        attributes);
+            } else if (arrayElementType != null) {
+                flattenAttribute(classId, attributeName, pathKey + "[]", arrayElementType, attributes);
             }
         }
 
         private String primitiveType(String dataType) {
-            String localType = localName(dataType);
-            if (PRIMITIVE_TYPES.contains(localType)) {
-                return localType;
+            try {
+                return fomXml.resolvePrimitiveType(dataType);
+            } catch (XPathExpressionException e) {
+                throw new IllegalArgumentException("Could not resolve primitive type for " + dataType, e);
             }
-            String simple = simpleRepresentations.get(localType);
-            if (simple != null) {
-                return primitiveType(simple);
+        }
+
+        private List<FOMXML.FixedRecordField> fixedRecordFields(String dataType) {
+            try {
+                if (!fomXml.isFixedRecordType(dataType)) {
+                    return List.of();
+                }
+                return fomXml.getFixedRecordFields(dataType);
+            } catch (XPathExpressionException e) {
+                throw new IllegalArgumentException("Could not resolve fixed record fields for " + dataType, e);
             }
-            String enumerated = enumeratedRepresentations.get(localType);
-            if (enumerated != null) {
-                return primitiveType(enumerated);
+        }
+
+        private String arrayElementType(String dataType) {
+            try {
+                if (!fomXml.isArrayType(dataType)) {
+                    return null;
+                }
+                String elementType = fomXml.getArrayElementType(dataType);
+                return elementType == null || elementType.isBlank() ? null : elementType;
+            } catch (XPathExpressionException e) {
+                throw new IllegalArgumentException("Could not resolve array element type for " + dataType, e);
             }
-            return null;
         }
 
         private record AttributeSource(String name, String dataType) {
