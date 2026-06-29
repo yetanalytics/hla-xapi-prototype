@@ -1,22 +1,25 @@
 package com.yetanalytics.hlaxapi;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
-import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
-import com.yetanalytics.hlaxapi.config.model.Target;
-
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
+import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.injection.InjectionContext;
 
 @Component
 public class TriggerProcessor {
@@ -29,57 +32,23 @@ public class TriggerProcessor {
     public TriggerProcessor() {
     }
 
-    //For tests and non-Spring code, allow injection of a custom InjectionHandler
+    // For tests and non-Spring code, allow injection of a custom InjectionHandler
     public TriggerProcessor(InjectionHandler injectionHandler) {
         this.injectionHandler = injectionHandler;
     }
 
-    public String processTrigger(StatementTrigger trigger) {
+    public String processTrigger(StatementTrigger trigger, InjectionContext context) {
         if (trigger == null || trigger.statement == null) {
             return null;
         }
-
         ObjectMapper mapper = new ObjectMapper();
-        String output = trigger.statement;
         try {
-
             JsonNode stmtNode = mapper.readTree(trigger.statement);
-            // walk node to find array nodes that look like injection: ["this", ...] or
-            // ["query", ...]
-            List<JsonNode> injections = new ArrayList<>();
-            findInjectionArrays(stmtNode, injections);
-            for (JsonNode inj : injections) {
-                if (!inj.isArray() || inj.size() == 0)
-                    continue;
-                String keyword = inj.get(0).asText();
-                InjectionType iType = InjectionType.fromString(keyword);
-                String replacement = null;
-                if (iType == InjectionType.THIS && inj.size() >= 2) {
 
-                    Object rawTarget = mapper.convertValue(inj.get(1), Object.class);
-                    Target t = ConfigConverter.toTarget(rawTarget);
-                    replacement = injectionHandler.handleThis(t);
-                } else if (iType == InjectionType.QUERY && inj.size() >= 4) {
+            JsonNode processed = processNode(stmtNode, context, mapper);
 
-                    String clazz = inj.get(1).asText();
-                    Object rawTarget = mapper.convertValue(inj.get(2), Object.class);
-                    Target attr = ConfigConverter.toTarget(rawTarget);
-                    Object criteriaRaw = mapper.convertValue(inj.get(3), Object.class);
-                    // convert raw criteria into typed Expression tree
-                    Expression criteriaExpr = ConfigConverter
-                            .toExpression(criteriaRaw);
-                    replacement = injectionHandler.handleQuery(clazz, attr, criteriaExpr);
-                }
-
-                if (replacement != null) {
-                    // replace the first occurrence of the JSON text of inj in output
-                    String injText = mapper.writeValueAsString(inj);
-                    output = output.replace(injText, replacement);
-                }
-            }
-
+            String output = mapper.writeValueAsString(processed);
             logger.info("Processed statement output: {}", output);
-
             return output;
         } catch (Exception e) {
             logger.debug("Could not process statement for trigger", e);
@@ -87,25 +56,128 @@ public class TriggerProcessor {
         }
     }
 
-    private void findInjectionArrays(JsonNode node, List<JsonNode> out) {
-        if (node == null)
-            return;
-        if (node.isArray()) {
-            if (node.size() > 0 && node.get(0).isTextual()) {
-                String k = node.get(0).asText();
-                // check if this looks like an injection array
-                if (InjectionType.fromString(k) != null) {
-                    out.add(node);
-                    return;
-                }
+    private static final Pattern INLINE_PLACEHOLDER = Pattern.compile("<<(.+?)>>", Pattern.DOTALL);
+
+    private JsonNode processNode(JsonNode node, InjectionContext context, ObjectMapper mapper) {
+        if (node == null || node.isNull())
+            return node;
+
+        try {
+            if (node.isObject()) {
+                // no injection possible, just process children
+                ObjectNode out = mapper.createObjectNode();
+                node.fieldNames().forEachRemaining(field -> {
+                    JsonNode child = node.get(field);
+                    JsonNode processedChild = processNode(child, context, mapper);
+                    out.set(field, processedChild);
+                });
+                return out;
             }
-            for (JsonNode el : node)
-                findInjectionArrays(el, out);
-            return;
+
+            if (node.isArray()) {
+                // check if this array itself is an injection array
+                if (node.size() > 0 && node.get(0).isTextual()) {
+                    String k = node.get(0).asText();
+                    if (InjectionType.fromString(k) != null) {
+                        // handle injection array
+                        return handleInjectionArray(node, context, mapper, false);
+                    }
+                }
+                // if not, process each element instead
+                ArrayNode out = mapper.createArrayNode();
+                for (JsonNode el : node) {
+                    out.add(processNode(el, context, mapper));
+                }
+                return out;
+            }
+
+            if (node.isTextual()) {
+                // if it's stringy, we need to check for escaped/encoded injection array(s) and route them through the
+                // handlers, then replace that text in the string with the result(s)
+                String txt = node.asText();
+                Matcher m = INLINE_PLACEHOLDER.matcher(txt);
+                if (!m.find()) {
+                    return node;
+                }
+
+                m.reset();
+                StringBuffer sb = new StringBuffer();
+
+                while (m.find()) {
+                    String inner = m.group(1);
+                    try {
+                        JsonNode injNode = mapper.readTree(inner);
+                        JsonNode repNode = null;
+                        if (injNode.isArray() && injNode.size() > 0 && injNode.get(0).isTextual()
+                                && InjectionType.fromString(injNode.get(0).asText()) != null) {
+                            repNode = handleInjectionArray(injNode, context, mapper, true);
+                        }
+                        if (repNode == null) {
+                            m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
+                        } else {
+                            String replacementText = repNode.isValueNode()
+                                    ? repNode.asText()
+                                    : mapper.writeValueAsString(repNode);
+                            m.appendReplacement(sb, Matcher.quoteReplacement(replacementText));
+                        }
+                    } catch (Exception e) {
+                        m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
+                    }
+                }
+                m.appendTail(sb);
+                return TextNode.valueOf(sb.toString());
+            }
+
+            return node;
+        } catch (Exception e) {
+            logger.debug("Error processing node", e);
+            return node;
         }
-        if (node.isObject()) {
-            node.forEach(n -> findInjectionArrays(n, out));
+    }
+
+    private JsonNode handleInjectionArray(JsonNode injArray, InjectionContext context, ObjectMapper mapper,
+            Boolean embedded) {
+        try {
+            String keyword = injArray.get(0).asText();
+            InjectionType iType = InjectionType.fromString(keyword);
+            if (iType == InjectionType.THIS && injArray.size() >= 2) {
+                Object rawTarget = mapper.convertValue(injArray.get(1), Object.class);
+                Target t = ConfigConverter.toTarget(rawTarget);
+                Object replacement = injectionHandler.handleThis(t, context);
+                if (replacement == null)
+                    return NullNode.instance;
+                return render(replacement, embedded, mapper);
+            } else if (iType == InjectionType.QUERY && injArray.size() >= 4) {
+                String clazz = injArray.get(1).asText();
+                Object rawTarget = mapper.convertValue(injArray.get(2), Object.class);
+                Target attr = ConfigConverter.toTarget(rawTarget);
+                Object criteriaRaw = mapper.convertValue(injArray.get(3), Object.class);
+                Expression criteriaExpr = ConfigConverter.toExpression(criteriaRaw);
+                Object replacement = injectionHandler.handleQuery(clazz, attr, criteriaExpr, context);
+                if (replacement == null)
+                    return NullNode.instance;
+                return render(replacement, embedded, mapper);
+            }
+        } catch (Exception e) {
+            logger.debug("Error handling injection array", e);
         }
+        return NullNode.instance;
+    }
+
+    /**
+     * Embedded injections are always rendered as text within the containing string.
+     * Whole-node injections preserve the replacement's JSON shape.
+     *
+     * @param replacement
+     * @param embedded
+     * @param mapper
+     * @return actual string to put in result
+     */
+    private JsonNode render(Object replacement, Boolean embedded, ObjectMapper mapper) {
+        if (Boolean.TRUE.equals(embedded)) {
+            return TextNode.valueOf(replacement.toString());
+        }
+        return mapper.valueToTree(replacement);
     }
 
 }
