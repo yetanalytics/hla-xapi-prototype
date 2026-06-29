@@ -25,7 +25,9 @@ import hla.rti1516e.encoding.HLAvariableArray;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class FOMXML {
@@ -207,23 +209,33 @@ public class FOMXML {
      *
      */
     public String getRawType(String dataTypeName) throws XPathExpressionException{
+        return resolvePrimitiveType(dataTypeName);
+    }
 
+    public String resolvePrimitiveType(String dataTypeName) throws XPathExpressionException {
+        return resolvePrimitiveType(dataTypeName, new HashSet<>());
+    }
+
+    private String resolvePrimitiveType(String dataTypeName, Set<String> seenTypes) throws XPathExpressionException{
         if (dataTypeName == null || dataTypeName.isEmpty()) {
             return null;
         }
         if (isPrim(dataTypeName)) {
             return dataTypeName;
         }
+        if (!seenTypes.add(dataTypeName)) {
+            return null;
+        }
 
         String simpleExp = String.format(checkSimpleDataTypeExp, dataTypeName);
         String simpleType = (String) xPath.compile(simpleExp).evaluate(doc, XPathConstants.STRING);
         if (!simpleType.isEmpty())
-            return simpleType;
+            return resolvePrimitiveType(simpleType, seenTypes);
 
         String enumExp = String.format(checkEnumDataTypeExp, dataTypeName);
         String enumType = (String) xPath.compile(enumExp).evaluate(doc, XPathConstants.STRING);
         if (!enumType.isEmpty())
-            return enumType;
+            return resolvePrimitiveType(enumType, seenTypes);
 
         return null;
     }
