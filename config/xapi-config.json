@@ -34,6 +34,6 @@
         "host": "http://localhost:8080/xapi",
         "key": "my_key",
         "secret": "my_secret",
-        "batch": 100
+        "batch": 35
     }    
 }

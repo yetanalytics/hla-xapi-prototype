@@ -4,13 +4,13 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -59,9 +59,6 @@ import hla.rti1516e.exceptions.RTIinternalError;
 import hla.rti1516e.exceptions.RestoreInProgress;
 import hla.rti1516e.exceptions.SaveInProgress;
 import hla.rti1516e.exceptions.UnsupportedCallbackModel;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 @Component
 public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
@@ -234,7 +231,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                         logger.info("Processing trigger for interaction {}", trigger.clazz);
                         String xapi = triggerProcessor.processTrigger(trigger, context);
                         try {
-                            List<UUID> ids = xapiClient.postStatementFromString(xapi);
+                            xapiClient.sendStatementFromString(xapi);
                         } catch (JsonProcessingException e) {
                             logger.error("Error parsing or posting statement {}", xapi, e);
                         }
