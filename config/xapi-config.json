@@ -9,8 +9,8 @@
                     "objectType": "Agent",
                     "name": ["this", ["EntityId"]],
                     "account": {
-                        "homePage": "https://homepage.system.io",
-                        "name": ["this", ["EntityId"]]
+                        "homePage": "https://hla-federepl.example/entities",
+                        "name": ["query", "SimEntity", ["EntityId"], [["EntityId"], "=", ["this", ["EntityId"]]]]
                     }
                 },
                 "context": {
