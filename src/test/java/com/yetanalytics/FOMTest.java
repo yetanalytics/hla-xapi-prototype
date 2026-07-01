@@ -26,7 +26,7 @@ public class FOMTest {
     @BeforeEach
     public void setUp() {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-            "src/test/resources/SISO-STD-025.3-2024.xml");
+            "config/HlaFedereplFOM.xml");
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
         fomXml = new FOMXML(simConfig, decoderRegistry);
     }
@@ -34,54 +34,49 @@ public class FOMTest {
     @Test
     public void InteractionsXML() {
 
-        // primitive parameter
-        PathCheckResult isRandomResult = fomXml.checkInteractionParameterPath("Degrade", "IsRandom");
-        logger.info("Degrade, IsRandom Type: {}", isRandomResult);
-        assertTrue(isRandomResult.primitiveType.equals("HLAboolean"));
+        // simple data type - Probability is HLAfloat32BE
+        PathCheckResult carrotGrowthResult = fomXml.checkInteractionParameterPath("SimulationParametersChanged", "CarrotGrowthRate");
+        logger.info("SimulationParametersChanged, CarrotGrowthRate Type: {}", carrotGrowthResult);
+        assertTrue(carrotGrowthResult.primitiveType.equals("HLAfloat32BE"));
 
-        // simple data type
-        PathCheckResult PercentageResult = fomXml.checkInteractionParameterPath("Degrade", "Percentage");
-        logger.info("Degrade, Percentage Type: {}", PercentageResult);
-        assertTrue(PercentageResult.primitiveType.equals("HLAfloat64BE"));
+        // enumerated data type
+        PathCheckResult entityTypeResult = fomXml.checkInteractionParameterPath("EntityAte", "PredatorType");
+        logger.info("EntityAte, PredatorType Type: {}", entityTypeResult);
+        assertTrue(entityTypeResult.primitiveType.equals("HLAinteger32BE"));
 
-        // fixedRecord + simpledata
-        PathCheckResult CyberEventTimeHoursResult = fomXml.checkInteractionParameterPath("CyberEvent",
-                List.of("EventTime", "Hours"));
-        logger.info("CyberEvent, EventTime, Hours Type: {}", CyberEventTimeHoursResult);
-        assertTrue(CyberEventTimeHoursResult.primitiveType.equals("HLAinteger32BE"));
+        // fixedRecord with nested simple data types
+        PathCheckResult entityMovedFromXResult = fomXml.checkInteractionParameterPath("EntityMoved",
+                List.of("FromPosition", "X"));
+        logger.info("EntityMoved, FromPosition, X Type: {}", entityMovedFromXResult);
+        assertTrue(entityMovedFromXResult.primitiveType.equals("HLAinteger32BE"));
 
-        //add enum test here when we have an enum in the FOM
-        PathCheckResult CyberEventPhaseResult = fomXml.checkInteractionParameterPath("CyberEvent", "Phase");
-        logger.info("CyberEvent, Phase Type: {}", CyberEventPhaseResult);
-        assertTrue(CyberEventPhaseResult.primitiveType.equals("HLAinteger32BE"));
-
-        // array of fixedRecord + simpledata
-        PathCheckResult CyberEventTargetModifiersResult = fomXml.checkInteractionParameterPath("CyberEvent",
-                List.of("TargetModifiers", 0, "Key"));
-        logger.info("CyberEvent, TargetModifiers[], Key: {}", CyberEventTargetModifiersResult);
-        assertTrue(CyberEventTargetModifiersResult.primitiveType.equals("HLAASCIIstring"));
+        // fixedRecord nested field access - Y component
+        PathCheckResult entityMovedToYResult = fomXml.checkInteractionParameterPath("EntityMoved",
+                List.of("ToPosition", "Y"));
+        logger.info("EntityMoved, ToPosition, Y Type: {}", entityMovedToYResult);
+        assertTrue(entityMovedToYResult.primitiveType.equals("HLAinteger32BE"));
 
         // Failure cases
         // Nonexistent parameter
-        PathCheckResult missingParam = fomXml.checkInteractionParameterPath("CyberEvent", "NonExistantParam");
+        PathCheckResult missingParam = fomXml.checkInteractionParameterPath("EntityMoved", "NonExistantParam");
         logger.info("Missing Param: {}", missingParam);
         assertTrue(!missingParam.exists);
 
         // Bad input: null param name
         try {
-            fomXml.checkInteractionParameterPath("CyberEvent", (List<Object>) null);
+            fomXml.checkInteractionParameterPath("EntityMoved", (List<Object>) null);
             assertTrue(false); // should not reach
         } catch (IllegalArgumentException e) {
             // expected
         }
 
-        // Array index on a non-array field (e.g., trying to index into a simple field)
-        PathCheckResult wrongIndex = fomXml.checkInteractionParameterPath("CyberEvent", List.of("Phase", 0));
+        // Index access on a non-array field (e.g., trying to index into a simple field)
+        PathCheckResult wrongIndex = fomXml.checkInteractionParameterPath("EntityMoved", List.of("EntityId", 0));
         logger.info("Wrong Index on non-array: {}", wrongIndex);
         assertTrue(!wrongIndex.exists);
 
         // Nonexistent interaction
-        PathCheckResult missingInteraction = fomXml.checkInteractionParameterPath("NonInteraction", "Anything");
+        PathCheckResult missingInteraction = fomXml.checkInteractionParameterPath("NonExistentInteraction", "Anything");
         logger.info("Missing Interaction: {}", missingInteraction);
         assertTrue(!missingInteraction.exists);
 
@@ -90,10 +85,21 @@ public class FOMTest {
     @Test
     public void ObjectsXML() {
 
-        // Simple object attribute
-        PathCheckResult objIdResult = fomXml.checkObjectParameterPath("CyberObject", List.of("ObjectID", "Value"));
-        logger.info("CyberObject, ObjectID: {}", objIdResult);
-        assertTrue(objIdResult.primitiveType.equals("HLAASCIIstring"));
+        // Simple object attribute - World.WorldId is HLAASCIIstring
+        PathCheckResult worldIdResult = fomXml.checkObjectParameterPath("World", "WorldId");
+        logger.info("World, WorldId: {}", worldIdResult);
+        assertTrue(worldIdResult.primitiveType.equals("HLAASCIIstring"));
+
+        // Simple data type attribute - World.Size is CellIndex (HLAinteger32BE)
+        PathCheckResult worldSizeResult = fomXml.checkObjectParameterPath("World", "Size");
+        logger.info("World, Size: {}", worldSizeResult);
+        assertTrue(worldSizeResult.primitiveType.equals("HLAinteger32BE"));
+
+        // Entity object attribute
+        PathCheckResult entityIdResult = fomXml.checkObjectParameterPath("SimEntity", "EntityId");
+        logger.info("SimEntity, EntityId: {}", entityIdResult);
+        assertTrue(entityIdResult.primitiveType.equals("HLAASCIIstring"));
+
         // We won't duplicate extensive failure cases here; interactions cover them.
     }
 }

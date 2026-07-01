@@ -32,7 +32,7 @@ class HlaObjectCacheTest {
     private final EncoderFactory encoderFactory = new HLA1516eEncoderFactory();
     private final HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(encoderFactory);
     private final FOMXML fomXml = new FOMXML(
-            new SimulationConfig(null, null, null, null, "config/fom.xml"),
+            new SimulationConfig(null, null, null, null, "config/HlaFedereplFOM.xml"),
             decoderRegistry);
     private final FomCatalog catalog = FomCatalog.fromFomXml(fomXml);
 
@@ -41,41 +41,41 @@ class HlaObjectCacheTest {
         try (HlaObjectCache cache = newCache()) {
             assertEquals(1, scalarLong(cache, "PRAGMA user_version"));
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
-            assertTrue(count(cache, "SELECT COUNT(*) FROM fom_attribute WHERE path_key = 'Position.Lat'") > 0);
+            assertTrue(count(cache, "SELECT COUNT(*) FROM fom_attribute WHERE path_key = 'Position.X'") > 0);
         }
     }
 
     @Test
     void upsertsLatestScalarObjectStateAndKeepsRawBytes() throws SQLException {
-        byte[] firstFuel = encoded(encoderFactory.createHLAinteger32BE(75));
-        byte[] secondFuel = encoded(encoderFactory.createHLAinteger32BE(40));
+        byte[] firstHunger = encoded(encoderFactory.createHLAinteger32BE(75));
+        byte[] secondHunger = encoded(encoderFactory.createHLAinteger32BE(40));
 
         try (HlaObjectCache cache = newCache()) {
-            cache.discoverObject("object-1", "Car One", "Car");
-            cache.reflectAttributeValue("object-1", "Car", "FuelLevel", firstFuel);
-            cache.reflectAttributeValue("object-1", "Car", "FuelLevel", secondFuel);
+            cache.discoverObject("object-1", "Rabbit One", "Rabbit");
+            cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", firstHunger);
+            cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", secondHunger);
 
-            assertEquals(40, cache.findCurrentValue("object-1", "FuelLevel").orElseThrow().value());
+            assertEquals(40, cache.findCurrentValue("object-1", "Hunger").orElseThrow().value());
             assertEquals(1, count(cache, """
                     SELECT COUNT(*)
                     FROM object_attribute_current c
                     JOIN fom_attribute a ON a.id = c.attribute_id
-                    WHERE a.path_key = 'FuelLevel'
+                    WHERE a.path_key = 'Hunger'
                     """));
-            assertArrayEquals(secondFuel, rawBytes(cache, "FuelLevel"));
+            assertArrayEquals(secondHunger, rawBytes(cache, "Hunger"));
         }
     }
 
     @Test
     void flattensFixedRecordValuesToNestedCurrentRows() {
-        byte[] position = position(39.75d, -104.99d);
+        byte[] position = position(12, 8);
 
         try (HlaObjectCache cache = newCache()) {
-            cache.discoverObject("object-1", "Car One", "Car");
-            cache.reflectAttributeValue("object-1", "Car", "Position", position);
+            cache.discoverObject("object-1", "Rabbit One", "Rabbit");
+            cache.reflectAttributeValue("object-1", "Rabbit", "Position", position);
 
-            assertEquals(39.75d, (Double) cache.findCurrentValue("object-1", "Position.Lat").orElseThrow().value());
-            assertEquals(-104.99d, (Double) cache.findCurrentValue("object-1", "Position.Long").orElseThrow().value());
+            assertEquals(12, cache.findCurrentValue("object-1", "Position.X").orElseThrow().value());
+            assertEquals(8, cache.findCurrentValue("object-1", "Position.Y").orElseThrow().value());
             assertTrue(cache.findCurrentValue("object-1", "Position").orElseThrow().value() instanceof java.util.Map);
         }
     }
@@ -83,38 +83,38 @@ class HlaObjectCacheTest {
     @Test
     void queryServiceEvaluatesCriteriaAndExcludesRemovedObjects() {
         try (HlaObjectCache cache = newCache()) {
-            cache.discoverObject("object-1", "Car One", "Car");
-            cache.reflectAttributeValue("object-1", "Car", "Name", encoded(encoderFactory.createHLAunicodeString(
-                    "Car One")));
-            cache.reflectAttributeValue("object-1", "Car", "FuelLevel", encoded(encoderFactory.createHLAinteger32BE(75)));
-            cache.reflectAttributeValue("object-1", "Car", "Position", position(39.75d, -104.99d));
+            cache.discoverObject("object-1", "Rabbit One", "Rabbit");
+            cache.reflectAttributeValue("object-1", "Rabbit", "EntityId", encoded(encoderFactory.createHLAASCIIstring(
+                    "rabbit-one")));
+            cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", encoded(encoderFactory.createHLAinteger32BE(75)));
+            cache.reflectAttributeValue("object-1", "Rabbit", "Position", position(12, 8));
 
-            cache.discoverObject("object-2", "Car Two", "Car");
-            cache.reflectAttributeValue("object-2", "Car", "Name", encoded(encoderFactory.createHLAunicodeString(
-                    "Car Two")));
-            cache.reflectAttributeValue("object-2", "Car", "FuelLevel", encoded(encoderFactory.createHLAinteger32BE(20)));
-            cache.reflectAttributeValue("object-2", "Car", "Position", position(40.0d, -105.0d));
+            cache.discoverObject("object-2", "Rabbit Two", "Rabbit");
+            cache.reflectAttributeValue("object-2", "Rabbit", "EntityId", encoded(encoderFactory.createHLAASCIIstring(
+                    "rabbit-two")));
+            cache.reflectAttributeValue("object-2", "Rabbit", "Hunger", encoded(encoderFactory.createHLAinteger32BE(20)));
+            cache.reflectAttributeValue("object-2", "Rabbit", "Position", position(20, 5));
 
-            Criterion fuelCriteria = new Criterion(
-                    new Target(List.of("FuelLevel")),
+            Criterion hungerCriteria = new Criterion(
+                    new Target(List.of("Hunger")),
                     ComparisonOperator.GT,
                     new ValueExpression(50));
-            Criterion latCriteria = new Criterion(
-                    new Target(List.of("Position", "Lat")),
+            Criterion xCriteria = new Criterion(
+                    new Target(List.of("Position", "X")),
                     ComparisonOperator.LT,
-                    new ValueExpression(40.0d));
-            LogicalExpression criteria = new LogicalExpression(LogicalOperator.AND, List.of(fuelCriteria, latCriteria));
+                    new ValueExpression(15));
+            LogicalExpression criteria = new LogicalExpression(LogicalOperator.AND, List.of(hungerCriteria, xCriteria));
 
             assertEquals(
-                    List.of("Car One"),
-                    cache.queryService().findValues("Car", new Target(List.of("Name")), fuelCriteria));
+                    List.of("rabbit-one"),
+                    cache.queryService().findValues("Rabbit", new Target(List.of("EntityId")), hungerCriteria));
             assertEquals(
-                    List.of(-104.99d),
-                    cache.queryService().findValues("Car", new Target(List.of("Position", "Long")), criteria));
+                    List.of(8),
+                    cache.queryService().findValues("Rabbit", new Target(List.of("Position", "Y")), criteria));
 
             cache.removeObject("object-1");
 
-            assertFalse(cache.queryService().findFirstValue("Car", new Target(List.of("FuelLevel")), criteria)
+            assertFalse(cache.queryService().findFirstValue("Rabbit", new Target(List.of("Hunger")), criteria)
                     .isPresent());
         }
     }
@@ -124,8 +124,8 @@ class HlaObjectCacheTest {
         String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("cache.sqlite");
 
         try (HlaObjectCache cache = newCache(jdbcUrl)) {
-            cache.discoverObject("object-1", "Car One", "Car");
-            cache.reflectAttributeValue("object-1", "Car", "FuelLevel",
+            cache.discoverObject("object-1", "Rabbit One", "Rabbit");
+            cache.reflectAttributeValue("object-1", "Rabbit", "Hunger",
                     encoded(encoderFactory.createHLAinteger32BE(75)));
 
             assertEquals(1, count(cache, "SELECT COUNT(*) FROM object_instance"));
@@ -147,10 +147,10 @@ class HlaObjectCacheTest {
         return new HlaObjectCache(jdbcUrl, catalog, fomXml, decoderRegistry);
     }
 
-    private byte[] position(double lat, double lon) {
+    private byte[] position(int x, int y) {
         HLAfixedRecord record = encoderFactory.createHLAfixedRecord();
-        record.add(encoderFactory.createHLAfloat64BE(lat));
-        record.add(encoderFactory.createHLAfloat64BE(lon));
+        record.add(encoderFactory.createHLAinteger32BE(x));
+        record.add(encoderFactory.createHLAinteger32BE(y));
         return encoded(record);
     }
 

@@ -14,27 +14,27 @@ class QueryReferenceCollectorTest {
     @Test
     void findsWholeNodeAndInlineQueryInjections() {
         StatementTrigger wholeNode = trigger("""
-                {"actor":{"name":["query","Car",["Name"],[["FuelLevel"],">",50]]}}
+                {"actor":{"name":["query","Rabbit",["EntityId"],[["Hunger"],">",50]]}}
                 """);
         StatementTrigger inline = trigger("""
-                {"result":{"response":"at=<<[\\"query\\",\\"Car\\",[\\"Position\\",\\"Long\\"],[[\\"Position\\",\\"Lat\\"],\\"<\\",40.0]]>>"}}
+                {"result":{"response":"at=<<[\\"query\\",\\"Rabbit\\",[\\"Position\\",\\"Y\\"],[[\\"Position\\",\\"X\\"],\\"<\\",15]]>>"}}
                 """);
 
         Map<String, Set<String>> references = QueryReferenceCollector.collect(List.of(wholeNode, inline));
 
-        assertEquals(Set.of("Name", "FuelLevel", "Position"), references.get("Car"));
+        assertEquals(Set.of("EntityId", "Hunger", "Position"), references.get("Rabbit"));
     }
 
     @Test
     void ignoresThisExpressionTargetsInsideQueryCriteria() {
         StatementTrigger trigger = trigger("""
-                {"actor":{"name":["query","Car",["Name"],[["FuelLevel"],">",["this",["DesiredFuel"]]]]}}
+                {"actor":{"name":["query","Rabbit",["EntityId"],[["Hunger"],">",["this",["DesiredHunger"]]]]}}
                 """);
 
         Map<String, Set<String>> references = QueryReferenceCollector.collect(List.of(trigger));
 
-        assertEquals(Set.of("Name", "FuelLevel"), references.get("Car"));
-        assertFalse(references.get("Car").contains("DesiredFuel"));
+        assertEquals(Set.of("EntityId", "Hunger"), references.get("Rabbit"));
+        assertFalse(references.get("Rabbit").contains("DesiredHunger"));
     }
 
     private StatementTrigger trigger(String statement) {

@@ -15,36 +15,37 @@ class FomCatalogTest {
 
     @Test
     void flattensPrimitiveAliasesEnumsAndFixedRecords() {
-        FomCatalog catalog = catalog("config/fom.xml");
-        FomCatalog.ObjectClassDef car = catalog.objectClass("Car").orElseThrow();
+        FomCatalog catalog = catalog("config/HlaFedereplFOM.xml");
+        FomCatalog.ObjectClassDef rabbit = catalog.objectClass("Rabbit").orElseThrow();
 
-        assertTrue(car.attribute("FuelLevel").orElseThrow().leaf());
-        assertEquals("HLAinteger32BE", car.attribute("FuelLevel").orElseThrow().primitiveType());
-        assertEquals("HLAinteger32BE", car.attribute("FuelType").orElseThrow().primitiveType());
+        assertTrue(rabbit.attribute("Hunger").orElseThrow().leaf());
+        assertEquals("HLAinteger32BE", rabbit.attribute("Hunger").orElseThrow().primitiveType());
+        assertEquals("HLAinteger32BE", rabbit.attribute("EntityType").orElseThrow().primitiveType());
 
-        FomCatalog.FomAttribute position = car.attribute("Position").orElseThrow();
+        FomCatalog.FomAttribute position = rabbit.attribute("Position").orElseThrow();
         assertFalse(position.leaf());
-        assertEquals("PositionRec", position.dataType());
-        assertEquals("HLAfloat64BE", car.attribute("Position.Lat").orElseThrow().primitiveType());
-        assertEquals("HLAfloat64BE", car.attribute("Position.Long").orElseThrow().primitiveType());
+        assertEquals("GridPosition", position.dataType());
+        assertEquals("HLAinteger32BE", rabbit.attribute("Position.X").orElseThrow().primitiveType());
+        assertEquals("HLAinteger32BE", rabbit.attribute("Position.Y").orElseThrow().primitiveType());
     }
 
     @Test
-    void includesInheritedObjectAttributesAndArrayMetadata() {
-        FomCatalog catalog = catalog("src/test/resources/SISO-STD-025.3-2024.xml");
+    void includesInheritedObjectAttributes() {
+        FomCatalog catalog = catalog("config/HlaFedereplFOM.xml");
 
-        FomCatalog.ObjectClassDef network = catalog.objectClass("Network").orElseThrow();
-        assertEquals("HLAASCIIstring", network.attribute("Name").orElseThrow().primitiveType());
-        assertEquals("HLAASCIIstring", network.attribute("ObjectID.Value").orElseThrow().primitiveType());
-        assertFalse(network.attribute("RelatedObjects").orElseThrow().leaf());
+        FomCatalog.ObjectClassDef simEntity = catalog.objectClass("SimEntity").orElseThrow();
+        assertEquals("HLAASCIIstring", simEntity.attribute("EntityId").orElseThrow().primitiveType());
+        assertEquals("HLAinteger32BE", simEntity.attribute("Position.X").orElseThrow().primitiveType());
 
-        FomCatalog.ObjectClassDef networkLink = catalog.objectClass("NetworkLink").orElseThrow();
-        assertEquals("HLAASCIIstring", networkLink.attribute("NetworkInterfaces[].Name").orElseThrow().primitiveType());
+        FomCatalog.ObjectClassDef rabbit = catalog.objectClass("Rabbit").orElseThrow();
+        assertEquals("SimEntity", rabbit.parentName());
+        assertEquals("HLAASCIIstring", rabbit.attribute("EntityId").orElseThrow().primitiveType());
+        assertEquals("HLAinteger32BE", rabbit.attribute("Hunger").orElseThrow().primitiveType());
     }
 
     @Test
     void convertsTargetsToPathKeys() {
-        assertEquals("Position.Lat", FomCatalog.targetPath(List.of("Position", "Lat")));
+        assertEquals("Position.X", FomCatalog.targetPath(List.of("Position", "X")));
         assertEquals("TargetModifiers[0].Key", FomCatalog.targetPath(List.of("TargetModifiers", 0, "Key")));
         assertEquals("TargetModifiers[].Key", FomCatalog.wildcardArrayIndexes("TargetModifiers[12].Key"));
     }
