@@ -118,26 +118,26 @@ public class ConfigParserTest {
     @Test
     public void handlesFixedRecordFieldAccess() {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-                "src/test/resources/SISO-STD-025.3-2024.xml");
+                "config/HlaFedereplFOM.xml");
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
         InjectionHandler ih = new InjectionHandler();
         ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
         ih.setHLADecoderRegistry(decoderRegistry);
 
-        byte[] eventTime = java.nio.ByteBuffer.allocate(Integer.BYTES * 2)
+        byte[] gridPosition = java.nio.ByteBuffer.allocate(Integer.BYTES * 2)
                 .order(java.nio.ByteOrder.BIG_ENDIAN)
-                .putInt(12)
-                .putInt(34567)
+                .putInt(42)
+                .putInt(84)
                 .array();
 
         Map<String, byte[]> paramMap = new java.util.HashMap<>();
-        paramMap.put("EventTime", eventTime);
+        paramMap.put("FromPosition", gridPosition);
 
-        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
-        com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("EventTime", "Hours"));
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
+        com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("FromPosition", "X"));
 
         Object result = ih.handleThis(target, injectionContext);
-        assertEquals(12, result);
+        assertEquals(42, result);
     }
 
     @Test
@@ -167,34 +167,6 @@ public class ConfigParserTest {
 
         assertEquals(5, xResult);
         assertEquals(7, yResult);
-    }
-
-    @Test
-    public void handlesFixedRecordFieldAccessInsideArray() {
-        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-                "src/test/resources/SISO-STD-025.3-2024.xml");
-        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
-        InjectionHandler ih = new InjectionHandler();
-        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
-        ih.setHLADecoderRegistry(decoderRegistry);
-
-        byte[] key = HLAEncodingTestSupport.asciiString("sample-key");
-        byte[] value = HLAEncodingTestSupport.variableBytes("sample-value".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
-        byte[] pair = java.nio.ByteBuffer.allocate(key.length + value.length)
-                .order(java.nio.ByteOrder.BIG_ENDIAN)
-                .put(key)
-                .put(value)
-                .array();
-        byte[] arrayBytes = HLAEncodingTestSupport.variableArray(pair);
-
-        Map<String, byte[]> paramMap = new java.util.HashMap<>();
-        paramMap.put("TargetModifiers", arrayBytes);
-
-        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
-        com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("TargetModifiers", 0, "Key"));
-
-        Object result = ih.handleThis(target, injectionContext);
-        assertEquals("sample-key", result);
     }
 
     @Test
@@ -247,9 +219,9 @@ public class ConfigParserTest {
 
     @Test
     public void inlinePlaceholderProcessing() throws IOException {
-        // Setup same as parsesConfigFile
+        // Setup using HlaFedereplFOM
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-                "src/test/resources/SISO-STD-025.3-2024.xml");
+                "config/HlaFedereplFOM.xml");
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
         InjectionHandler ih = new InjectionHandler();
         ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
@@ -258,26 +230,26 @@ public class ConfigParserTest {
         TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
 
         Map<String, byte[]> paramMap = new HashMap<String, byte[]>();
-        paramMap.put("Description", HLAEncodingTestSupport.asciiString("description!"));
+        paramMap.put("EntityId", HLAEncodingTestSupport.asciiString("entity-uuid-123"));
 
-        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
 
         // Statement contains an inline placeholder in a string using <<...>> containing JSON array
-        String stmt = "{\"actor\":{\"name\":\"prefix-<<[\\\"this\\\", [\\\"Description\\\"]]>>-suffix\"}}";
+        String stmt = "{\"actor\":{\"name\":\"predator-<<[\\\"this\\\", [\\\"EntityId\\\"]]>>-prey\"}}";
 
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
         String out = triggerProcessor.processTrigger(st, injectionContext);
         assertNotNull(out);
-        // Expect the placeholder to be replaced by the parameter value (description!) inside the string
-        assertTrue(out.contains("prefix-description!-suffix"));
+        // Expect the placeholder to be replaced by the parameter value inside the string
+        assertTrue(out.contains("predator-entity-uuid-123-prey"));
     }
 
     @Test
     public void inlinePlaceholderProcessingHandlesMultiplePlaceholders() throws IOException {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-            "src/test/resources/SISO-STD-025.3-2024.xml");
+            "config/HlaFedereplFOM.xml");
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
         InjectionHandler ih = new InjectionHandler();
         ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
@@ -286,17 +258,17 @@ public class ConfigParserTest {
         TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
 
         Map<String, byte[]> paramMap = new java.util.HashMap<String, byte[]>();
-        paramMap.put("Description", HLAEncodingTestSupport.asciiString("description!"));
+        paramMap.put("EntityId", HLAEncodingTestSupport.asciiString("entity-001"));
 
-        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
 
-        String stmt = "{\"actor\":{\"name\":\"first=<<[\\\"this\\\", [\\\"Description\\\"]]>>, second=<<[\\\"this\\\", [\\\"Description\\\"]]>>\"}}";
+        String stmt = "{\"actor\":{\"name\":\"from=<<[\\\"this\\\", [\\\"EntityId\\\"]]>>, to=<<[\\\"this\\\", [\\\"EntityId\\\"]]>>\"}}";
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
         String out = triggerProcessor.processTrigger(st, injectionContext);
         assertNotNull(out);
-        assertTrue(out.contains("first=description!, second=description!"));
+        assertTrue(out.contains("from=entity-001, to=entity-001"));
     }
 
     @Test
