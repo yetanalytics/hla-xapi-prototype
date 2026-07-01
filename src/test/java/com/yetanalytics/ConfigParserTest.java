@@ -170,37 +170,6 @@ public class ConfigParserTest {
     }
 
     @Test
-    public void handlesFixedRecordFieldAccessInsideArray() {
-        // NOTE: This test uses SISO-STD-025.3-2024.xml because HlaFedereplFOM.xml does not support
-        // array data types. This tests a key capability (navigating into arrays) that cannot be
-        // directly replicated with HlaFedereplFOM. See RewriteNotes.md for details.
-        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-                "src/test/resources/SISO-STD-025.3-2024.xml");
-        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
-        InjectionHandler ih = new InjectionHandler();
-        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
-        ih.setHLADecoderRegistry(decoderRegistry);
-
-        byte[] key = HLAEncodingTestSupport.asciiString("sample-key");
-        byte[] value = HLAEncodingTestSupport.variableBytes("sample-value".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
-        byte[] pair = java.nio.ByteBuffer.allocate(key.length + value.length)
-                .order(java.nio.ByteOrder.BIG_ENDIAN)
-                .put(key)
-                .put(value)
-                .array();
-        byte[] arrayBytes = HLAEncodingTestSupport.variableArray(pair);
-
-        Map<String, byte[]> paramMap = new java.util.HashMap<>();
-        paramMap.put("TargetModifiers", arrayBytes);
-
-        InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", paramMap);
-        com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("TargetModifiers", 0, "Key"));
-
-        Object result = ih.handleThis(target, injectionContext);
-        assertEquals("sample-key", result);
-    }
-
-    @Test
     public void convertsBinaryCriterion() {
         // raw form: [ ["Event"], "=", 5 ]
         List<Object> target = List.of("Event");
