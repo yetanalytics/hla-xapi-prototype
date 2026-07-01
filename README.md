@@ -42,7 +42,7 @@ Example:
     "key": "my_key",
     "secret": "my_secret",
     "batch": 50
-}    
+}
 ```
 
 ### To Run
