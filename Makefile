@@ -1,17 +1,25 @@
-.PHONY: clean build format lint run-dev run-dev-pitch run-rti test vendor-portico verify
+.PHONY: clean build format lint run-dev run-dev-pitch run-rti test verify clean-vendor
 
 APP_JAR := target/hla-xapi-1.0-SNAPSHOT-jar-with-dependencies.jar
+PORTICO_REPO_URL ?= https://github.com/yetanalytics/portico.git
+PORTICO_REF ?= yet_patch_object_subs
 PORTICO_JAR ?= lib/maven-repository/org/porticoproject/portico/3.0.0-local/portico-3.0.0-local.jar
 RTI_RID ?= RTI.rid
 SIM_CONFIG ?= config/Simulation.config
 PITCH_SIM_CONFIG ?= config/Simulation.pitch.config
 PITCH_RTI_LIB ?= $(HOME)/prti1516e/lib/*
 
-build:
+lib:
+	PORTICO_REPO_URL=$(PORTICO_REPO_URL) PORTICO_REF=$(PORTICO_REF) ./scripts/vendor-portico.sh
+
+build: lib
 	mvn package
 
 clean:
 	mvn clean
+
+clean-vendor:
+	rm -rf lib
 
 format:
 	mvn spotless:apply
@@ -21,9 +29,6 @@ lint:
 
 test:
 	mvn test
-
-vendor-portico:
-	./scripts/vendor-portico.sh
 
 verify:
 	mvn verify
