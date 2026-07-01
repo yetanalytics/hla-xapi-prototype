@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.yetanalytics.hlaxapi.FOMXML.PathCheckResult;
-import com.yetanalytics.hlaxapi.cache.CacheQueryService;
+import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
@@ -36,7 +36,7 @@ public class InjectionHandler {
 
     private static final Logger logger = LogManager.getLogger(InjectionHandler.class);
 
-    private volatile CacheQueryService queryService;
+    private ObjectCache objectCache;
 
     @Autowired
     private FOMXML fomXml;
@@ -44,8 +44,12 @@ public class InjectionHandler {
     @Autowired
     private HLADecoderRegistry hlaDecoderRegistry;
 
-    public void setQueryService(CacheQueryService cacheQueryService) {
-        this.queryService = cacheQueryService;
+    public InjectionHandler() {
+    }
+
+    @Autowired
+    public InjectionHandler(ObjectCache objectCache) {
+        this.objectCache = objectCache;
     }
 
     public Object handleThis(Target t, InjectionContext context) {
@@ -225,13 +229,12 @@ public class InjectionHandler {
     }
 
     public Object handleQuery(String clazz, Target attrTarget, Expression criteria, InjectionContext context) {
-        CacheQueryService service = queryService;
-        if (service == null) {
+        if (objectCache == null) {
             return null;
         }
 
         Expression resolvedCriteria = resolveThisExpressions(criteria, context);
-        Optional<Object> value = service.findFirstValue(clazz, attrTarget, resolvedCriteria);
+        Optional<Object> value = objectCache.findFirstValue(clazz, attrTarget, resolvedCriteria);
         return value.orElse(null);
     }
 
@@ -265,5 +268,9 @@ public class InjectionHandler {
 
     public void setHLADecoderRegistry(HLADecoderRegistry hdr) {
         this.hlaDecoderRegistry = hdr;
+    }
+
+    ObjectCache objectCache() {
+        return objectCache;
     }
 }
