@@ -12,6 +12,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import javax.xml.xpath.XPathExpressionException;
+
+import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -20,14 +22,24 @@ import org.w3c.dom.NodeList;
 /**
  * FOM-derived object metadata used by the SQLite cache.
  */
+@Component
 public final class FomCatalog {
 
     private final Map<String, ObjectClassDef> classesByName;
     private final Map<Integer, ObjectClassDef> classesById;
     private final Map<Integer, FomAttribute> attributesById;
 
-    private FomCatalog(Map<String, ObjectClassDef> classesByName) {
-        this.classesByName = Collections.unmodifiableMap(classesByName);
+    public FomCatalog(FOMXML fomXml) {
+        Objects.requireNonNull(fomXml, "fomXml");
+        CatalogBuilder builder = new CatalogBuilder(fomXml);
+        Document document = fomXml.getDoc();
+        Element objects = firstElement(document.getDocumentElement(), "objects");
+        if (objects != null) {
+            for (Element objectClass : childElements(objects, "objectClass")) {
+                builder.parseObjectClass(objectClass, null, new ArrayList<>());
+            }
+        }
+        this.classesByName = builder.classesByName;
 
         Map<Integer, ObjectClassDef> byId = new LinkedHashMap<>();
         Map<Integer, FomAttribute> attrsById = new LinkedHashMap<>();
@@ -39,19 +51,6 @@ public final class FomCatalog {
         }
         this.classesById = Collections.unmodifiableMap(byId);
         this.attributesById = Collections.unmodifiableMap(attrsById);
-    }
-
-    public static FomCatalog fromFomXml(FOMXML fomXml) {
-        Objects.requireNonNull(fomXml, "fomXml");
-        CatalogBuilder builder = new CatalogBuilder(fomXml);
-        Document document = fomXml.getDoc();
-        Element objects = firstElement(document.getDocumentElement(), "objects");
-        if (objects != null) {
-            for (Element objectClass : childElements(objects, "objectClass")) {
-                builder.parseObjectClass(objectClass, null, new ArrayList<>());
-            }
-        }
-        return new FomCatalog(builder.classesByName);
     }
 
     public Collection<ObjectClassDef> objectClasses() {
