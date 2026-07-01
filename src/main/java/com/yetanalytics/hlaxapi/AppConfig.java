@@ -42,11 +42,6 @@ public class AppConfig {
         return new HLADecoderRegistry(encoderFactory);
     }
 
-    @Bean
-    public FomCatalog fomCatalog(FOMXML fomXml) {
-        return FomCatalog.fromFomXml(fomXml);
-    }
-
     @Bean(destroyMethod = "close")
     public ObjectCache objectCache(
             XapiConfig xapiConfig,
