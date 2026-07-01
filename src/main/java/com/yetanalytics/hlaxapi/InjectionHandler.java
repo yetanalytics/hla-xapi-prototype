@@ -36,6 +36,7 @@ public class InjectionHandler {
 
     private static final Logger logger = LogManager.getLogger(InjectionHandler.class);
 
+    @Autowired
     private ObjectCache objectCache;
 
     @Autowired

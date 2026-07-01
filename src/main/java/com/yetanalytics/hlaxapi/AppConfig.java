@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.ConfigParser;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -41,12 +42,18 @@ public class AppConfig {
         return new HLADecoderRegistry(encoderFactory);
     }
 
+    @Bean
+    public FomCatalog fomCatalog(FOMXML fomXml) {
+        return FomCatalog.fromFomXml(fomXml);
+    }
+
     @Bean(destroyMethod = "close")
     public ObjectCache objectCache(
             XapiConfig xapiConfig,
+            FomCatalog fomCatalog,
             FOMXML fomXml,
             HLADecoderRegistry decoderRegistry) {
-        return new ObjectCache(xapiConfig, fomXml, decoderRegistry);
+        return new ObjectCache(xapiConfig, fomCatalog, fomXml, decoderRegistry);
     }
 
     @Bean

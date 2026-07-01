@@ -3,6 +3,7 @@ package com.yetanalytics.hlaxapi;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import hla.rti1516e.encoding.EncoderFactory;
@@ -25,11 +26,13 @@ class ObjectCacheSpringContextTest {
                     TriggerProcessor.class);
             context.refresh();
 
+            FomCatalog fomCatalog = context.getBean(FomCatalog.class);
             ObjectCache objectCache = context.getBean(ObjectCache.class);
             InjectionHandler injectionHandler = context.getBean(InjectionHandler.class);
             HlaInterfaceImpl hlaInterface = context.getBean(HlaInterfaceImpl.class);
 
             assertNotNull(hlaInterface);
+            assertSame(fomCatalog, objectCache.catalog());
             assertSame(objectCache, injectionHandler.objectCache());
         }
     }

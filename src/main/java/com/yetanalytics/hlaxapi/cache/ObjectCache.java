@@ -15,12 +15,17 @@ public class ObjectCache implements AutoCloseable {
     private final Map<String, Set<String>> subscriptions;
     private HlaObjectCache delegate;
 
-    public ObjectCache(XapiConfig xapiConfig, FOMXML fomXml, HLADecoderRegistry decoderRegistry) {
-        this(xapiConfig, fomXml, decoderRegistry, HlaObjectCache.defaultJdbcUrl());
+    public ObjectCache(XapiConfig xapiConfig, FomCatalog catalog, FOMXML fomXml, HLADecoderRegistry decoderRegistry) {
+        this(xapiConfig, catalog, fomXml, decoderRegistry, HlaObjectCache.defaultJdbcUrl());
     }
 
-    ObjectCache(XapiConfig xapiConfig, FOMXML fomXml, HLADecoderRegistry decoderRegistry, String jdbcUrl) {
-        this.catalog = FomCatalog.fromFomXml(fomXml);
+    ObjectCache(
+            XapiConfig xapiConfig,
+            FomCatalog catalog,
+            FOMXML fomXml,
+            HLADecoderRegistry decoderRegistry,
+            String jdbcUrl) {
+        this.catalog = catalog;
         this.subscriptions = QueryReferenceCollector.collect(xapiConfig.statementTriggers);
         if (!subscriptions.isEmpty()) {
             this.delegate = new HlaObjectCache(jdbcUrl, catalog, fomXml, decoderRegistry);

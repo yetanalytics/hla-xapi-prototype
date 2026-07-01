@@ -31,6 +31,7 @@ class ObjectCacheTest {
     private final FOMXML fomXml = new FOMXML(
             new SimulationConfig(null, null, null, null, "config/HlaFedereplFOM.xml"),
             decoderRegistry);
+    private final FomCatalog catalog = FomCatalog.fromFomXml(fomXml);
 
     @Test
     void disabledWhenNoQueryInjectionsAndDoesNotOpenSqlite(@TempDir Path tempDir) {
@@ -38,6 +39,7 @@ class ObjectCacheTest {
 
         try (ObjectCache cache = new ObjectCache(
                 new XapiConfig(),
+                catalog,
                 fomXml,
                 decoderRegistry,
                 "jdbc:sqlite:" + databasePath)) {
@@ -59,6 +61,7 @@ class ObjectCacheTest {
 
         try (ObjectCache cache = new ObjectCache(
                 configWithQuery(),
+                catalog,
                 fomXml,
                 decoderRegistry,
                 "jdbc:sqlite:" + databasePath)) {
