@@ -47,11 +47,6 @@ public class InjectionHandler {
     public InjectionHandler() {
     }
 
-    @Autowired
-    public InjectionHandler(ObjectCache objectCache) {
-        this.objectCache = objectCache;
-    }
-
     public Object handleThis(Target t, InjectionContext context) {
         if (context instanceof InteractionInjectionContext) {
             return handleThis(t, (InteractionInjectionContext) context);
