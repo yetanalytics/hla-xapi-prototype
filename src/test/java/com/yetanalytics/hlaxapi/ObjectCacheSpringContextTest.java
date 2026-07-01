@@ -21,6 +21,7 @@ class ObjectCacheSpringContextTest {
             context.register(
                     TestConfig.class,
                     FOMXML.class,
+                    FomCatalog.class,
                     HlaInterfaceImpl.class,
                     InjectionHandler.class,
                     TriggerProcessor.class);
