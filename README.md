@@ -1,6 +1,49 @@
 ## HLA xAPI Adapter Federate
 
-An HLA federate capable of converting HLA Interactions into xAPI Statements and depositing them in a Learning Record Store.
+An HLA federate capable of converting HLA RTI events (interactions and object updates) into xAPI Statements and storing them in a Learning Record Store.
+
+### Configuration
+
+The Federate uses multiple sources of configuration including a Simulation.config file and a json config file for configuring resulting xAPI.
+
+#### Simulation Config
+
+To connect to an HLA Federation, you will want to update the `Simulation.config` files (or `Simulation.pitch.config` if running in pitch mode). You will update the following fields to reflect the Federation details and also point to the appropriate FOM:
+
+```
+localSettingsDesignator=
+federationName=HlaFedereplSimulation
+federateName=xAPI Adapter HLA Federate
+
+fom=config/HlaFedereplFOM.xml
+```
+
+#### xAPI Config
+
+*Section in progress...*
+
+The sample `xapi-config.json` reflects the current state of compatible configuration options. `statementTriggers` is an array of "triggers" which fire on a specific interaction or object update from the RTI. The trigger contains criteria (not yet implemented) and also a statement template which allows for the generation and storage of a valid xAPI statement. The statement template contains "injection" syntax which allow the insertion of details from the tiggering RTI update or values from an object cache (in progress) to be used as values in the statement.
+
+##### Criteria
+*Section in progress...*
+
+##### Injections
+*Section in progress...*
+
+##### LRS Configuration
+The `lrs` section contains the details for connecting to a valid Learning Record Store (LRS), and will be used to initialize a client which will write the resulting statements from the Federate to that LRS.
+
+Example:
+
+```
+...
+"lrs": {
+    "host": "http://localhost:8080/xapi",
+    "key": "my_key",
+    "secret": "my_secret",
+    "batch": 50
+}    
+```
 
 ### To Run
 
@@ -47,3 +90,9 @@ make format
 Project style is intentionally minimal: Java uses 4-space indentation, no wildcard imports, braces on control
 statements, UTF-8 text, LF line endings, final newlines, and no trailing whitespace. Make recipes keep required tab
 indentation.
+
+## License
+
+Distributed under the Apache License version 2.0.
+
+Copyright © 2026 Yet Analytics, Inc.
