@@ -87,6 +87,8 @@ write_checksum() {
 require_command git
 require_command awk
 require_command find
+require_command java
+require_command javac
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/portico-vendor.XXXXXX")"
 cleanup() {
@@ -114,7 +116,27 @@ fi
 
 echo "Building Portico ref ${PORTICO_REF}"
 cd codebase
-./ant java.jar.portico
+
+JAVA_ONLY_BUILD_FILE="build-java-only.xml"
+cat > "${JAVA_ONLY_BUILD_FILE}" <<EOF
+<?xml version="1.0"?>
+<project name="portico-java-only" default="java.jar.portico">
+    <import file="profiles/system.properties.xml"/>
+    <import file="profiles/system.libraries.xml"/>
+    <import file="profiles/system.macros.xml"/>
+
+    <extension-point name="master.clean"/>
+    <extension-point name="master.compile"/>
+    <extension-point name="master.test"/>
+    <extension-point name="master.sandbox"/>
+    <extension-point name="master.installer"/>
+    <extension-point name="master.release"/>
+
+    <include file="profiles/java.xml" as="java"/>
+</project>
+EOF
+
+./ant -f "${JAVA_ONLY_BUILD_FILE}" java.jar.portico
 
 PORTICO_JAR="$(find dist -path "*/lib/portico.jar" -type f | sort | tail -n 1)"
 if [[ -z "${PORTICO_JAR}" ]]; then
