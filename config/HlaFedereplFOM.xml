@@ -323,6 +323,13 @@
                     <dataType>GridPosition</dataType>
                     <semantics>Cell occupied after movement.</semantics>
                 </parameter>
+                <parameter>
+                    <name>LocationHistory</name>
+                    <dataType>GridPositionHistory</dataType>
+                    <semantics>
+                        Ordered list of positions occupied by the entity, including the new destination.
+                    </semantics>
+                </parameter>
             </interactionClass>
             <interactionClass>
                 <name>EntityAte</name>
@@ -585,7 +592,15 @@
                 </enumerator>
             </enumeratedData>
         </enumeratedDataTypes>
-        <arrayDataTypes/>
+        <arrayDataTypes>
+            <arrayData>
+                <name>GridPositionHistory</name>
+                <dataType>GridPosition</dataType>
+                <cardinality>Dynamic</cardinality>
+                <encoding>HLAvariableArray</encoding>
+                <semantics>Ordered history of grid positions occupied by an entity.</semantics>
+            </arrayData>
+        </arrayDataTypes>
         <fixedRecordDataTypes>
             <fixedRecordData>
                 <name>GridPosition</name>
