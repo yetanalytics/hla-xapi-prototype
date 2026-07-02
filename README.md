@@ -45,6 +45,12 @@ Example:
 }
 ```
 
+### Vendoring Portico
+
+`make lib` rebuilds and vendors only Portico's Java jar into this repository's local Maven file repository. Portico ships its own Ant wrapper at `codebase/ant`, so no separate Ant installation is required.
+
+The vendoring script intentionally uses a Java-only Portico Ant build file. On Linux, Portico's full `build.xml` imports C++ profiles that are not needed for this project and can fail during Ant parsing with a duplicate `cpp.hla13.compile` target before any Java compilation begins.
+
 ### To Run
 
 The build output does not bundle an RTI implementation. The development runtime targets add either the vendored Portico RTI jar or a local Pitch RTI install on the runtime classpath.
