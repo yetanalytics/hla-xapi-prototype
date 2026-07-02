@@ -5,6 +5,9 @@ import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.TrackedObject;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -26,7 +29,7 @@ public class ObjectCache implements AutoCloseable {
             HLADecoderRegistry decoderRegistry,
             String jdbcUrl) {
         this.catalog = catalog;
-        this.subscriptions = QueryReferenceCollector.collect(xapiConfig.statementTriggers);
+        this.subscriptions = collectSubscriptions(xapiConfig);
         if (!subscriptions.isEmpty()) {
             this.delegate = new HlaObjectCache(jdbcUrl, catalog, fomXml, decoderRegistry);
         }
@@ -75,5 +78,66 @@ public class ObjectCache implements AutoCloseable {
             delegate.close();
             delegate = null;
         }
+    }
+
+    private Map<String, Set<String>> collectSubscriptions(XapiConfig xapiConfig) {
+        Map<String, Set<String>> merged = new LinkedHashMap<>();
+        QueryReferenceCollector.collect(xapiConfig.statementTriggers)
+                .forEach((className, attributes) -> addAttributes(merged, className, attributes));
+        addTrackedObjects(merged, xapiConfig);
+        return copySubscriptions(merged);
+    }
+
+    private void addTrackedObjects(Map<String, Set<String>> merged, XapiConfig xapiConfig) {
+        if (xapiConfig.objectCacheConfig == null || xapiConfig.objectCacheConfig.trackedObjects == null) {
+            return;
+        }
+        for (TrackedObject trackedObject : xapiConfig.objectCacheConfig.trackedObjects) {
+            if (trackedObject == null || trackedObject.clazz == null || trackedObject.clazz.isBlank()) {
+                continue;
+            }
+            if ("*".equals(trackedObject.clazz.trim())) {
+                if (trackedObject.allAttributes) {
+                    catalog.objectClasses().forEach(clazz ->
+                            addAttributes(merged, clazz.localName(), clazz.topLevelAttributeNames()));
+                }
+                continue;
+            }
+            if (trackedObject.allAttributes) {
+                Optional<FomCatalog.ObjectClassDef> clazz = catalog.objectClass(trackedObject.clazz);
+                if (clazz.isPresent()) {
+                    FomCatalog.ObjectClassDef objectClass = clazz.orElseThrow();
+                    addAttributes(merged, objectClass.localName(), objectClass.topLevelAttributeNames());
+                } else {
+                    addAttributes(merged, trackedObject.clazz, Set.of("*"));
+                }
+            } else {
+                String className = catalog.objectClass(trackedObject.clazz)
+                        .map(FomCatalog.ObjectClassDef::localName)
+                        .orElse(trackedObject.clazz);
+                addAttributes(merged, className, trackedObject.attributes);
+            }
+        }
+    }
+
+    private void addAttributes(Map<String, Set<String>> subscriptions, String className, Iterable<String> attributes) {
+        if (className == null || className.isBlank() || attributes == null) {
+            return;
+        }
+        Set<String> targetAttributes = subscriptions.computeIfAbsent(className, ignored -> new LinkedHashSet<>());
+        for (String attribute : attributes) {
+            if (attribute != null && !attribute.isBlank()) {
+                targetAttributes.add(attribute);
+            }
+        }
+        if (targetAttributes.isEmpty()) {
+            subscriptions.remove(className);
+        }
+    }
+
+    private Map<String, Set<String>> copySubscriptions(Map<String, Set<String>> subscriptions) {
+        Map<String, Set<String>> copy = new LinkedHashMap<>();
+        subscriptions.forEach((className, attributes) -> copy.put(className, Set.copyOf(attributes)));
+        return Map.copyOf(copy);
     }
 }

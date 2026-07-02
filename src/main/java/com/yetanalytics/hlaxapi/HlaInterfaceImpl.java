@@ -99,7 +99,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         ambassador = rtiFactory.getRtiAmbassador();
 
         if (!objectCache.isEnabled()) {
-            logger.info("No query injections configured; object cache is disabled");
+            logger.info("No query injections or tracked objects configured; object cache is disabled");
         }
 
         try {

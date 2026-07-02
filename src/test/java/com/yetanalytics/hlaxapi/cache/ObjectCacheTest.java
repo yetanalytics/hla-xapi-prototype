@@ -8,10 +8,12 @@ import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
+import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.TrackedObject;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.EncoderException;
@@ -85,6 +87,72 @@ class ObjectCacheTest {
         }
     }
 
+    @Test
+    void enabledWhenTrackedObjectsExistWithoutQueryInjections(@TempDir Path tempDir) {
+        Path databasePath = tempDir.resolve("tracked.sqlite");
+
+        try (ObjectCache cache = new ObjectCache(
+                configWithTrackedObject("Rabbit", List.of("EntityId", "Hunger"), false),
+                catalog,
+                fomXml,
+                decoderRegistry,
+                "jdbc:sqlite:" + databasePath)) {
+            assertTrue(cache.isEnabled());
+            assertEquals(Set.of("EntityId", "Hunger"), cache.subscriptions().get("Rabbit"));
+            assertTrue(Files.exists(databasePath));
+        }
+    }
+
+    @Test
+    void trackedObjectAllAttributesExpandsTopLevelFomAttributes(@TempDir Path tempDir) {
+        try (ObjectCache cache = new ObjectCache(
+                configWithTrackedObject("Rabbit", null, true),
+                catalog,
+                fomXml,
+                decoderRegistry,
+                "jdbc:sqlite:" + tempDir.resolve("all-attrs.sqlite"))) {
+            assertEquals(
+                    Set.of("EntityId", "EntityType", "Position", "Hunger"),
+                    cache.subscriptions().get("Rabbit"));
+        }
+    }
+
+    @Test
+    void trackedObjectWildcardExpandsEveryObjectClassWithAllAttributes(@TempDir Path tempDir) {
+        try (ObjectCache cache = new ObjectCache(
+                configWithTrackedObject("*", null, true),
+                catalog,
+                fomXml,
+                decoderRegistry,
+                "jdbc:sqlite:" + tempDir.resolve("wildcard.sqlite"))) {
+            assertEquals(
+                    Set.of("WorldId", "Size", "StepNumber", "CarrotCount", "RabbitCount", "WolfCount"),
+                    cache.subscriptions().get("World"));
+            assertEquals(
+                    Set.of("EntityId", "EntityType", "Position"),
+                    cache.subscriptions().get("SimEntity"));
+            assertEquals(
+                    Set.of("EntityId", "EntityType", "Position", "Hunger"),
+                    cache.subscriptions().get("Rabbit"));
+            assertFalse(cache.subscriptions().containsKey("HLAobjectRoot"));
+        }
+    }
+
+    @Test
+    void trackedObjectsMergeWithQueryInjections(@TempDir Path tempDir) {
+        XapiConfig config = configWithQuery();
+        config.objectCacheConfig = objectCacheConfig(trackedObject("Rabbit", List.of("Position"), false));
+
+        try (ObjectCache cache = new ObjectCache(
+                config,
+                catalog,
+                fomXml,
+                decoderRegistry,
+                "jdbc:sqlite:" + tempDir.resolve("merged.sqlite"))) {
+            assertEquals(Set.of("EntityId", "Hunger", "Position"), cache.subscriptions().get("Rabbit"));
+        }
+    }
+
     private XapiConfig configWithQuery() {
         StatementTrigger trigger = new StatementTrigger();
         trigger.statement = """
@@ -94,6 +162,26 @@ class ObjectCacheTest {
         XapiConfig config = new XapiConfig();
         config.statementTriggers = List.of(trigger);
         return config;
+    }
+
+    private XapiConfig configWithTrackedObject(String className, List<String> attributes, boolean allAttributes) {
+        XapiConfig config = new XapiConfig();
+        config.objectCacheConfig = objectCacheConfig(trackedObject(className, attributes, allAttributes));
+        return config;
+    }
+
+    private ObjectCacheConfig objectCacheConfig(TrackedObject... trackedObjects) {
+        ObjectCacheConfig objectCacheConfig = new ObjectCacheConfig();
+        objectCacheConfig.trackedObjects = List.of(trackedObjects);
+        return objectCacheConfig;
+    }
+
+    private TrackedObject trackedObject(String className, List<String> attributes, boolean allAttributes) {
+        TrackedObject trackedObject = new TrackedObject();
+        trackedObject.clazz = className;
+        trackedObject.attributes = attributes;
+        trackedObject.allAttributes = allAttributes;
+        return trackedObject;
     }
 
     private byte[] encoded(DataElement element) {

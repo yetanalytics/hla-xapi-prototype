@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +18,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
 import com.yetanalytics.hlaxapi.FOMXML;
@@ -96,6 +99,33 @@ public class ConfigParserTest {
         assertEquals(config.lrsConfig.key, "key string");
         assertEquals(config.lrsConfig.secret, "secret string");
         assertNotNull(config.lrsConfig);
+    }
+
+    @Test
+    public void parsesObjectCacheTrackedObjects(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, """
+                {
+                    "objectCache": {
+                        "trackedObjects": [
+                            {"class": "Rabbit", "attributes": ["EntityId", "Hunger"]},
+                            {"class": "World", "allAttributes": true},
+                            {"class": "*", "allAttributes": true}
+                        ]
+                    }
+                }
+                """);
+
+        XapiConfig config = ConfigParser.fromFile(configPath.toString()).parse();
+
+        assertNotNull(config.objectCacheConfig);
+        assertNotNull(config.objectCacheConfig.trackedObjects);
+        assertEquals(3, config.objectCacheConfig.trackedObjects.size());
+        assertEquals("Rabbit", config.objectCacheConfig.trackedObjects.get(0).clazz);
+        assertEquals(List.of("EntityId", "Hunger"), config.objectCacheConfig.trackedObjects.get(0).attributes);
+        assertTrue(config.objectCacheConfig.trackedObjects.get(1).allAttributes);
+        assertEquals("*", config.objectCacheConfig.trackedObjects.get(2).clazz);
+        assertTrue(config.objectCacheConfig.trackedObjects.get(2).allAttributes);
     }
 
     @Test

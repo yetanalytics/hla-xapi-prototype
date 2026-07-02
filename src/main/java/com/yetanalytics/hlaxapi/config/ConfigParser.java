@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
+import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.config.model.TrackedObject;
 
 import java.io.File;
 import java.io.IOException;
@@ -67,6 +69,33 @@ public class ConfigParser {
         // lrs
         if (root.has("lrs")) {
             cfg.lrsConfig = mapper.convertValue(root.get("lrs"), LrsConfig.class);
+        }
+
+        // object cache
+        JsonNode oc = root.get("objectCache");
+        if (oc != null && oc.isObject()) {
+            ObjectCacheConfig objectCacheConfig = new ObjectCacheConfig();
+            JsonNode trackedObjects = oc.get("trackedObjects");
+            if (trackedObjects != null && trackedObjects.isArray()) {
+                List<TrackedObject> tracked = new ArrayList<>();
+                for (JsonNode trackedNode : trackedObjects) {
+                    TrackedObject trackedObject = new TrackedObject();
+                    trackedObject.clazz = trackedNode.path("class").asText(null);
+                    trackedObject.allAttributes = trackedNode.path("allAttributes").asBoolean(false);
+                    JsonNode attributes = trackedNode.get("attributes");
+                    if (attributes != null && attributes.isArray()) {
+                        trackedObject.attributes = new ArrayList<>();
+                        for (JsonNode attribute : attributes) {
+                            if (attribute.isTextual()) {
+                                trackedObject.attributes.add(attribute.asText());
+                            }
+                        }
+                    }
+                    tracked.add(trackedObject);
+                }
+                objectCacheConfig.trackedObjects = tracked;
+            }
+            cfg.objectCacheConfig = objectCacheConfig;
         }
 
         return cfg;
