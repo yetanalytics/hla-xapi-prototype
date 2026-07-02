@@ -53,6 +53,6 @@ class FomCatalogTest {
     private FomCatalog catalog(String fomPath) {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null, fomPath);
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
-        return FomCatalog.fromFomXml(new FOMXML(simConfig, decoderRegistry));
+        return new FomCatalog(new FOMXML(simConfig, decoderRegistry));
     }
 }

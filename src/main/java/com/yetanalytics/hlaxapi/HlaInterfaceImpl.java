@@ -3,7 +3,6 @@ package com.yetanalytics.hlaxapi;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -13,8 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.yetanalytics.hlaxapi.cache.FomCatalog;
-import com.yetanalytics.hlaxapi.cache.HlaObjectCache;
-import com.yetanalytics.hlaxapi.cache.QueryReferenceCollector;
+import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
@@ -88,22 +86,10 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     private SimulationConfig simulationConfig;
 
     @Autowired
-    private FOMXML fomXml;
-
-    @Autowired
-    private HLADecoderRegistry decoderRegistry;
-
-    @Autowired
     private TriggerProcessor triggerProcessor;
 
     @Autowired
-    private InjectionHandler injectionHandler;
-
-    private FomCatalog fomCatalog;
-
-    private HlaObjectCache objectCache;
-
-    private Map<String, Set<String>> objectCacheSubscriptions = Collections.emptyMap();
+    private ObjectCache objectCache;
 
     public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
@@ -112,14 +98,8 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         RtiFactory rtiFactory = RtiFactoryFactory.getRtiFactory();
         ambassador = rtiFactory.getRtiAmbassador();
 
-        fomCatalog = FomCatalog.fromFomXml(fomXml);
-        objectCacheSubscriptions = QueryReferenceCollector.collect(xapiConfig.statementTriggers);
-        if (objectCacheSubscriptions.isEmpty()) {
-            injectionHandler.setQueryService(null);
+        if (!objectCache.isEnabled()) {
             logger.info("No query injections configured; object cache is disabled");
-        } else {
-            objectCache = new HlaObjectCache(HlaObjectCache.defaultJdbcUrl(), fomCatalog, fomXml, decoderRegistry);
-            injectionHandler.setQueryService(objectCache.queryService());
         }
 
         try {
@@ -194,11 +174,6 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             } catch (FederateIsExecutionMember | CallNotAllowedFromWithinCallback e) {
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             }
-            injectionHandler.setQueryService(null);
-            if (objectCache != null) {
-                objectCache.close();
-                objectCache = null;
-            }
         } catch (NotConnected ignored) {
         }
     }
@@ -214,12 +189,12 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
 
     private void subscribeObjectClasses()
             throws FederateNotExecutionMember, RestoreInProgress, SaveInProgress, NotConnected, RTIinternalError {
-        if (objectCacheSubscriptions.isEmpty()) {
+        if (!objectCache.isEnabled()) {
             return;
         }
-        for (Map.Entry<String, Set<String>> subscription : objectCacheSubscriptions.entrySet()) {
+        for (Map.Entry<String, Set<String>> subscription : objectCache.subscriptions().entrySet()) {
             try {
-                FomCatalog.ObjectClassDef clazz = fomCatalog.objectClass(subscription.getKey()).orElseThrow(
+                FomCatalog.ObjectClassDef clazz = objectCache.catalog().objectClass(subscription.getKey()).orElseThrow(
                         () -> new IllegalArgumentException("No FOM object class " + subscription.getKey()));
                 ObjectClassHandle classHandle = ambassador.getObjectClassHandle(clazz.localName());
                 AttributeHandleSet attributeHandles = ambassador.getAttributeHandleSetFactory().create();
@@ -251,7 +226,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
             ObjectClassHandle theObjectClass,
             String objectName,
             hla.rti1516e.FederateHandle producingFederate) throws FederateInternalError {
-        if (objectCache == null) {
+        if (!objectCache.isEnabled()) {
             return;
         }
         try {
@@ -303,7 +278,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     }
 
     private void reflectAttributeValues(ObjectInstanceHandle theObject, AttributeHandleValueMap theAttributes) {
-        if (objectCache == null) {
+        if (!objectCache.isEnabled()) {
             return;
         }
         try {
@@ -356,7 +331,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     }
 
     private void removeCachedObject(ObjectInstanceHandle theObject) {
-        if (objectCache == null) {
+        if (!objectCache.isEnabled()) {
             return;
         }
         try {
