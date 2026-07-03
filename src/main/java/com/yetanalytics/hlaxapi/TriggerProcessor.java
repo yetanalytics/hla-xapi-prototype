@@ -1,5 +1,7 @@
 package com.yetanalytics.hlaxapi;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,9 +16,11 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import com.yetanalytics.hlaxapi.cache.CachedObject;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
+import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
@@ -44,8 +48,9 @@ public class TriggerProcessor {
         ObjectMapper mapper = new ObjectMapper();
         try {
             JsonNode stmtNode = mapper.readTree(trigger.statement);
+            Map<String, CachedObject> lookupObjects = resolveLookups(trigger, context);
 
-            JsonNode processed = processNode(stmtNode, context, mapper);
+            JsonNode processed = processNode(stmtNode, context, mapper, lookupObjects);
 
             String output = mapper.writeValueAsString(processed);
             logger.info("Processed statement output: {}", output);
@@ -56,9 +61,25 @@ public class TriggerProcessor {
         }
     }
 
+    private Map<String, CachedObject> resolveLookups(StatementTrigger trigger, InjectionContext context) {
+        Map<String, CachedObject> lookupObjects = new LinkedHashMap<>();
+        if (trigger.lookups == null || trigger.lookups.isEmpty()) {
+            return lookupObjects;
+        }
+        for (Map.Entry<String, ObjectLookup> entry : trigger.lookups.entrySet()) {
+            injectionHandler.resolveLookup(entry.getValue(), context)
+                    .ifPresent(object -> lookupObjects.put(entry.getKey(), object));
+        }
+        return lookupObjects;
+    }
+
     private static final Pattern INLINE_PLACEHOLDER = Pattern.compile("<<(.+?)>>", Pattern.DOTALL);
 
-    private JsonNode processNode(JsonNode node, InjectionContext context, ObjectMapper mapper) {
+    private JsonNode processNode(
+            JsonNode node,
+            InjectionContext context,
+            ObjectMapper mapper,
+            Map<String, CachedObject> lookupObjects) {
         if (node == null || node.isNull())
             return node;
 
@@ -68,7 +89,7 @@ public class TriggerProcessor {
                 ObjectNode out = mapper.createObjectNode();
                 node.fieldNames().forEachRemaining(field -> {
                     JsonNode child = node.get(field);
-                    JsonNode processedChild = processNode(child, context, mapper);
+                    JsonNode processedChild = processNode(child, context, mapper, lookupObjects);
                     out.set(field, processedChild);
                 });
                 return out;
@@ -80,13 +101,13 @@ public class TriggerProcessor {
                     String k = node.get(0).asText();
                     if (InjectionType.fromString(k) != null) {
                         // handle injection array
-                        return handleInjectionArray(node, context, mapper, false);
+                        return handleInjectionArray(node, context, mapper, false, lookupObjects);
                     }
                 }
                 // if not, process each element instead
                 ArrayNode out = mapper.createArrayNode();
                 for (JsonNode el : node) {
-                    out.add(processNode(el, context, mapper));
+                    out.add(processNode(el, context, mapper, lookupObjects));
                 }
                 return out;
             }
@@ -110,7 +131,7 @@ public class TriggerProcessor {
                         JsonNode repNode = null;
                         if (injNode.isArray() && injNode.size() > 0 && injNode.get(0).isTextual()
                                 && InjectionType.fromString(injNode.get(0).asText()) != null) {
-                            repNode = handleInjectionArray(injNode, context, mapper, true);
+                            repNode = handleInjectionArray(injNode, context, mapper, true, lookupObjects);
                         }
                         if (repNode == null) {
                             m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
@@ -136,7 +157,7 @@ public class TriggerProcessor {
     }
 
     private JsonNode handleInjectionArray(JsonNode injArray, InjectionContext context, ObjectMapper mapper,
-            Boolean embedded) {
+            Boolean embedded, Map<String, CachedObject> lookupObjects) {
         try {
             String keyword = injArray.get(0).asText();
             InjectionType iType = InjectionType.fromString(keyword);
@@ -154,6 +175,14 @@ public class TriggerProcessor {
                 Object criteriaRaw = mapper.convertValue(injArray.get(3), Object.class);
                 Expression criteriaExpr = ConfigConverter.toExpression(criteriaRaw);
                 Object replacement = injectionHandler.handleQuery(clazz, attr, criteriaExpr, context);
+                if (replacement == null)
+                    return NullNode.instance;
+                return render(replacement, embedded, mapper);
+            } else if (iType == InjectionType.LOOKUP && injArray.size() >= 3) {
+                String alias = injArray.get(1).asText();
+                Object rawTarget = mapper.convertValue(injArray.get(2), Object.class);
+                Target attr = ConfigConverter.toTarget(rawTarget);
+                Object replacement = injectionHandler.handleLookup(lookupObjects.get(alias), attr);
                 if (replacement == null)
                     return NullNode.instance;
                 return render(replacement, embedded, mapper);

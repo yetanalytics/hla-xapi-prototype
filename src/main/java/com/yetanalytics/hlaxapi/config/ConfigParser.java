@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
+import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.TrackedObject;
@@ -15,7 +16,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Lightweight parser for the config format described in config-ideas.md.
@@ -54,6 +58,7 @@ public class ConfigParser {
                 stt.clazz = tnode.path("class").asText(null);
                 Object rawCrit = parseCriteriaNode(tnode.get("criteria"));
                 stt.criteria = ConfigConverter.toCriterion(rawCrit);
+                stt.lookups = parseLookups(tnode.get("lookups"));
                 if (tnode.has("statement")) {
                     try {
                         stt.statement = mapper.writeValueAsString(tnode.get("statement"));
@@ -99,6 +104,27 @@ public class ConfigParser {
         }
 
         return cfg;
+    }
+
+    private Map<String, ObjectLookup> parseLookups(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        Map<String, ObjectLookup> lookups = new LinkedHashMap<>();
+        Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> field = fields.next();
+            JsonNode lookupNode = field.getValue();
+            if (lookupNode == null || !lookupNode.isObject()) {
+                continue;
+            }
+            ObjectLookup lookup = new ObjectLookup();
+            lookup.clazz = lookupNode.path("class").asText(null);
+            Object rawCriteria = parseCriteriaNode(lookupNode.get("criteria"));
+            lookup.criteria = rawCriteria == null ? null : ConfigConverter.toExpression(rawCriteria);
+            lookups.put(field.getKey(), lookup);
+        }
+        return lookups.isEmpty() ? null : lookups;
     }
 
     private Object parseCriteriaNode(JsonNode node) {

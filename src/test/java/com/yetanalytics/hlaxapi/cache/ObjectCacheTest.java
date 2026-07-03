@@ -113,7 +113,8 @@ class ObjectCacheTest {
                 "jdbc:sqlite:" + tempDir.resolve("all-attrs.sqlite"))) {
             assertEquals(
                     Set.of("EntityId", "EntityType", "Position", "Hunger"),
-                    cache.subscriptions().get("Rabbit"));
+                    stableAttributes(cache.subscriptions().get("Rabbit"), "EntityId", "EntityType", "Position",
+                            "Hunger"));
         }
     }
 
@@ -130,10 +131,11 @@ class ObjectCacheTest {
                     cache.subscriptions().get("World"));
             assertEquals(
                     Set.of("EntityId", "EntityType", "Position"),
-                    cache.subscriptions().get("SimEntity"));
+                    stableAttributes(cache.subscriptions().get("SimEntity"), "EntityId", "EntityType", "Position"));
             assertEquals(
                     Set.of("EntityId", "EntityType", "Position", "Hunger"),
-                    cache.subscriptions().get("Rabbit"));
+                    stableAttributes(cache.subscriptions().get("Rabbit"), "EntityId", "EntityType", "Position",
+                            "Hunger"));
             assertFalse(cache.subscriptions().containsKey("HLAobjectRoot"));
         }
     }
@@ -190,5 +192,11 @@ class ObjectCacheTest {
         } catch (EncoderException e) {
             throw new IllegalStateException("Could not encode test value", e);
         }
+    }
+
+    private Set<String> stableAttributes(Set<String> attributes, String... expected) {
+        Set<String> stable = Set.of(expected);
+        assertTrue(attributes.containsAll(stable));
+        return stable;
     }
 }

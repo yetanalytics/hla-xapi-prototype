@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +29,7 @@ import com.yetanalytics.hlaxapi.HLAEncodingTestSupport;
 import com.yetanalytics.hlaxapi.InjectionHandler;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.TriggerProcessor;
+import com.yetanalytics.hlaxapi.cache.CachedObject;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.ConfigParser;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -35,6 +38,8 @@ import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
+import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
+import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ThisExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
@@ -99,6 +104,39 @@ public class ConfigParserTest {
         assertEquals(config.lrsConfig.key, "key string");
         assertEquals(config.lrsConfig.secret, "secret string");
         assertNotNull(config.lrsConfig);
+    }
+
+    @Test
+    public void parsesTriggerLookups(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, """
+                {
+                    "statementTriggers": [
+                        {
+                            "type": "Interaction",
+                            "class": "EntityAte",
+                            "lookups": {
+                                "predator": {
+                                    "class": "SimEntity",
+                                    "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+                                }
+                            },
+                            "statement": {"actor": {"name": ["lookup", "predator", ["EntityType"]]}}
+                        }
+                    ]
+                }
+                """);
+
+        XapiConfig config = ConfigParser.fromFile(configPath.toString()).parse();
+
+        assertEquals(1, config.statementTriggers.size());
+        ObjectLookup lookup = config.statementTriggers.get(0).lookups.get("predator");
+        assertNotNull(lookup);
+        assertEquals("SimEntity", lookup.clazz);
+        assertTrue(lookup.criteria instanceof Criterion);
+        Criterion criterion = (Criterion) lookup.criteria;
+        assertTrue(criterion.left instanceof Target);
+        assertTrue(criterion.right instanceof ThisExpression);
     }
 
     @Test
@@ -318,6 +356,58 @@ public class ConfigParserTest {
         String out = triggerProcessor.processTrigger(st, injectionContext);
         assertNotNull(out);
         assertTrue(out.contains("\"name\":\"[alpha, beta]\""));
+    }
+
+    @Test
+    public void lookupInjectionResolvesAliasOnceAndReusesObject() {
+        AtomicInteger resolveCount = new AtomicInteger();
+        CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                resolveCount.incrementAndGet();
+                return Optional.of(matchedObject);
+            }
+
+            @Override
+            public Object handleLookup(CachedObject object, Target attrTarget) {
+                assertEquals(matchedObject, object);
+                if (attrTarget.parts.equals(List.of("EntityId"))) {
+                    return "predator-1";
+                }
+                if (attrTarget.parts.equals(List.of("EntityType"))) {
+                    return "Wolf";
+                }
+                return null;
+            }
+        };
+
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+        StatementTrigger trigger = new StatementTrigger();
+        ObjectLookup lookup = new ObjectLookup();
+        lookup.clazz = "SimEntity";
+        lookup.criteria = new Criterion(
+                new Target(List.of("EntityId")),
+                ComparisonOperator.EQ,
+                new ThisExpression(new Target(List.of("PredatorId"))));
+        trigger.lookups = Map.of("predator", lookup);
+        trigger.statement = """
+                {
+                    "actor": {
+                        "account": {"name": ["lookup", "predator", ["EntityId"]]},
+                        "name": "the <<[\\"lookup\\", \\"predator\\", [\\"EntityType\\"]]>>"
+                    }
+                }
+                """;
+
+        String out = triggerProcessor.processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(out);
+        assertEquals(1, resolveCount.get());
+        assertTrue(out.contains("\"name\":\"predator-1\""));
+        assertTrue(out.contains("\"name\":\"the Wolf\""));
     }
 
     // Stub implementations of HLA ParameterHandle and ParameterHandleValueMap for

@@ -25,6 +25,22 @@ public class CacheQueryService {
         return findValues(className, target, criteria).stream().findFirst();
     }
 
+    public Optional<CachedObject> findFirstObject(String className, Expression criteria) {
+        for (CachedObject object : cache.currentObjects(className)) {
+            if (matches(object, criteria)) {
+                return Optional.of(object);
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Optional<Object> findValue(CachedObject object, Target target) {
+        if (object == null) {
+            return Optional.empty();
+        }
+        return resolveTarget(object, target);
+    }
+
     public List<Object> findValues(String className, Target target, Expression criteria) {
         String pathKey = FomCatalog.targetPath(target == null ? null : target.parts);
         if (pathKey == null) {

@@ -12,10 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.yetanalytics.hlaxapi.FOMXML.PathCheckResult;
+import com.yetanalytics.hlaxapi.cache.CachedObject;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
+import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ThisExpression;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
@@ -232,6 +234,21 @@ public class InjectionHandler {
         Expression resolvedCriteria = resolveThisExpressions(criteria, context);
         Optional<Object> value = objectCache.findFirstValue(clazz, attrTarget, resolvedCriteria);
         return value.orElse(null);
+    }
+
+    public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+        if (objectCache == null || lookup == null || lookup.clazz == null || lookup.clazz.isBlank()) {
+            return Optional.empty();
+        }
+        Expression resolvedCriteria = resolveThisExpressions(lookup.criteria, context);
+        return objectCache.findFirstObject(lookup.clazz, resolvedCriteria);
+    }
+
+    public Object handleLookup(CachedObject object, Target attrTarget) {
+        if (objectCache == null || object == null) {
+            return null;
+        }
+        return objectCache.findValue(object, attrTarget).orElse(null);
     }
 
     private Expression resolveThisExpressions(Expression expression, InjectionContext context) {

@@ -4,6 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
+import com.yetanalytics.hlaxapi.config.model.Criterion;
+import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
+import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.ThisExpression;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +40,30 @@ class QueryReferenceCollectorTest {
 
         assertEquals(Set.of("EntityId", "Hunger"), references.get("Rabbit"));
         assertFalse(references.get("Rabbit").contains("DesiredHunger"));
+    }
+
+    @Test
+    void findsLookupDefinitionCriteriaAndLookupInjections() {
+        StatementTrigger trigger = trigger("""
+                {
+                    "actor": {
+                        "account": {"name": ["lookup", "predator", ["EntityId"]]},
+                        "name": "<<[\\"lookup\\",\\"predator\\",[\\"EntityType\\"]]>>"
+                    }
+                }
+                """);
+        ObjectLookup lookup = new ObjectLookup();
+        lookup.clazz = "SimEntity";
+        lookup.criteria = new Criterion(
+                new Target(List.of("EntityId")),
+                ComparisonOperator.EQ,
+                new ThisExpression(new Target(List.of("PredatorId"))));
+        trigger.lookups = Map.of("predator", lookup);
+
+        Map<String, Set<String>> references = QueryReferenceCollector.collect(List.of(trigger));
+
+        assertEquals(Set.of("EntityId", "EntityType"), references.get("SimEntity"));
+        assertFalse(references.get("SimEntity").contains("PredatorId"));
     }
 
     private StatementTrigger trigger(String statement) {

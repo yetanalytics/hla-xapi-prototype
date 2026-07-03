@@ -35,8 +35,9 @@ public final class QueryReferenceCollector {
             if (trigger == null || trigger.statement == null) {
                 continue;
             }
+            Map<String, String> lookupClasses = collectLookupDefinitions(trigger, references);
             try {
-                collectFromNode(MAPPER.readTree(trigger.statement), references);
+                collectFromNode(MAPPER.readTree(trigger.statement), references, lookupClasses);
             } catch (IOException ignored) {
                 // Bad statement JSON is handled by TriggerProcessor at runtime.
             }
@@ -44,13 +45,33 @@ public final class QueryReferenceCollector {
         return copyReferences(references);
     }
 
-    private static void collectFromNode(JsonNode node, Map<String, Set<String>> references) throws IOException {
+    private static Map<String, String> collectLookupDefinitions(
+            StatementTrigger trigger,
+            Map<String, Set<String>> references) {
+        Map<String, String> lookupClasses = new LinkedHashMap<>();
+        if (trigger.lookups == null) {
+            return lookupClasses;
+        }
+        trigger.lookups.forEach((alias, lookup) -> {
+            if (lookup == null || lookup.clazz == null || lookup.clazz.isBlank()) {
+                return;
+            }
+            lookupClasses.put(alias, lookup.clazz);
+            collectCriteriaTargets(references, lookup.clazz, lookup.criteria);
+        });
+        return lookupClasses;
+    }
+
+    private static void collectFromNode(
+            JsonNode node,
+            Map<String, Set<String>> references,
+            Map<String, String> lookupClasses) throws IOException {
         if (node == null || node.isNull()) {
             return;
         }
         if (node.isObject()) {
             for (JsonNode child : node) {
-                collectFromNode(child, references);
+                collectFromNode(child, references, lookupClasses);
             }
             return;
         }
@@ -59,8 +80,12 @@ public final class QueryReferenceCollector {
                 collectQuery(node, references);
                 return;
             }
+            if (isLookupInjection(node)) {
+                collectLookup(node, references, lookupClasses);
+                return;
+            }
             for (JsonNode child : node) {
-                collectFromNode(child, references);
+                collectFromNode(child, references, lookupClasses);
             }
             return;
         }
@@ -70,6 +95,8 @@ public final class QueryReferenceCollector {
                 JsonNode inner = MAPPER.readTree(matcher.group(1));
                 if (isQueryInjection(inner)) {
                     collectQuery(inner, references);
+                } else if (isLookupInjection(inner)) {
+                    collectLookup(inner, references, lookupClasses);
                 }
             }
         }
@@ -83,6 +110,14 @@ public final class QueryReferenceCollector {
                 && "query".equalsIgnoreCase(node.get(0).asText());
     }
 
+    private static boolean isLookupInjection(JsonNode node) {
+        return node != null
+                && node.isArray()
+                && node.size() >= 3
+                && node.get(0).isTextual()
+                && "lookup".equalsIgnoreCase(node.get(0).asText());
+    }
+
     private static void collectQuery(JsonNode queryNode, Map<String, Set<String>> references) {
         String className = queryNode.get(1).asText(null);
         if (className == null || className.isBlank()) {
@@ -94,6 +129,20 @@ public final class QueryReferenceCollector {
 
         Object criteriaRaw = MAPPER.convertValue(queryNode.get(3), Object.class);
         collectCriteriaTargets(references, className, ConfigConverter.toExpression(criteriaRaw));
+    }
+
+    private static void collectLookup(
+            JsonNode lookupNode,
+            Map<String, Set<String>> references,
+            Map<String, String> lookupClasses) {
+        String alias = lookupNode.get(1).asText(null);
+        String className = lookupClasses.get(alias);
+        if (className == null || className.isBlank()) {
+            return;
+        }
+
+        Target target = ConfigConverter.toTarget(MAPPER.convertValue(lookupNode.get(2), Object.class));
+        addTarget(references, className, target);
     }
 
     private static void collectCriteriaTargets(

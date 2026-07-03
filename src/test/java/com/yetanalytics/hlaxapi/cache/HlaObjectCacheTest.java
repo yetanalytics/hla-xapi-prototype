@@ -111,6 +111,11 @@ class HlaObjectCacheTest {
             assertEquals(
                     List.of(8),
                     cache.queryService().findValues("Rabbit", new Target(List.of("Position", "Y")), criteria));
+            CachedObject matched = cache.queryService().findFirstObject("Rabbit", criteria).orElseThrow();
+            assertEquals("object-1", matched.objectHandle());
+            assertEquals(
+                    8,
+                    cache.queryService().findValue(matched, new Target(List.of("Position", "Y"))).orElseThrow());
 
             cache.removeObject("object-1");
 
