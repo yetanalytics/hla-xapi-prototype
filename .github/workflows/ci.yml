@@ -21,5 +21,8 @@ jobs:
                   java-version: "21"
                   cache: maven
 
+            - name: lib
+              run: make lib
+
             - name: Verify
               run: mvn --batch-mode verify
