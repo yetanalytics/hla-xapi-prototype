@@ -30,7 +30,7 @@ lint:
 test:
 	mvn test
 
-verify:
+verify: lib
 	mvn verify
 
 run-dev:
