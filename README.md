@@ -48,7 +48,7 @@ Example:
 The frequency of the buffer being cleared and statement being actually posted can be changed with a java property when running the jar:
 
 ```
--Dxapi.buffer.clear-rate=5000
+java -Dxapi.buffer.clear-rate=5000 ...
 ```
 
 ### Vendoring Portico
