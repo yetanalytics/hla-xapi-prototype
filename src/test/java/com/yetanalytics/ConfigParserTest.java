@@ -207,6 +207,35 @@ public class ConfigParserTest {
     }
 
     @Test
+    public void handlesFixedRecordFieldAccessInsideArray() {
+        // Test array of fixed records
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+                "config/HlaFedereplFOM.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
+
+        byte[] gridPosition = java.nio.ByteBuffer.allocate(Integer.BYTES * 2)
+                .order(java.nio.ByteOrder.BIG_ENDIAN)
+                .putInt(42)
+                .putInt(84)
+                .array();
+
+        byte[] arrayBytes = HLAEncodingTestSupport.variableArray(gridPosition);
+
+        Map<String, byte[]> paramMap = new java.util.HashMap<>();
+        paramMap.put("LocationHistory", arrayBytes);
+
+        InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
+        com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(
+            java.util.List.of("LocationHistory", 0, "X"));
+
+        Object result = ih.handleThis(target, injectionContext);
+        assertEquals(42, result);
+    }
+
+    @Test
     public void handlesFixedRecordGridPositionFieldAccess() {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
                 "config/HlaFedereplFOM.xml");

@@ -10,6 +10,8 @@ import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
@@ -69,9 +71,6 @@ import hla.rti1516e.exceptions.RestoreInProgress;
 import hla.rti1516e.exceptions.SaveInProgress;
 import hla.rti1516e.exceptions.UnsupportedCallbackModel;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 @Component
 public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInterface {
 
@@ -90,6 +89,9 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
 
     @Autowired
     private ObjectCache objectCache;
+
+    @Autowired
+    private XapiClient xapiClient;
 
     public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
@@ -391,7 +393,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
         logger.info("Received Interaction");
         try {
             String interactionName = ambassador.getInteractionClassName(interactionClass);
-            logger.info("Interaction Handle: {}", interactionName);
+            logger.trace("Interaction Handle: {}", interactionName);
             String interactionKey = StringUtils.substringAfterLast(interactionName, ".");
 
             // Create Interaction-specific injection context to pass to trigger processor
@@ -403,8 +405,13 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                     .filter(trigger -> trigger.clazz.equals(interactionKey)
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
-                        logger.info("Processing trigger for interaction {}", trigger.clazz);
-                        triggerProcessor.processTrigger(trigger, context);
+                        logger.trace("Processing trigger for interaction {}", trigger.clazz);
+                        String xapi = triggerProcessor.processTrigger(trigger, context);
+                        try {
+                            xapiClient.sendStatementFromString(xapi);
+                        } catch (Exception e) {
+                            logger.error("Error parsing or posting statement {}", xapi, e);
+                        }
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {
             logger.error("Error ascertaining interaction details!", e);

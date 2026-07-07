@@ -110,6 +110,12 @@
             <artifactId>spring-context</artifactId>
             <version>6.1.18</version>
         </dependency>
+        <!-- xAPI Client -->
+        <dependency>
+            <groupId>com.yetanalytics</groupId>
+            <artifactId>xapi-tools</artifactId>
+            <version>0.0.4</version>
+        </dependency>
     </dependencies>
 
     <build>
