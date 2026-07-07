@@ -54,7 +54,7 @@ public class TriggerProcessor {
             JsonNode processed = processNode(stmtNode, context, mapper, lookupObjects);
 
             String output = mapper.writeValueAsString(processed);
-            logger.info("Processed statement output: {}", output);
+            logger.trace("Processed statement output: {}", output);
             return output;
         } catch (RequiredInjectionException e) {
             logger.error("Could not process trigger {}.{}: {}", trigger.type, trigger.clazz, e.getMessage());

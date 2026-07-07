@@ -22,4 +22,4 @@ jobs:
                   cache: maven
 
             - name: Verify
-              run: mvn --batch-mode verify
+              run: make verify
