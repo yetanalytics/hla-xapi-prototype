@@ -85,6 +85,8 @@ public class XapiClient {
                     // pre-validate statements before sending to the LRS. Also we may want to reduce the accrual of
                     // statements in the buffer if we have a DLQ strategy, that way less innocent statements are lost.
                     // For now, we will just clear the buffer after max retries.
+                    // TODO: Additionally we should consider a cap on the buffer size, and if it exceeds that cap,
+                    // we should start dropping statements or writing to a DLQ.
                     buffer = new ArrayList<Statement>();
                     retryCount = 0;
                     logger.info("Cleared Buffer after max retries, statement data lost!");
