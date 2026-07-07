@@ -151,6 +151,30 @@
                     <semantics>Concrete simulation type: carrot, rabbit, or wolf.</semantics>
                 </attribute>
                 <attribute>
+                    <name>FirstName</name>
+                    <dataType>HLAunicodeString</dataType>
+                    <updateType>Static</updateType>
+                    <updateCondition>Provided when the entity object is registered.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Random given name assigned to the entity.</semantics>
+                </attribute>
+                <attribute>
+                    <name>LastName</name>
+                    <dataType>HLAunicodeString</dataType>
+                    <updateType>Static</updateType>
+                    <updateCondition>Provided when the entity object is registered.</updateCondition>
+                    <valueRequired>true</valueRequired>
+                    <ownership>NoTransfer</ownership>
+                    <sharing>PublishSubscribe</sharing>
+                    <transportation>HLAreliable</transportation>
+                    <order>Receive</order>
+                    <semantics>Family name assigned to the entity and inherited during reproduction.</semantics>
+                </attribute>
+                <attribute>
                     <name>Position</name>
                     <dataType>GridPosition</dataType>
                     <updateType>Conditional</updateType>
