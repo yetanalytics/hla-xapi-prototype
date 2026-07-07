@@ -31,7 +31,7 @@ test:
 	mvn test
 
 verify: lib
-	mvn verify
+	mvn --batch-mode verify
 
 run-dev:
 	java -cp "$(APP_JAR):$(PORTICO_JAR)" com.yetanalytics.hlaxapi.App $(SIM_CONFIG)
