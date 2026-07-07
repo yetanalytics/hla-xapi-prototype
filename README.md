@@ -45,6 +45,12 @@ Example:
 }
 ```
 
+The frequency of the buffer being cleared and statement being actually posted can be changed with a java property when running the jar:
+
+```
+java -Dxapi.buffer.clear-rate=5000 ...
+```
+
 ### Vendoring Portico
 
 `make lib` rebuilds and vendors only Portico's Java jar into this repository's local Maven file repository. Portico ships its own Ant wrapper at `codebase/ant`, so no separate Ant installation is required.
