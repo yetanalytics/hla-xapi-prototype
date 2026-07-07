@@ -54,6 +54,13 @@ public class ObjectCache implements AutoCloseable {
         return delegate.queryService().findFirstValue(clazz, attrTarget, criteria);
     }
 
+    public ValueResolution findFirstResolution(String clazz, Target attrTarget, Expression criteria) {
+        if (delegate == null) {
+            return ValueResolution.missingObject();
+        }
+        return delegate.queryService().findFirstResolution(clazz, attrTarget, criteria);
+    }
+
     public Optional<CachedObject> findFirstObject(String clazz, Expression criteria) {
         if (delegate == null) {
             return Optional.empty();
@@ -66,6 +73,13 @@ public class ObjectCache implements AutoCloseable {
             return Optional.empty();
         }
         return delegate.queryService().findValue(object, attrTarget);
+    }
+
+    public ValueResolution findValueResolution(CachedObject object, Target attrTarget) {
+        if (delegate == null) {
+            return ValueResolution.missingObject();
+        }
+        return delegate.queryService().findValueResolution(object, attrTarget);
     }
 
     public void discoverObject(String objectHandle, String objectName, String className) {
