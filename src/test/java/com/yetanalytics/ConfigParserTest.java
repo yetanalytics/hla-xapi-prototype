@@ -3,6 +3,7 @@ package com.yetanalytics;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import com.yetanalytics.hlaxapi.InjectionHandler;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.TriggerProcessor;
 import com.yetanalytics.hlaxapi.cache.CachedObject;
+import com.yetanalytics.hlaxapi.cache.ValueResolution;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.ConfigParser;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -399,15 +401,15 @@ public class ConfigParserTest {
             }
 
             @Override
-            public Object handleLookup(CachedObject object, Target attrTarget) {
+            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
                 assertEquals(matchedObject, object);
                 if (attrTarget.parts.equals(List.of("EntityId"))) {
-                    return "predator-1";
+                    return ValueResolution.present("predator-1");
                 }
                 if (attrTarget.parts.equals(List.of("EntityType"))) {
-                    return "Wolf";
+                    return ValueResolution.present("Wolf");
                 }
-                return null;
+                return ValueResolution.missingValue();
             }
         };
 
@@ -437,6 +439,123 @@ public class ConfigParserTest {
         assertEquals(1, resolveCount.get());
         assertTrue(out.contains("\"name\":\"predator-1\""));
         assertTrue(out.contains("\"name\":\"the Wolf\""));
+    }
+
+    @Test
+    public void lookupInjectionMissingObjectAbortsStatement() {
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                return Optional.empty();
+            }
+        };
+
+        StatementTrigger trigger = lookupTrigger("[\"lookup\", \"predator\", [\"EntityId\"]]");
+
+        String out = new TriggerProcessor(ih).processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNull(out);
+    }
+
+    @Test
+    public void lookupInjectionMissingValueAbortsStatementEvenWhenNullable() {
+        CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                return Optional.of(matchedObject);
+            }
+
+            @Override
+            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+                return ValueResolution.missingValue();
+            }
+        };
+
+        StatementTrigger trigger = lookupTrigger("[\"lookup\", \"predator\", [\"Nickname\"], {\"nullable\": true}]");
+
+        String out = new TriggerProcessor(ih).processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNull(out);
+    }
+
+    @Test
+    public void lookupInjectionPresentNullAbortsByDefaultAndRendersWhenNullable() {
+        CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                return Optional.of(matchedObject);
+            }
+
+            @Override
+            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+                return ValueResolution.present(null);
+            }
+        };
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+
+        assertNull(triggerProcessor.processTrigger(
+                lookupTrigger("[\"lookup\", \"predator\", [\"Nickname\"]]"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+
+        StatementTrigger nullableTrigger = lookupTrigger(
+                "\"the <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"nullable\\\": true}]>>\"");
+        String out = triggerProcessor.processTrigger(
+                nullableTrigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(out);
+        assertTrue(out.contains("\"name\":\"the null\""));
+    }
+
+    @Test
+    public void queryAndThisUnexpectedNullsAbortStatement() {
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public ValueResolution handleQueryResolution(
+                    String clazz,
+                    Target attrTarget,
+                    Expression criteria,
+                    InjectionContext context) {
+                return ValueResolution.missingObject();
+            }
+
+            @Override
+            public ValueResolution handleThisResolution(Target t, InjectionContext context) {
+                return ValueResolution.missingValue();
+            }
+        };
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+
+        assertNull(triggerProcessor.processTrigger(
+                statementTrigger("{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50]]}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+        assertNull(triggerProcessor.processTrigger(
+                statementTrigger("{\"actor\":{\"name\":[\"this\",[\"MissingParam\"]]}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+    }
+
+    private StatementTrigger lookupTrigger(String nameExpression) {
+        StatementTrigger trigger = statementTrigger("{\"actor\":{\"name\":" + nameExpression + "}}");
+        ObjectLookup lookup = new ObjectLookup();
+        lookup.clazz = "SimEntity";
+        lookup.criteria = new Criterion(
+                new Target(List.of("EntityId")),
+                ComparisonOperator.EQ,
+                new ThisExpression(new Target(List.of("PredatorId"))));
+        trigger.lookups = Map.of("predator", lookup);
+        return trigger;
+    }
+
+    private StatementTrigger statementTrigger(String statement) {
+        StatementTrigger trigger = new StatementTrigger();
+        trigger.statement = statement;
+        return trigger;
     }
 
     // Stub implementations of HLA ParameterHandle and ParameterHandleValueMap for

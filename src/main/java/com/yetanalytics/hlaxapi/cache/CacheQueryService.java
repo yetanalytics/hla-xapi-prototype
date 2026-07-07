@@ -34,9 +34,25 @@ public class CacheQueryService {
         return Optional.empty();
     }
 
+    public ValueResolution findFirstResolution(String className, Target target, Expression criteria) {
+        Optional<CachedObject> object = findFirstObject(className, criteria);
+        if (object.isEmpty()) {
+            return ValueResolution.missingObject();
+        }
+        return findValueResolution(object.orElseThrow(), target);
+    }
+
     public Optional<Object> findValue(CachedObject object, Target target) {
-        if (object == null) {
+        ValueResolution resolution = findValueResolution(object, target);
+        if (!resolution.present() || resolution.value() == null) {
             return Optional.empty();
+        }
+        return Optional.of(resolution.value());
+    }
+
+    public ValueResolution findValueResolution(CachedObject object, Target target) {
+        if (object == null) {
+            return ValueResolution.missingObject();
         }
         return resolveTarget(object, target);
     }
@@ -90,7 +106,8 @@ public class CacheQueryService {
             return null;
         }
         if (expression instanceof Target target) {
-            return resolveTarget(object, target).orElse(null);
+            ValueResolution resolution = resolveTarget(object, target);
+            return resolution.present() ? resolution.value() : null;
         }
         if (expression instanceof ValueExpression valueExpression) {
             return valueExpression.value;
@@ -107,12 +124,14 @@ public class CacheQueryService {
         return null;
     }
 
-    private Optional<Object> resolveTarget(CachedObject object, Target target) {
+    private ValueResolution resolveTarget(CachedObject object, Target target) {
         String pathKey = FomCatalog.targetPath(target.parts);
         if (pathKey == null) {
-            return Optional.empty();
+            return ValueResolution.missingValue();
         }
-        return cache.findCurrentValue(object.id(), pathKey).map(CachedValue::value);
+        return cache.findCurrentValue(object.id(), pathKey)
+                .map(value -> ValueResolution.present(value.value()))
+                .orElseGet(ValueResolution::missingValue);
     }
 
     private boolean compare(Object left, Object right, ComparisonOperator operator) {

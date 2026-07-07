@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import com.yetanalytics.hlaxapi.FOMXML.PathCheckResult;
 import com.yetanalytics.hlaxapi.cache.CachedObject;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
+import com.yetanalytics.hlaxapi.cache.ValueResolution;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
@@ -222,18 +223,34 @@ public class InjectionHandler {
         return "[THIS(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]";
     }
 
+    public ValueResolution handleThisResolution(Target t, InjectionContext context) {
+        Object value = handleThis(t, context);
+        if (value == null) {
+            return ValueResolution.missingValue();
+        }
+        return ValueResolution.present(value);
+    }
+
     public Object handleQuery(String clazz, Target attrTarget, Expression criteria) {
         return handleQuery(clazz, attrTarget, criteria, null);
     }
 
     public Object handleQuery(String clazz, Target attrTarget, Expression criteria, InjectionContext context) {
+        ValueResolution resolution = handleQueryResolution(clazz, attrTarget, criteria, context);
+        return resolution.present() ? resolution.value() : null;
+    }
+
+    public ValueResolution handleQueryResolution(
+            String clazz,
+            Target attrTarget,
+            Expression criteria,
+            InjectionContext context) {
         if (objectCache == null) {
-            return null;
+            return ValueResolution.missingObject();
         }
 
         Expression resolvedCriteria = resolveThisExpressions(criteria, context);
-        Optional<Object> value = objectCache.findFirstValue(clazz, attrTarget, resolvedCriteria);
-        return value.orElse(null);
+        return objectCache.findFirstResolution(clazz, attrTarget, resolvedCriteria);
     }
 
     public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
@@ -245,10 +262,15 @@ public class InjectionHandler {
     }
 
     public Object handleLookup(CachedObject object, Target attrTarget) {
+        ValueResolution resolution = handleLookupResolution(object, attrTarget);
+        return resolution.present() ? resolution.value() : null;
+    }
+
+    public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
         if (objectCache == null || object == null) {
-            return null;
+            return ValueResolution.missingObject();
         }
-        return objectCache.findValue(object, attrTarget).orElse(null);
+        return objectCache.findValueResolution(object, attrTarget);
     }
 
     private Expression resolveThisExpressions(Expression expression, InjectionContext context) {

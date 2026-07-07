@@ -47,8 +47,8 @@ class QueryReferenceCollectorTest {
         StatementTrigger trigger = trigger("""
                 {
                     "actor": {
-                        "account": {"name": ["lookup", "predator", ["EntityId"]]},
-                        "name": "<<[\\"lookup\\",\\"predator\\",[\\"EntityType\\"]]>>"
+                        "account": {"name": ["lookup", "predator", ["EntityId"], {"nullable": true}]},
+                        "name": "<<[\\"lookup\\",\\"predator\\",[\\"EntityType\\"],{\\"nullable\\":true}]>>"
                     }
                 }
                 """);

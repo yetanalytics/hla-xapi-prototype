@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.yetanalytics.hlaxapi.cache.CachedObject;
+import com.yetanalytics.hlaxapi.cache.ValueResolution;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
@@ -55,6 +56,9 @@ public class TriggerProcessor {
             String output = mapper.writeValueAsString(processed);
             logger.trace("Processed statement output: {}", output);
             return output;
+        } catch (RequiredInjectionException e) {
+            logger.error("Could not process trigger {}.{}: {}", trigger.type, trigger.clazz, e.getMessage());
+            return null;
         } catch (Exception e) {
             logger.debug("Could not process statement for trigger", e);
             return null;
@@ -141,6 +145,8 @@ public class TriggerProcessor {
                                     : mapper.writeValueAsString(repNode);
                             m.appendReplacement(sb, Matcher.quoteReplacement(replacementText));
                         }
+                    } catch (RequiredInjectionException e) {
+                        throw e;
                     } catch (Exception e) {
                         m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
                     }
@@ -150,6 +156,8 @@ public class TriggerProcessor {
             }
 
             return node;
+        } catch (RequiredInjectionException e) {
+            throw e;
         } catch (Exception e) {
             logger.debug("Error processing node", e);
             return node;
@@ -164,29 +172,37 @@ public class TriggerProcessor {
             if (iType == InjectionType.THIS && injArray.size() >= 2) {
                 Object rawTarget = mapper.convertValue(injArray.get(1), Object.class);
                 Target t = ConfigConverter.toTarget(rawTarget);
-                Object replacement = injectionHandler.handleThis(t, context);
-                if (replacement == null)
-                    return NullNode.instance;
-                return render(replacement, embedded, mapper);
+                return renderResolution(
+                        injectionHandler.handleThisResolution(t, context),
+                        optionsFor(injArray, 2),
+                        injectionDescription(iType, null, t),
+                        embedded,
+                        mapper);
             } else if (iType == InjectionType.QUERY && injArray.size() >= 4) {
                 String clazz = injArray.get(1).asText();
                 Object rawTarget = mapper.convertValue(injArray.get(2), Object.class);
                 Target attr = ConfigConverter.toTarget(rawTarget);
                 Object criteriaRaw = mapper.convertValue(injArray.get(3), Object.class);
                 Expression criteriaExpr = ConfigConverter.toExpression(criteriaRaw);
-                Object replacement = injectionHandler.handleQuery(clazz, attr, criteriaExpr, context);
-                if (replacement == null)
-                    return NullNode.instance;
-                return render(replacement, embedded, mapper);
+                return renderResolution(
+                        injectionHandler.handleQueryResolution(clazz, attr, criteriaExpr, context),
+                        optionsFor(injArray, 4),
+                        injectionDescription(iType, clazz, attr),
+                        embedded,
+                        mapper);
             } else if (iType == InjectionType.LOOKUP && injArray.size() >= 3) {
                 String alias = injArray.get(1).asText();
                 Object rawTarget = mapper.convertValue(injArray.get(2), Object.class);
                 Target attr = ConfigConverter.toTarget(rawTarget);
-                Object replacement = injectionHandler.handleLookup(lookupObjects.get(alias), attr);
-                if (replacement == null)
-                    return NullNode.instance;
-                return render(replacement, embedded, mapper);
+                return renderResolution(
+                        injectionHandler.handleLookupResolution(lookupObjects.get(alias), attr),
+                        optionsFor(injArray, 3),
+                        injectionDescription(iType, alias, attr),
+                        embedded,
+                        mapper);
             }
+        } catch (RequiredInjectionException e) {
+            throw e;
         } catch (Exception e) {
             logger.debug("Error handling injection array", e);
         }
@@ -207,6 +223,52 @@ public class TriggerProcessor {
             return TextNode.valueOf(replacement.toString());
         }
         return mapper.valueToTree(replacement);
+    }
+
+    private JsonNode renderResolution(
+            ValueResolution resolution,
+            InjectionOptions options,
+            String description,
+            Boolean embedded,
+            ObjectMapper mapper) {
+        if (!resolution.present()) {
+            throw new RequiredInjectionException(description + " failed: " + resolution.status());
+        }
+        Object replacement = resolution.value();
+        if (replacement == null) {
+            if (!options.nullable) {
+                throw new RequiredInjectionException(description + " failed: unexpected null value");
+            }
+            return NullNode.instance;
+        }
+        return render(replacement, embedded, mapper);
+    }
+
+    private InjectionOptions optionsFor(JsonNode injArray, int index) {
+        if (injArray.size() <= index || !injArray.get(index).isObject()) {
+            return InjectionOptions.DEFAULT;
+        }
+        return new InjectionOptions(injArray.get(index).path("nullable").asBoolean(false));
+    }
+
+    private String injectionDescription(InjectionType type, String scope, Target target) {
+        StringBuilder description = new StringBuilder(type.toString());
+        if (scope != null && !scope.isBlank()) {
+            description.append("(").append(scope).append(")");
+        }
+        description.append(" target ");
+        description.append(target == null ? "<null>" : target.parts);
+        return description.toString();
+    }
+
+    private record InjectionOptions(boolean nullable) {
+        private static final InjectionOptions DEFAULT = new InjectionOptions(false);
+    }
+
+    private static class RequiredInjectionException extends RuntimeException {
+        RequiredInjectionException(String message) {
+            super(message);
+        }
     }
 
 }

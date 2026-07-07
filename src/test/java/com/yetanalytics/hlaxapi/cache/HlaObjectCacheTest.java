@@ -3,6 +3,7 @@ package com.yetanalytics.hlaxapi.cache;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yetanalytics.hlaxapi.FOMXML;
@@ -121,6 +122,26 @@ class HlaObjectCacheTest {
 
             assertFalse(cache.queryService().findFirstValue("Rabbit", new Target(List.of("Hunger")), criteria)
                     .isPresent());
+        }
+    }
+
+    @Test
+    void queryServiceDistinguishesPresentNullFromMissingValue() {
+        try (HlaObjectCache cache = newCache()) {
+            cache.discoverObject("object-1", "Rabbit One", "Rabbit");
+            cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", new byte[] { 1 });
+            CachedObject matched = cache.queryService().findFirstObject("Rabbit", null).orElseThrow();
+
+            ValueResolution presentNull = cache.queryService().findValueResolution(
+                    matched,
+                    new Target(List.of("Hunger")));
+            ValueResolution missingValue = cache.queryService().findValueResolution(
+                    matched,
+                    new Target(List.of("Position", "X")));
+
+            assertEquals(ValueResolution.Status.PRESENT, presentNull.status());
+            assertNull(presentNull.value());
+            assertEquals(ValueResolution.Status.MISSING_VALUE, missingValue.status());
         }
     }
 
