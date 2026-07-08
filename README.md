@@ -20,36 +20,8 @@ fom=config/HlaFedereplFOM.xml
 
 #### xAPI Config
 
-*Section in progress...*
-
-The sample `xapi-config.json` reflects the current state of compatible configuration options. `statementTriggers` is an array of "triggers" which fire on a specific interaction or object update from the RTI. The trigger contains criteria (not yet implemented) and also a statement template which allows for the generation and storage of a valid xAPI statement. The statement template contains "injection" syntax which allow the insertion of details from the tiggering RTI update or values from an object cache (in progress) to be used as values in the statement.
-
-##### Criteria
-*Section in progress...*
-
-##### Injections
-*Section in progress...*
-
-##### LRS Configuration
-The `lrs` section contains the details for connecting to a valid Learning Record Store (LRS), and will be used to initialize a client which will write the resulting statements from the Federate to that LRS.
-
-Example:
-
-```
-...
-"lrs": {
-    "host": "http://localhost:8080/xapi",
-    "key": "my_key",
-    "secret": "my_secret",
-    "batch": 50
-}
-```
-
-The frequency of the buffer being cleared and statement being actually posted can be changed with a java property when running the jar:
-
-```
-java -Dxapi.buffer.clear-rate=5000 ...
-```
+The sample `xapi-config.json` reflects the current state of compatible configuration options.
+See the [HLA xAPI Adapter xAPI Configuration Reference](doc/xapi-config.md) for a full configuration reference.
 
 ### Vendoring Portico
 
