@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.yetanalytics.hlaxapi.config.ConfigParser;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
+import com.yetanalytics.xapi.util.StatementValidator;
 
 import hla.rti1516e.encoding.EncoderFactory;
 
@@ -40,6 +41,11 @@ public class AppConfig {
     @Bean
     public HLADecoderRegistry hlaDecoderRegistry(EncoderFactory encoderFactory) {
         return new HLADecoderRegistry(encoderFactory);
+    }
+
+    @Bean
+    public StatementValidator statementValidator() {
+        return new StatementValidator();
     }
 
     @Bean

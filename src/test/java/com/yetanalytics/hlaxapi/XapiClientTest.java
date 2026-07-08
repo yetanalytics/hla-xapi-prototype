@@ -14,10 +14,12 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
+import com.yetanalytics.hlaxapi.exception.StatementValidationException;
 import com.yetanalytics.xapi.client.LRS;
 import com.yetanalytics.xapi.client.StatementClient;
 import com.yetanalytics.xapi.exception.StatementClientException;
 import com.yetanalytics.xapi.model.Statement;
+import com.yetanalytics.xapi.util.StatementValidator;
 
 class XapiClientTest {
 
@@ -40,27 +42,27 @@ class XapiClientTest {
 
     @Test
     void buffersStatementFromJsonString() throws Exception {
-        XapiClient xapiClient = new XapiClient(config(4, 1));
+        XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
 
-        xapiClient.sendStatementFromString(STATEMENT_JSON);
+        xapiClient.sendStatement(STATEMENT_JSON);
 
         assertEquals(1, buffer(xapiClient).size());
     }
 
     @Test
     void rejectsInvalidStatementJson() {
-        XapiClient xapiClient = new XapiClient(config(4, 1));
+        XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
 
-        assertThrows(JsonProcessingException.class, () -> xapiClient.sendStatementFromString("{"));
+        assertThrows(StatementValidationException.class, () -> xapiClient.sendStatement("{"));
     }
 
     @Test
     void clearBufferPostsBufferedStatementsAndClearsBuffer() throws Exception {
-        XapiClient xapiClient = new XapiClient(config(4, 1));
+        XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
         FakeStatementClient fakeClient = new FakeStatementClient();
         setClient(xapiClient, fakeClient);
 
-        xapiClient.sendStatementFromString(STATEMENT_JSON);
+        xapiClient.sendStatement(STATEMENT_JSON);
         clearBuffer(xapiClient);
 
         assertEquals(1, fakeClient.postedStatements.size());
@@ -70,12 +72,12 @@ class XapiClientTest {
 
     @Test
     void clearBufferKeepsStatementsWhenClientErrorsBeforeMaxRetries() throws Exception {
-        XapiClient xapiClient = new XapiClient(config(4, 1));
+        XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
         FakeStatementClient fakeClient = new FakeStatementClient();
         fakeClient.failuresRemaining = 1;
         setClient(xapiClient, fakeClient);
 
-        xapiClient.sendStatementFromString(STATEMENT_JSON);
+        xapiClient.sendStatement(STATEMENT_JSON);
         clearBuffer(xapiClient);
 
         assertEquals(1, fakeClient.postAttempts);
@@ -85,12 +87,12 @@ class XapiClientTest {
 
     @Test
     void clearBufferClearsStatementsAfterMaxRetries() throws Exception {
-        XapiClient xapiClient = new XapiClient(config(4, 1));
+        XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
         FakeStatementClient fakeClient = new FakeStatementClient();
         fakeClient.failuresRemaining = 2;
         setClient(xapiClient, fakeClient);
 
-        xapiClient.sendStatementFromString(STATEMENT_JSON);
+        xapiClient.sendStatement(STATEMENT_JSON);
         clearBuffer(xapiClient);
         clearBuffer(xapiClient);
 

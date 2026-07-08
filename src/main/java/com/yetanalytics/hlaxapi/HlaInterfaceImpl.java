@@ -230,7 +230,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                         logger.trace("Processing trigger for interaction {}", trigger.clazz);
                         String xapi = triggerProcessor.processTrigger(trigger, context);
                         try {
-                            xapiClient.sendStatementFromString(xapi);
+                            xapiClient.sendStatement(xapi);
                         } catch (Exception e) {
                             logger.error("Error parsing or posting statement {}", xapi, e);
                         }
