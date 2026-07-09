@@ -2,6 +2,7 @@ package com.yetanalytics.hlaxapi;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -11,7 +12,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
 import com.yetanalytics.hlaxapi.exception.StatementValidationException;
@@ -39,6 +39,24 @@ class XapiClientTest {
               }
             }
             """;
+    
+    private static final String BAD_STATEMENT_JSON = """
+            {
+              "actor": {
+                "objectType": "Agent",
+                "name": "Test Pilot",
+                "mbox": "mailto:test@example.com"
+              },
+              "verbz": {
+                "id": "http://adlnet.gov/expapi/verbs/experienced"
+              },
+              "object": {
+                "objectType": "Activity",
+                "id": "https://example.com/simulation/activity"
+              }
+            }
+            """;
+
 
     @Test
     void buffersStatementFromJsonString() throws Exception {
@@ -54,6 +72,18 @@ class XapiClientTest {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
 
         assertThrows(StatementValidationException.class, () -> xapiClient.sendStatement("{"));
+    }
+
+    @Test
+    void rejectsInvalidStatementXApi() {
+        XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
+
+        try {
+            xapiClient.sendStatement(BAD_STATEMENT_JSON);
+        } catch (StatementValidationException e) {
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().iterator().next().contains("verbz"));
+        }
     }
 
     @Test
