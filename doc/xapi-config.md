@@ -222,7 +222,7 @@ The object cache stores the latest reflected values for subscribed HLA object at
 - a trigger defines `lookups` or uses `lookup` injections that reference cached object attributes, or
 - `objectCache.trackedObjects` explicitly requests tracked attributes.
 
-When enabled, the adapter subscribes to the top-level object attributes required by query targets, query criteria, lookup targets, lookup criteria, and explicit tracked objects.
+When enabled, the adapter subscribes to the top-level object attributes required by query targets, query criteria, lookup targets, lookup criteria, and explicit tracked objects. Use the `trackedObjects` array to force cacheing of simulation objects:
 
 ```json
 {
