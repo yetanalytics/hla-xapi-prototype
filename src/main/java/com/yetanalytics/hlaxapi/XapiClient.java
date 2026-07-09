@@ -9,14 +9,12 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.exception.StatementValidationException;
 import com.yetanalytics.xapi.client.LRS;
+import com.yetanalytics.xapi.model.Statement;
 import com.yetanalytics.xapi.client.StatementClient;
 import com.yetanalytics.xapi.exception.StatementClientException;
-import com.yetanalytics.xapi.model.Statement;
 import com.yetanalytics.xapi.util.StatementValidator;
 import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 

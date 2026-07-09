@@ -3,7 +3,7 @@ package com.yetanalytics.hlaxapi.exception;
 import java.util.Set;
 
 public class StatementValidationException extends RuntimeException {
-    
+
     private Set<String> errors;
 
     public StatementValidationException() {
