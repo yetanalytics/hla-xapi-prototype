@@ -1,4 +1,4 @@
-.PHONY: clean build format lint run-dev run-dev-pitch run-rti test verify clean-vendor
+.PHONY: clean build format lint run-dev run-dev-pitch run-rti test verify clean-vendor refresh run-debug-portico
 
 APP_JAR := target/hla-xapi-1.0-SNAPSHOT-jar-with-dependencies.jar
 PORTICO_REPO_URL ?= https://github.com/yetanalytics/portico.git
@@ -29,6 +29,8 @@ lint:
 
 test:
 	mvn test
+
+refresh: clean clean-vendor lib lint test build
 
 verify: lib
 	mvn --batch-mode verify
