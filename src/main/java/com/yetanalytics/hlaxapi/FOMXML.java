@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -25,7 +26,9 @@ import hla.rti1516e.encoding.HLAvariableArray;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class FOMXML {
@@ -44,13 +47,13 @@ public class FOMXML {
 
         try {
             DocumentBuilder builder = factory.newDocumentBuilder();
-            setDoc(builder.parse(xmlFile));
+            doc = builder.parse(xmlFile);
         } catch (SAXException | IOException | ParserConfigurationException e) {
             logger.error("Could not parse FOM XML.", e);
         }
 
-        setxPath(XPathFactory.newInstance().newXPath());
-        setDecoderRegistry(decoderRegistry);
+        xPath = XPathFactory.newInstance().newXPath();
+        this.decoderRegistry = decoderRegistry;
     }
 
     private boolean isPrim(String type) {
@@ -207,41 +210,35 @@ public class FOMXML {
      *
      */
     public String getRawType(String dataTypeName) throws XPathExpressionException{
+        return resolvePrimitiveType(dataTypeName);
+    }
 
+    public String resolvePrimitiveType(String dataTypeName) throws XPathExpressionException {
+        return resolvePrimitiveType(dataTypeName, new HashSet<>());
+    }
+
+    private String resolvePrimitiveType(String dataTypeName, Set<String> seenTypes) throws XPathExpressionException{
         if (dataTypeName == null || dataTypeName.isEmpty()) {
             return null;
         }
         if (isPrim(dataTypeName)) {
             return dataTypeName;
         }
+        if (!seenTypes.add(dataTypeName)) {
+            return null;
+        }
 
         String simpleExp = String.format(checkSimpleDataTypeExp, dataTypeName);
         String simpleType = (String) xPath.compile(simpleExp).evaluate(doc, XPathConstants.STRING);
         if (!simpleType.isEmpty())
-            return simpleType;
+            return resolvePrimitiveType(simpleType, seenTypes);
 
         String enumExp = String.format(checkEnumDataTypeExp, dataTypeName);
         String enumType = (String) xPath.compile(enumExp).evaluate(doc, XPathConstants.STRING);
         if (!enumType.isEmpty())
-            return enumType;
+            return resolvePrimitiveType(enumType, seenTypes);
 
         return null;
-    }
-
-    public Document getDoc() {
-        return doc;
-    }
-
-    public void setDoc(Document doc) {
-        this.doc = doc;
-    }
-
-    public XPath getxPath() {
-        return xPath;
-    }
-
-    public void setxPath(XPath xPath) {
-        this.xPath = xPath;
     }
 
     public HLADecoderRegistry getDecoderRegistry() {
@@ -250,6 +247,84 @@ public class FOMXML {
 
     public void setDecoderRegistry(HLADecoderRegistry decoderRegistry) {
         this.decoderRegistry = decoderRegistry;
+    }
+
+    /**
+     * Return the object-class hierarchy as immutable, XML-free definitions.
+     *
+     * <p>Only attributes declared directly on a class are included. Consumers that
+     * need inherited attributes can apply inheritance using {@link
+     * ObjectClassDefinition#parentName()} without accessing the raw FOM document.
+     */
+    public List<ObjectClassDefinition> objectClassDefinitions() {
+        if (doc == null || doc.getDocumentElement() == null) {
+            return List.of();
+        }
+        Element objects = firstChildElement(doc.getDocumentElement(), "objects");
+        if (objects == null) {
+            return List.of();
+        }
+
+        List<ObjectClassDefinition> definitions = new ArrayList<>();
+        for (Element objectClass : childElements(objects, "objectClass")) {
+            collectObjectClassDefinitions(objectClass, null, definitions);
+        }
+        return List.copyOf(definitions);
+    }
+
+    private void collectObjectClassDefinitions(
+            Element objectClass,
+            String parentName,
+            List<ObjectClassDefinition> definitions) {
+        String className = childText(objectClass, "name");
+        if (className == null) {
+            return;
+        }
+
+        List<ObjectAttributeDefinition> attributes = new ArrayList<>();
+        for (Element attribute : childElements(objectClass, "attribute")) {
+            String attributeName = childText(attribute, "name");
+            String dataType = childText(attribute, "dataType");
+            if (attributeName != null && dataType != null) {
+                attributes.add(new ObjectAttributeDefinition(attributeName, dataType));
+            }
+        }
+        definitions.add(new ObjectClassDefinition(className, parentName, attributes));
+
+        for (Element childClass : childElements(objectClass, "objectClass")) {
+            collectObjectClassDefinitions(childClass, className, definitions);
+        }
+    }
+
+    private static String childText(Element parent, String tagName) {
+        Element element = firstChildElement(parent, tagName);
+        if (element == null) {
+            return null;
+        }
+        String text = element.getTextContent();
+        return text == null || text.isBlank() ? null : text.trim();
+    }
+
+    private static Element firstChildElement(Element parent, String tagName) {
+        for (Element element : childElements(parent, tagName)) {
+            return element;
+        }
+        return null;
+    }
+
+    private static List<Element> childElements(Element parent, String tagName) {
+        if (parent == null) {
+            return List.of();
+        }
+        List<Element> elements = new ArrayList<>();
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child instanceof Element element && element.getTagName().equals(tagName)) {
+                elements.add(element);
+            }
+        }
+        return elements;
     }
 
     public String getParameterType(String entityName, String parameterName, boolean isInteraction)
@@ -339,5 +414,18 @@ public class FOMXML {
             this.name = name;
             this.dataType = dataType;
         }
+    }
+
+    public record ObjectClassDefinition(
+            String name,
+            String parentName,
+            List<ObjectAttributeDefinition> attributes) {
+
+        public ObjectClassDefinition {
+            attributes = List.copyOf(attributes);
+        }
+    }
+
+    public record ObjectAttributeDefinition(String name, String dataType) {
     }
 }

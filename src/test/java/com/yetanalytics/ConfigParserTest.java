@@ -3,21 +3,25 @@ package com.yetanalytics;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.lang.reflect.Parameter;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
 import com.yetanalytics.hlaxapi.FOMXML;
@@ -26,6 +30,8 @@ import com.yetanalytics.hlaxapi.HLAEncodingTestSupport;
 import com.yetanalytics.hlaxapi.InjectionHandler;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.TriggerProcessor;
+import com.yetanalytics.hlaxapi.cache.CachedObject;
+import com.yetanalytics.hlaxapi.cache.ValueResolution;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.ConfigParser;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -34,6 +40,8 @@ import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
+import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
+import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ThisExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
@@ -53,7 +61,7 @@ public class ConfigParserTest {
     public void parsesConfigFile() throws IOException {
         XapiConfig config = ConfigParser.fromFile("src/test/resources/config-test.json").parse();
 
-        SimulationConfig simConfig = new SimulationConfig(null, null, null, null, 
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
             "config/HlaFedereplFOM.xml");
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
         InjectionHandler ih = new InjectionHandler();
@@ -65,7 +73,7 @@ public class ConfigParserTest {
 
         Map<String, byte[]> paramMap = new HashMap<String, byte[]>();
         paramMap.put("EntityId", HLAEncodingTestSupport.asciiString("c5988e0e-c521-4ff7-ba83-df1a63eb72bf"));
-        
+
         byte[] fromX = HLAEncodingTestSupport.int32(4, ByteOrder.BIG_ENDIAN);
         byte[] fromY = HLAEncodingTestSupport.int32(12, ByteOrder.BIG_ENDIAN);
         paramMap.put("FromPosition", HLAEncodingTestSupport.fixedRecord(fromX, fromY));
@@ -73,7 +81,7 @@ public class ConfigParserTest {
         byte[] toX = HLAEncodingTestSupport.int32(5, ByteOrder.BIG_ENDIAN);
         byte[] toY = HLAEncodingTestSupport.int32(13, ByteOrder.BIG_ENDIAN);
         paramMap.put("ToPosition", HLAEncodingTestSupport.fixedRecord(toX, toY));
-        
+
 
         InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
 
@@ -98,6 +106,66 @@ public class ConfigParserTest {
         assertEquals(config.lrsConfig.key, "key string");
         assertEquals(config.lrsConfig.secret, "secret string");
         assertNotNull(config.lrsConfig);
+    }
+
+    @Test
+    public void parsesTriggerLookups(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, """
+                {
+                    "statementTriggers": [
+                        {
+                            "type": "Interaction",
+                            "class": "EntityAte",
+                            "lookups": {
+                                "predator": {
+                                    "class": "SimEntity",
+                                    "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+                                }
+                            },
+                            "statement": {"actor": {"name": ["lookup", "predator", ["EntityType"]]}}
+                        }
+                    ]
+                }
+                """);
+
+        XapiConfig config = ConfigParser.fromFile(configPath.toString()).parse();
+
+        assertEquals(1, config.statementTriggers.size());
+        ObjectLookup lookup = config.statementTriggers.get(0).lookups.get("predator");
+        assertNotNull(lookup);
+        assertEquals("SimEntity", lookup.clazz);
+        assertTrue(lookup.criteria instanceof Criterion);
+        Criterion criterion = (Criterion) lookup.criteria;
+        assertTrue(criterion.left instanceof Target);
+        assertTrue(criterion.right instanceof ThisExpression);
+    }
+
+    @Test
+    public void parsesObjectCacheTrackedObjects(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, """
+                {
+                    "objectCache": {
+                        "trackedObjects": [
+                            {"class": "Rabbit", "attributes": ["EntityId", "Hunger"]},
+                            {"class": "World", "allAttributes": true},
+                            {"class": "*", "allAttributes": true}
+                        ]
+                    }
+                }
+                """);
+
+        XapiConfig config = ConfigParser.fromFile(configPath.toString()).parse();
+
+        assertNotNull(config.objectCacheConfig);
+        assertNotNull(config.objectCacheConfig.trackedObjects);
+        assertEquals(3, config.objectCacheConfig.trackedObjects.size());
+        assertEquals("Rabbit", config.objectCacheConfig.trackedObjects.get(0).clazz);
+        assertEquals(List.of("EntityId", "Hunger"), config.objectCacheConfig.trackedObjects.get(0).attributes);
+        assertTrue(config.objectCacheConfig.trackedObjects.get(1).allAttributes);
+        assertEquals("*", config.objectCacheConfig.trackedObjects.get(2).clazz);
+        assertTrue(config.objectCacheConfig.trackedObjects.get(2).allAttributes);
     }
 
     @Test
@@ -319,6 +387,214 @@ public class ConfigParserTest {
         String out = triggerProcessor.processTrigger(st, injectionContext);
         assertNotNull(out);
         assertTrue(out.contains("\"name\":\"[alpha, beta]\""));
+    }
+
+    @Test
+    public void lookupInjectionResolvesAliasOnceAndReusesObject() {
+        AtomicInteger resolveCount = new AtomicInteger();
+        CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                resolveCount.incrementAndGet();
+                return Optional.of(matchedObject);
+            }
+
+            @Override
+            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+                assertEquals(matchedObject, object);
+                if (attrTarget.parts.equals(List.of("EntityId"))) {
+                    return ValueResolution.present("predator-1");
+                }
+                if (attrTarget.parts.equals(List.of("EntityType"))) {
+                    return ValueResolution.present("Wolf");
+                }
+                return ValueResolution.missingValue();
+            }
+        };
+
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+        StatementTrigger trigger = new StatementTrigger();
+        ObjectLookup lookup = new ObjectLookup();
+        lookup.clazz = "SimEntity";
+        lookup.criteria = new Criterion(
+                new Target(List.of("EntityId")),
+                ComparisonOperator.EQ,
+                new ThisExpression(new Target(List.of("PredatorId"))));
+        trigger.lookups = Map.of("predator", lookup);
+        trigger.statement = """
+                {
+                    "actor": {
+                        "account": {"name": ["lookup", "predator", ["EntityId"]]},
+                        "name": "the <<[\\"lookup\\", \\"predator\\", [\\"EntityType\\"]]>>"
+                    }
+                }
+                """;
+
+        String out = triggerProcessor.processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(out);
+        assertEquals(1, resolveCount.get());
+        assertTrue(out.contains("\"name\":\"predator-1\""));
+        assertTrue(out.contains("\"name\":\"the Wolf\""));
+    }
+
+    @Test
+    public void lookupInjectionMissingObjectHonorsRequiredOption() {
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                return Optional.empty();
+            }
+        };
+
+        StatementTrigger trigger = lookupTrigger("[\"lookup\", \"predator\", [\"EntityId\"]]");
+
+        String out = new TriggerProcessor(ih).processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNull(out);
+
+        String optionalOut = new TriggerProcessor(ih).processTrigger(
+                lookupTrigger("[\"lookup\", \"predator\", [\"EntityId\"], {\"required\": false}]"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalOut);
+        assertTrue(optionalOut.contains("\"name\":null"));
+    }
+
+    @Test
+    public void lookupInjectionMissingValueHonorsRequiredButNotNullable() {
+        CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                return Optional.of(matchedObject);
+            }
+
+            @Override
+            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+                return ValueResolution.missingValue();
+            }
+        };
+
+        StatementTrigger trigger = lookupTrigger("[\"lookup\", \"predator\", [\"Nickname\"], {\"nullable\": true}]");
+
+        String out = new TriggerProcessor(ih).processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNull(out);
+
+        StatementTrigger optionalTrigger = lookupTrigger(
+                "[\"lookup\", \"predator\", [\"Nickname\"], {\"required\": false}]");
+        String optionalOut = new TriggerProcessor(ih).processTrigger(
+                optionalTrigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalOut);
+        assertTrue(optionalOut.contains("\"name\":null"));
+    }
+
+    @Test
+    public void lookupInjectionPresentNullAbortsByDefaultAndRendersWhenNullable() {
+        CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+                return Optional.of(matchedObject);
+            }
+
+            @Override
+            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+                return ValueResolution.present(null);
+            }
+        };
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+
+        assertNull(triggerProcessor.processTrigger(
+                lookupTrigger("[\"lookup\", \"predator\", [\"Nickname\"]]"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+
+        StatementTrigger nullableTrigger = lookupTrigger(
+                "\"the <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"nullable\\\": true}]>>\"");
+        String out = triggerProcessor.processTrigger(
+                nullableTrigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(out);
+        assertTrue(out.contains("\"name\":\"the null\""));
+
+        StatementTrigger optionalTrigger = lookupTrigger(
+                "\"optional <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"required\\\": false}]>>\"");
+        String optionalOut = triggerProcessor.processTrigger(
+                optionalTrigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalOut);
+        assertTrue(optionalOut.contains("\"name\":\"optional null\""));
+    }
+
+    @Test
+    public void queryAndThisMissingValuesHonorRequiredOption() {
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public ValueResolution handleQueryResolution(
+                    String clazz,
+                    Target attrTarget,
+                    Expression criteria,
+                    InjectionContext context) {
+                return ValueResolution.missingObject();
+            }
+
+            @Override
+            public ValueResolution handleThisResolution(Target t, InjectionContext context) {
+                return ValueResolution.missingValue();
+            }
+        };
+        TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
+
+        assertNull(triggerProcessor.processTrigger(
+                statementTrigger("{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50]]}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+        assertNull(triggerProcessor.processTrigger(
+                statementTrigger("{\"actor\":{\"name\":[\"this\",[\"MissingParam\"]]}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+
+        String optionalQueryOut = triggerProcessor.processTrigger(
+                statementTrigger(
+                        "{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50],{\"required\":false}]}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+        String optionalThisOut = triggerProcessor.processTrigger(
+                statementTrigger(
+                        "{\"actor\":{\"name\":\"value=<<[\\\"this\\\",[\\\"MissingParam\\\"],{\\\"required\\\":false}]>>\"}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalQueryOut);
+        assertTrue(optionalQueryOut.contains("\"name\":null"));
+        assertNotNull(optionalThisOut);
+        assertTrue(optionalThisOut.contains("\"name\":\"value=null\""));
+    }
+
+    private StatementTrigger lookupTrigger(String nameExpression) {
+        StatementTrigger trigger = statementTrigger("{\"actor\":{\"name\":" + nameExpression + "}}");
+        ObjectLookup lookup = new ObjectLookup();
+        lookup.clazz = "SimEntity";
+        lookup.criteria = new Criterion(
+                new Target(List.of("EntityId")),
+                ComparisonOperator.EQ,
+                new ThisExpression(new Target(List.of("PredatorId"))));
+        trigger.lookups = Map.of("predator", lookup);
+        return trigger;
+    }
+
+    private StatementTrigger statementTrigger(String statement) {
+        StatementTrigger trigger = new StatementTrigger();
+        trigger.statement = statement;
+        return trigger;
     }
 
     // Stub implementations of HLA ParameterHandle and ParameterHandleValueMap for

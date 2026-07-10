@@ -25,14 +25,14 @@ public class FOMTest {
 
     @BeforeEach
     public void setUp() {
-        SimulationConfig simConfig = new SimulationConfig(null, null, null, null, 
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
             "config/HlaFedereplFOM.xml");
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
         fomXml = new FOMXML(simConfig, decoderRegistry);
     }
 
     @Test
-    public void InteractionsXML() {  
+    public void InteractionsXML() {
 
         // simple data type - Probability is HLAfloat32BE
         PathCheckResult carrotGrowthResult = fomXml.checkInteractionParameterPath("SimulationParametersChanged", "CarrotGrowthRate");
@@ -51,7 +51,7 @@ public class FOMTest {
         assertTrue(entityMovedFromXResult.primitiveType.equals("HLAinteger32BE"));
 
         // fixedRecord nested field access - Y component
-        PathCheckResult entityMovedToYResult = fomXml.checkInteractionParameterPath("EntityMoved", 
+        PathCheckResult entityMovedToYResult = fomXml.checkInteractionParameterPath("EntityMoved",
                 List.of("ToPosition", "Y"));
         logger.info("EntityMoved, ToPosition, Y Type: {}", entityMovedToYResult);
         assertTrue(entityMovedToYResult.primitiveType.equals("HLAinteger32BE"));
