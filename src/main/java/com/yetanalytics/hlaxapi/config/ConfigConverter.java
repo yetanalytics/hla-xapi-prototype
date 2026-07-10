@@ -6,6 +6,7 @@ import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
+import com.yetanalytics.hlaxapi.config.model.InjectionType;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.config.model.ThisExpression;
 
@@ -33,7 +34,9 @@ public class ConfigConverter {
         if (raw instanceof List) {
             List<?> l = (List<?>) raw;
             // If this is an injection-style array starting with "this", treat as ThisExpression
-            if (l.size() > 0 && l.get(0) instanceof String && ((String) l.get(0)).equalsIgnoreCase("this")) {
+            if (!l.isEmpty()
+                    && l.get(0) instanceof String token
+                    && InjectionType.fromString(token) == InjectionType.THIS) {
                 // expected form: ["this", targetArray]
                 Target t = null;
                 if (l.size() >= 2) t = toTarget(l.get(1));

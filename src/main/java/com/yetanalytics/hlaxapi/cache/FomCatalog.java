@@ -13,10 +13,6 @@ import java.util.Set;
 import javax.xml.xpath.XPathExpressionException;
 
 import org.springframework.stereotype.Component;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
 /**
  * FOM-derived object metadata used by the SQLite cache.
@@ -30,12 +26,8 @@ public final class FomCatalog {
 
     public FomCatalog(FOMXML fomXml) {
         CatalogBuilder builder = new CatalogBuilder(fomXml);
-        Document document = fomXml.getDoc();
-        Element objects = firstElement(document.getDocumentElement(), "objects");
-        if (objects != null) {
-            for (Element objectClass : childElements(objects, "objectClass")) {
-                builder.parseObjectClass(objectClass, null, new ArrayList<>());
-            }
+        for (FOMXML.ObjectClassDefinition definition : fomXml.objectClassDefinitions()) {
+            builder.addObjectClass(definition);
         }
         this.classesByName = builder.classesByName;
 
@@ -116,37 +108,6 @@ public final class FomCatalog {
         return index >= 0 ? trimmed.substring(index + 1) : trimmed;
     }
 
-    private static String text(Element parent, String tagName) {
-        Element element = firstElement(parent, tagName);
-        if (element == null) {
-            return null;
-        }
-        String text = element.getTextContent();
-        return text == null || text.isBlank() ? null : text.trim();
-    }
-
-    private static Element firstElement(Element parent, String tagName) {
-        for (Element element : childElements(parent, tagName)) {
-            return element;
-        }
-        return null;
-    }
-
-    private static List<Element> childElements(Element parent, String tagName) {
-        if (parent == null) {
-            return List.of();
-        }
-        List<Element> elements = new ArrayList<>();
-        NodeList children = parent.getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            Node child = children.item(i);
-            if (child instanceof Element element && element.getTagName().equals(tagName)) {
-                elements.add(element);
-            }
-        }
-        return elements;
-    }
-
     public record ObjectClassDef(
             int id,
             String hlaName,
@@ -200,6 +161,7 @@ public final class FomCatalog {
 
         private final FOMXML fomXml;
         private final Map<String, ObjectClassDef> classesByName = new LinkedHashMap<>();
+        private final Map<String, List<AttributeSource>> attributesByClassName = new LinkedHashMap<>();
         private int nextClassId = 1;
         private int nextAttributeId = 1;
 
@@ -207,20 +169,15 @@ public final class FomCatalog {
             this.fomXml = fomXml;
         }
 
-        private void parseObjectClass(Element element, String parentName, List<AttributeSource> inheritedAttributes) {
-            String className = text(element, "name");
-            if (className == null) {
-                return;
+        private void addObjectClass(FOMXML.ObjectClassDefinition definition) {
+            List<AttributeSource> allAttributes = new ArrayList<>();
+            if (definition.parentName() != null) {
+                allAttributes.addAll(attributesByClassName.getOrDefault(definition.parentName(), List.of()));
             }
-
-            List<AttributeSource> allAttributes = new ArrayList<>(inheritedAttributes);
-            for (Element attribute : childElements(element, "attribute")) {
-                String attributeName = text(attribute, "name");
-                String dataType = text(attribute, "dataType");
-                if (attributeName != null && dataType != null) {
-                    allAttributes.add(new AttributeSource(attributeName, dataType));
-                }
+            for (FOMXML.ObjectAttributeDefinition attribute : definition.attributes()) {
+                allAttributes.add(new AttributeSource(attribute.name(), attribute.dataType()));
             }
+            attributesByClassName.put(definition.name(), List.copyOf(allAttributes));
 
             int classId = nextClassId++;
             List<FomAttribute> flattened = new ArrayList<>();
@@ -229,12 +186,13 @@ public final class FomCatalog {
             }
 
             ObjectClassDef classDef =
-                    new ObjectClassDef(classId, className, localName(className), parentName, flattened);
+                    new ObjectClassDef(
+                            classId,
+                            definition.name(),
+                            localName(definition.name()),
+                            localName(definition.parentName()),
+                            flattened);
             classesByName.put(classDef.localName(), classDef);
-
-            for (Element childClass : childElements(element, "objectClass")) {
-                parseObjectClass(childClass, classDef.localName(), allAttributes);
-            }
         }
 
         private void flattenAttribute(
