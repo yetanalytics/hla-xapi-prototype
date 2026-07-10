@@ -9,11 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.SimulationConfig;
+import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
+import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.TrackedObject;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.EncoderException;
@@ -28,7 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
-class HlaObjectCacheTest {
+final class ObjectCachePersistenceTest {
 
     private final EncoderFactory encoderFactory = new HLA1516eEncoderFactory();
     private final HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(encoderFactory);
@@ -39,7 +42,7 @@ class HlaObjectCacheTest {
 
     @Test
     void initializesSchemaAndSeedsFomMetadata() throws SQLException {
-        try (HlaObjectCache cache = newCache()) {
+        try (ObjectCache cache = newCache()) {
             assertEquals(1, scalarLong(cache, "PRAGMA user_version"));
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_attribute WHERE path_key = 'Position.X'") > 0);
@@ -51,7 +54,7 @@ class HlaObjectCacheTest {
         byte[] firstHunger = encoded(encoderFactory.createHLAinteger32BE(75));
         byte[] secondHunger = encoded(encoderFactory.createHLAinteger32BE(40));
 
-        try (HlaObjectCache cache = newCache()) {
+        try (ObjectCache cache = newCache()) {
             cache.discoverObject("object-1", "Rabbit One", "Rabbit");
             cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", firstHunger);
             cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", secondHunger);
@@ -71,7 +74,7 @@ class HlaObjectCacheTest {
     void flattensFixedRecordValuesToNestedCurrentRows() {
         byte[] position = position(12, 8);
 
-        try (HlaObjectCache cache = newCache()) {
+        try (ObjectCache cache = newCache()) {
             cache.discoverObject("object-1", "Rabbit One", "Rabbit");
             cache.reflectAttributeValue("object-1", "Rabbit", "Position", position);
 
@@ -83,7 +86,7 @@ class HlaObjectCacheTest {
 
     @Test
     void queryServiceEvaluatesCriteriaAndExcludesRemovedObjects() {
-        try (HlaObjectCache cache = newCache()) {
+        try (ObjectCache cache = newCache()) {
             cache.discoverObject("object-1", "Rabbit One", "Rabbit");
             cache.reflectAttributeValue("object-1", "Rabbit", "EntityId", encoded(encoderFactory.createHLAASCIIstring(
                     "rabbit-one")));
@@ -127,7 +130,7 @@ class HlaObjectCacheTest {
 
     @Test
     void queryServiceDistinguishesPresentNullFromMissingValue() {
-        try (HlaObjectCache cache = newCache()) {
+        try (ObjectCache cache = newCache()) {
             cache.discoverObject("object-1", "Rabbit One", "Rabbit");
             cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", new byte[] { 1 });
             CachedObject matched = cache.queryService().findFirstObject("Rabbit", null).orElseThrow();
@@ -149,7 +152,7 @@ class HlaObjectCacheTest {
     void persistentCacheStartsFreshOnInitialization(@TempDir Path tempDir) throws SQLException {
         String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("cache.sqlite");
 
-        try (HlaObjectCache cache = newCache(jdbcUrl)) {
+        try (ObjectCache cache = newCache(jdbcUrl)) {
             cache.discoverObject("object-1", "Rabbit One", "Rabbit");
             cache.reflectAttributeValue("object-1", "Rabbit", "Hunger",
                     encoded(encoderFactory.createHLAinteger32BE(75)));
@@ -158,19 +161,30 @@ class HlaObjectCacheTest {
             assertEquals(1, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
         }
 
-        try (HlaObjectCache cache = newCache(jdbcUrl)) {
+        try (ObjectCache cache = newCache(jdbcUrl)) {
             assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_instance"));
             assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
         }
     }
 
-    private HlaObjectCache newCache() {
+    private ObjectCache newCache() {
         return newCache("jdbc:sqlite::memory:");
     }
 
-    private HlaObjectCache newCache(String jdbcUrl) {
-        return new HlaObjectCache(jdbcUrl, catalog, fomXml, decoderRegistry);
+    private ObjectCache newCache(String jdbcUrl) {
+        return new ObjectCache(enabledConfig(), catalog, fomXml, decoderRegistry, jdbcUrl);
+    }
+
+    private XapiConfig enabledConfig() {
+        TrackedObject trackedObject = new TrackedObject();
+        trackedObject.clazz = "Rabbit";
+        trackedObject.allAttributes = true;
+        ObjectCacheConfig objectCacheConfig = new ObjectCacheConfig();
+        objectCacheConfig.trackedObjects = List.of(trackedObject);
+        XapiConfig config = new XapiConfig();
+        config.objectCacheConfig = objectCacheConfig;
+        return config;
     }
 
     private byte[] position(int x, int y) {
@@ -188,18 +202,18 @@ class HlaObjectCacheTest {
         }
     }
 
-    private long count(HlaObjectCache cache, String sql) throws SQLException {
+    private long count(ObjectCache cache, String sql) throws SQLException {
         return scalarLong(cache, sql);
     }
 
-    private long scalarLong(HlaObjectCache cache, String sql) throws SQLException {
+    private long scalarLong(ObjectCache cache, String sql) throws SQLException {
         try (PreparedStatement statement = cache.connection().prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()) {
             return resultSet.next() ? resultSet.getLong(1) : 0L;
         }
     }
 
-    private byte[] rawBytes(HlaObjectCache cache, String pathKey) throws SQLException {
+    private byte[] rawBytes(ObjectCache cache, String pathKey) throws SQLException {
         String sql = """
                 SELECT c.raw_bytes
                 FROM object_attribute_current c

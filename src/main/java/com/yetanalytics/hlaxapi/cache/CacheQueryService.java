@@ -10,10 +10,10 @@ import java.util.Optional;
 
 public class CacheQueryService {
 
-    private final HlaObjectCache cache;
+    private final ObjectCache cache;
     private final CriteriaEvaluator criteriaEvaluator;
 
-    public CacheQueryService(HlaObjectCache cache) {
+    public CacheQueryService(ObjectCache cache) {
         this.cache = Objects.requireNonNull(cache, "cache");
         this.criteriaEvaluator = new CriteriaEvaluator();
     }

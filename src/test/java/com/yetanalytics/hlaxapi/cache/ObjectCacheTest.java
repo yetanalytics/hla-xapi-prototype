@@ -104,6 +104,23 @@ class ObjectCacheTest {
     }
 
     @Test
+    void closeIsIdempotentAndDisablesCache(@TempDir Path tempDir) {
+        ObjectCache cache = new ObjectCache(
+                configWithQuery(),
+                catalog,
+                fomXml,
+                decoderRegistry,
+                "jdbc:sqlite:" + tempDir.resolve("close.sqlite"));
+
+        assertTrue(cache.isEnabled());
+        cache.close();
+        cache.close();
+
+        assertFalse(cache.isEnabled());
+        assertTrue(cache.currentObjects("Rabbit").isEmpty());
+    }
+
+    @Test
     void trackedObjectAllAttributesExpandsTopLevelFomAttributes(@TempDir Path tempDir) {
         try (ObjectCache cache = new ObjectCache(
                 configWithTrackedObject("Rabbit", null, true),
