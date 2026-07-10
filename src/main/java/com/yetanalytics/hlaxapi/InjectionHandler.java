@@ -2,6 +2,7 @@ package com.yetanalytics.hlaxapi;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.xml.xpath.XPathExpressionException;
 
@@ -11,8 +12,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.yetanalytics.hlaxapi.FOMXML.PathCheckResult;
+import com.yetanalytics.hlaxapi.cache.CachedObject;
+import com.yetanalytics.hlaxapi.cache.ObjectCache;
+import com.yetanalytics.hlaxapi.cache.ValueResolution;
+import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
+import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
+import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 import com.yetanalytics.hlaxapi.injection.ObjectInjectionContext;
@@ -31,10 +40,16 @@ public class InjectionHandler {
     private static final Logger logger = LogManager.getLogger(InjectionHandler.class);
 
     @Autowired
+    private ObjectCache objectCache;
+
+    @Autowired
     private FOMXML fomXml;
 
     @Autowired
     private HLADecoderRegistry hlaDecoderRegistry;
+
+    public InjectionHandler() {
+    }
 
     public Object handleThis(Target t, InjectionContext context) {
         if (context instanceof InteractionInjectionContext) {
@@ -208,13 +223,77 @@ public class InjectionHandler {
         return "[THIS(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]";
     }
 
+    public ValueResolution handleThisResolution(Target t, InjectionContext context) {
+        Object value = handleThis(t, context);
+        if (value == null) {
+            return ValueResolution.missingValue();
+        }
+        return ValueResolution.present(value);
+    }
+
+    public Object handleQuery(String clazz, Target attrTarget, Expression criteria) {
+        return handleQuery(clazz, attrTarget, criteria, null);
+    }
+
     public Object handleQuery(String clazz, Target attrTarget, Expression criteria, InjectionContext context) {
-        // placeholder: return a demo string showing the criteria expression
-        // TODO: Query methods for both types like interation has
-        return "[QUERY:" + clazz
-                + ":" + (attrTarget == null ? "null" : attrTarget.toString())
-                + ":" + (criteria == null ? "null" : criteria.toString())
-                + "]";
+        ValueResolution resolution = handleQueryResolution(clazz, attrTarget, criteria, context);
+        return resolution.present() ? resolution.value() : null;
+    }
+
+    public ValueResolution handleQueryResolution(
+            String clazz,
+            Target attrTarget,
+            Expression criteria,
+            InjectionContext context) {
+        if (objectCache == null) {
+            return ValueResolution.missingObject();
+        }
+
+        Expression resolvedCriteria = resolveThisExpressions(criteria, context);
+        return objectCache.findFirstResolution(clazz, attrTarget, resolvedCriteria);
+    }
+
+    public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
+        if (objectCache == null || lookup == null || lookup.clazz == null || lookup.clazz.isBlank()) {
+            return Optional.empty();
+        }
+        Expression resolvedCriteria = resolveThisExpressions(lookup.criteria, context);
+        return objectCache.findFirstObject(lookup.clazz, resolvedCriteria);
+    }
+
+    public Object handleLookup(CachedObject object, Target attrTarget) {
+        ValueResolution resolution = handleLookupResolution(object, attrTarget);
+        return resolution.present() ? resolution.value() : null;
+    }
+
+    public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+        if (objectCache == null || object == null) {
+            return ValueResolution.missingObject();
+        }
+        return objectCache.findValueResolution(object, attrTarget);
+    }
+
+    private Expression resolveThisExpressions(Expression expression, InjectionContext context) {
+        if (expression == null || context == null) {
+            return expression;
+        }
+        if (expression instanceof ThisExpression thisExpression) {
+            return new ValueExpression(handleThis(thisExpression.target, context));
+        }
+        if (expression instanceof Criterion criterion) {
+            return new Criterion(
+                    resolveThisExpressions(criterion.left, context),
+                    criterion.operator,
+                    resolveThisExpressions(criterion.right, context));
+        }
+        if (expression instanceof LogicalExpression logicalExpression) {
+            return new LogicalExpression(
+                    logicalExpression.operator,
+                    logicalExpression.operands.stream()
+                            .map(operand -> resolveThisExpressions(operand, context))
+                            .toList());
+        }
+        return expression;
     }
 
     // for test
@@ -224,5 +303,9 @@ public class InjectionHandler {
 
     public void setHLADecoderRegistry(HLADecoderRegistry hdr) {
         this.hlaDecoderRegistry = hdr;
+    }
+
+    ObjectCache objectCache() {
+        return objectCache;
     }
 }

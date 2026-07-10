@@ -2,30 +2,38 @@
     "statementTriggers": [
         {
             "type": "Interaction",
-            "class": "EntityMoved",
+            "class": "EntityAte",
             "criteria": [["this", "key1"], "=", "thing1"],
+            "lookups": {
+                "predator": {
+                    "class": "SimEntity",
+                    "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+                },
+                "prey": {
+                    "class": "SimEntity",
+                    "criteria": [["EntityId"], "=", ["this", ["PreyId"]]]
+                }
+            },
             "statement": {
                 "actor": {
                     "objectType": "Agent",
-                    "name": ["this", ["EntityId"]],
+                    "name": "<<[\"lookup\", \"predator\", [\"FirstName\"]]>> <<[\"lookup\", \"predator\", [\"LastName\"]]>>",
                     "account": {
-                        "homePage": "https://homepage.system.io",
-                        "name": ["this", ["EntityId"]]
+                        "homePage": "https://hla-federepl.example/entities",
+                        "name": ["this", ["PredatorId"]]
                     }
-                },
-                "context": {
-                    "extensions":{
-                        "https://yetanalytics.com/extensions/from-position": "[<<[\"this\", [\"FromPosition\", \"X\"]]>>, <<[\"this\", [\"FromPosition\", \"Y\"]]>>]"
-                    }
-                },
-                "result": {
-                    "response": "[<<[\"this\", [\"ToPosition\", \"X\"]]>>, <<[\"this\", [\"ToPosition\", \"Y\"]]>>]"
                 },
                 "verb": {
-                    "id": "http://yetanalytics.com/verbs/moved"
+                    "id": "http://example.com/verbs/ate",
+                    "display": {"en-US": "Ate"}
                 },
                 "object": {
-                    "id": "http://yetanalytics.com/objects/7"
+                    "objectType": "Agent",
+                    "name": "<<[\"lookup\", \"prey\", [\"FirstName\"]]>> <<[\"lookup\", \"prey\", [\"LastName\"]]>>",
+                    "account": {
+                        "homePage": "https://hla-federepl.example/entities",
+                        "name": ["this", ["PreyId"]]
+                    }
                 }
             }
         }
@@ -36,5 +44,5 @@
         "secret": "my_secret",
         "batch": 35,
         "maxRetries": 3
-    }    
+    }
 }

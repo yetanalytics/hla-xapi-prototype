@@ -1,7 +1,7 @@
 package com.yetanalytics.hlaxapi.config.model;
 
 public enum InjectionType {
-    THIS("this"), QUERY("query");
+    THIS("this"), QUERY("query"), LOOKUP("lookup");
 
     public final String token;
 
@@ -15,6 +15,7 @@ public enum InjectionType {
         switch (s.trim().toLowerCase()) {
             case "this": return THIS;
             case "query": return QUERY;
+            case "lookup": return LOOKUP;
             default: return null;
         }
     }

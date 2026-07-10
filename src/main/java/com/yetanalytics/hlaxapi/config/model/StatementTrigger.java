@@ -1,10 +1,13 @@
 package com.yetanalytics.hlaxapi.config.model;
 
+import java.util.Map;
+
 public class StatementTrigger {
 
     public Type type;
     public String clazz; // "class" is a Java keyword, map json "class" to this field via parser
     public Criterion criteria;
+    public Map<String, ObjectLookup> lookups;
     // keep the original statement as a JSON string (we'll process injections at
     // runtime)
     public String statement;
