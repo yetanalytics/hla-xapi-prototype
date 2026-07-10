@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import javax.xml.xpath.XPathExpressionException;
@@ -30,7 +29,6 @@ public final class FomCatalog {
     private final Map<Integer, FomAttribute> attributesById;
 
     public FomCatalog(FOMXML fomXml) {
-        Objects.requireNonNull(fomXml, "fomXml");
         CatalogBuilder builder = new CatalogBuilder(fomXml);
         Document document = fomXml.getDoc();
         Element objects = firstElement(document.getDocumentElement(), "objects");
