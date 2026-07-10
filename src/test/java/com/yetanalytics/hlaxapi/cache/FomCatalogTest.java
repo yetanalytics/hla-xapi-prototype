@@ -44,6 +44,28 @@ class FomCatalogTest {
     }
 
     @Test
+    void fomXmlReturnsHierarchyWithDeclaredAttributes() {
+        FOMXML fomXml = fomXml("config/HlaFedereplFOM.xml");
+
+        FOMXML.ObjectClassDefinition simEntity = fomXml.objectClassDefinitions().stream()
+                .filter(definition -> definition.name().equals("SimEntity"))
+                .findFirst()
+                .orElseThrow();
+        FOMXML.ObjectClassDefinition rabbit = fomXml.objectClassDefinitions().stream()
+                .filter(definition -> definition.name().equals("Rabbit"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("HLAobjectRoot", simEntity.parentName());
+        assertTrue(simEntity.attributes().stream()
+                .anyMatch(attribute -> attribute.name().equals("EntityId")));
+        assertEquals("SimEntity", rabbit.parentName());
+        assertEquals(List.of("Hunger"), rabbit.attributes().stream()
+                .map(FOMXML.ObjectAttributeDefinition::name)
+                .toList());
+    }
+
+    @Test
     void convertsTargetsToPathKeys() {
         assertEquals("Position.X", FomCatalog.targetPath(List.of("Position", "X")));
         assertEquals("TargetModifiers[0].Key", FomCatalog.targetPath(List.of("TargetModifiers", 0, "Key")));
@@ -51,8 +73,12 @@ class FomCatalogTest {
     }
 
     private FomCatalog catalog(String fomPath) {
+        return new FomCatalog(fomXml(fomPath));
+    }
+
+    private FOMXML fomXml(String fomPath) {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null, fomPath);
         HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
-        return new FomCatalog(new FOMXML(simConfig, decoderRegistry));
+        return new FOMXML(simConfig, decoderRegistry);
     }
 }
