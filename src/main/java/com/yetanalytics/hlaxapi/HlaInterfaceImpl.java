@@ -406,6 +406,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.trace("Processing trigger for interaction {}", trigger.clazz);
+                        // TODO: this is nullable, implement DLQ
                         String xapi = triggerProcessor.processTrigger(trigger, context);
                         try {
                             xapiClient.sendStatementFromString(xapi);
