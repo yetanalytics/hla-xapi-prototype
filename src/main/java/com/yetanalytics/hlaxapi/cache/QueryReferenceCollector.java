@@ -2,25 +2,27 @@ package com.yetanalytics.hlaxapi.cache;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yetanalytics.hlaxapi.config.ConfigConverter;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InlineInjection;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.LookupInjection;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.ParseResult;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.QueryInjection;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.StatementInjection;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class QueryReferenceCollector {
 
-    private static final Pattern INLINE_PLACEHOLDER = Pattern.compile("<<(.+?)>>", Pattern.DOTALL);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private QueryReferenceCollector() {
@@ -65,7 +67,7 @@ public final class QueryReferenceCollector {
     private static void collectFromNode(
             JsonNode node,
             Map<String, Set<String>> references,
-            Map<String, String> lookupClasses) throws IOException {
+            Map<String, String> lookupClasses) {
         if (node == null || node.isNull()) {
             return;
         }
@@ -76,12 +78,9 @@ public final class QueryReferenceCollector {
             return;
         }
         if (node.isArray()) {
-            if (isQueryInjection(node)) {
-                collectQuery(node, references);
-                return;
-            }
-            if (isLookupInjection(node)) {
-                collectLookup(node, references, lookupClasses);
+            ParseResult parsed = StatementInjectionParser.parse(node);
+            if (parsed.valid()) {
+                collectInjection(parsed.injection(), references, lookupClasses);
                 return;
             }
             for (JsonNode child : node) {
@@ -90,59 +89,45 @@ public final class QueryReferenceCollector {
             return;
         }
         if (node.isTextual()) {
-            Matcher matcher = INLINE_PLACEHOLDER.matcher(node.asText());
-            while (matcher.find()) {
-                JsonNode inner = MAPPER.readTree(matcher.group(1));
-                if (isQueryInjection(inner)) {
-                    collectQuery(inner, references);
-                } else if (isLookupInjection(inner)) {
-                    collectLookup(inner, references, lookupClasses);
+            for (InlineInjection inline : StatementInjectionParser.findInline(node.asText())) {
+                if (inline.result().valid()) {
+                    collectInjection(inline.result().injection(), references, lookupClasses);
                 }
             }
         }
     }
 
-    private static boolean isQueryInjection(JsonNode node) {
-        return node != null
-                && node.isArray()
-                && node.size() >= 4
-                && node.get(0).isTextual()
-                && "query".equalsIgnoreCase(node.get(0).asText());
+    private static void collectInjection(
+            StatementInjection injection,
+            Map<String, Set<String>> references,
+            Map<String, String> lookupClasses) {
+        if (injection instanceof QueryInjection queryInjection) {
+            collectQuery(queryInjection, references);
+        } else if (injection instanceof LookupInjection lookupInjection) {
+            collectLookup(lookupInjection, references, lookupClasses);
+        }
     }
 
-    private static boolean isLookupInjection(JsonNode node) {
-        return node != null
-                && node.isArray()
-                && node.size() >= 3
-                && node.get(0).isTextual()
-                && "lookup".equalsIgnoreCase(node.get(0).asText());
-    }
-
-    private static void collectQuery(JsonNode queryNode, Map<String, Set<String>> references) {
-        String className = queryNode.get(1).asText(null);
+    private static void collectQuery(QueryInjection query, Map<String, Set<String>> references) {
+        String className = query.className();
         if (className == null || className.isBlank()) {
             return;
         }
 
-        Target target = ConfigConverter.toTarget(MAPPER.convertValue(queryNode.get(2), Object.class));
-        addTarget(references, className, target);
-
-        Object criteriaRaw = MAPPER.convertValue(queryNode.get(3), Object.class);
-        collectCriteriaTargets(references, className, ConfigConverter.toExpression(criteriaRaw));
+        addTarget(references, className, query.target());
+        collectCriteriaTargets(references, className, query.criteria());
     }
 
     private static void collectLookup(
-            JsonNode lookupNode,
+            LookupInjection lookup,
             Map<String, Set<String>> references,
             Map<String, String> lookupClasses) {
-        String alias = lookupNode.get(1).asText(null);
-        String className = lookupClasses.get(alias);
+        String className = lookupClasses.get(lookup.alias());
         if (className == null || className.isBlank()) {
             return;
         }
 
-        Target target = ConfigConverter.toTarget(MAPPER.convertValue(lookupNode.get(2), Object.class));
-        addTarget(references, className, target);
+        addTarget(references, className, lookup.target());
     }
 
     private static void collectCriteriaTargets(
