@@ -409,7 +409,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                         // TODO: this is nullable, implement DLQ
                         String xapi = triggerProcessor.processTrigger(trigger, context);
                         try {
-                            xapiClient.sendStatementFromString(xapi);
+                            xapiClient.sendStatement(xapi);
                         } catch (Exception e) {
                             logger.error("Error parsing or posting statement {}", xapi, e);
                         }

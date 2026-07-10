@@ -16,6 +16,7 @@ import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.ConfigParser;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
+import com.yetanalytics.xapi.util.StatementValidator;
 
 import hla.rti1516e.encoding.EncoderFactory;
 
@@ -51,6 +52,11 @@ public class AppConfig {
             FOMXML fomXml,
             HLADecoderRegistry decoderRegistry) {
         return new ObjectCache(xapiConfig, fomCatalog, fomXml, decoderRegistry);
+    }
+
+    @Bean
+    public StatementValidator statementValidator() {
+        return new StatementValidator();
     }
 
     @Bean

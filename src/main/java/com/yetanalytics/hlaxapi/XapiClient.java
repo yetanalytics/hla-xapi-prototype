@@ -9,16 +9,14 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
-
+import com.yetanalytics.hlaxapi.exception.StatementValidationException;
+import com.yetanalytics.xapi.client.LRS;
+import com.yetanalytics.xapi.model.Statement;
 import com.yetanalytics.xapi.client.StatementClient;
 import com.yetanalytics.xapi.exception.StatementClientException;
-import com.yetanalytics.xapi.model.Statement;
-import com.yetanalytics.xapi.client.LRS;
-
-import com.yetanalytics.xapi.util.Mapper;
+import com.yetanalytics.xapi.util.StatementValidator;
+import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
 @Component
 public class XapiClient {
@@ -29,13 +27,16 @@ public class XapiClient {
 
     private List<Statement> buffer;
 
+    private StatementValidator validator;
+
     private Integer batchSize;
 
     private Integer retryCount = 0;
 
     private Integer maxRetries;
 
-    public XapiClient(XapiConfig xapiConfig) {
+    public XapiClient(XapiConfig xapiConfig, StatementValidator validator) {
+        this.validator = validator;
         LRS lrs = new LRS(
             xapiConfig.lrsConfig.host,
             xapiConfig.lrsConfig.key,
@@ -48,13 +49,20 @@ public class XapiClient {
         maxRetries = xapiConfig.lrsConfig.maxRetries;
     }
 
-    private StatementClient getClient() {
-        return client;
+    public void sendStatement(String s) throws StatementValidationException {
+        addToBuffer(validator.validateStatement(s));
     }
 
-    public void sendStatementFromString(String s) throws JsonMappingException, JsonProcessingException{
-        Statement stmt = Mapper.getMapper().readValue(s, Statement.class);
-        addToBuffer(stmt);
+    public void sendStatement(Statement stmt) throws StatementValidationException {
+        addToBuffer(validator.validateStatement(stmt));
+    }
+
+    private void addToBuffer(StatementValidationResult res) throws StatementValidationException {
+        if (!res.isValid()) {
+            logger.error("Invalid statement: {}", res.getErrors());
+            throw new StatementValidationException("Invalid statement", res.getErrors());
+        }
+        addToBuffer(res.getStatement());
     }
 
     /** Synchronized buffer methods */
