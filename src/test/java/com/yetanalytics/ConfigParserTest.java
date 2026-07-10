@@ -442,7 +442,7 @@ public class ConfigParserTest {
     }
 
     @Test
-    public void lookupInjectionMissingObjectAbortsStatement() {
+    public void lookupInjectionMissingObjectHonorsRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
             public Optional<CachedObject> resolveLookup(ObjectLookup lookup, InjectionContext context) {
@@ -457,10 +457,17 @@ public class ConfigParserTest {
                 new InteractionInjectionContext("EntityAte", new HashMap<>()));
 
         assertNull(out);
+
+        String optionalOut = new TriggerProcessor(ih).processTrigger(
+                lookupTrigger("[\"lookup\", \"predator\", [\"EntityId\"], {\"required\": false}]"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalOut);
+        assertTrue(optionalOut.contains("\"name\":null"));
     }
 
     @Test
-    public void lookupInjectionMissingValueAbortsStatementEvenWhenNullable() {
+    public void lookupInjectionMissingValueHonorsRequiredButNotNullable() {
         CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
         InjectionHandler ih = new InjectionHandler() {
             @Override
@@ -481,6 +488,15 @@ public class ConfigParserTest {
                 new InteractionInjectionContext("EntityAte", new HashMap<>()));
 
         assertNull(out);
+
+        StatementTrigger optionalTrigger = lookupTrigger(
+                "[\"lookup\", \"predator\", [\"Nickname\"], {\"required\": false}]");
+        String optionalOut = new TriggerProcessor(ih).processTrigger(
+                optionalTrigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalOut);
+        assertTrue(optionalOut.contains("\"name\":null"));
     }
 
     @Test
@@ -511,10 +527,19 @@ public class ConfigParserTest {
 
         assertNotNull(out);
         assertTrue(out.contains("\"name\":\"the null\""));
+
+        StatementTrigger optionalTrigger = lookupTrigger(
+                "\"optional <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"required\\\": false}]>>\"");
+        String optionalOut = triggerProcessor.processTrigger(
+                optionalTrigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalOut);
+        assertTrue(optionalOut.contains("\"name\":\"optional null\""));
     }
 
     @Test
-    public void queryAndThisUnexpectedNullsAbortStatement() {
+    public void queryAndThisMissingValuesHonorRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
             public ValueResolution handleQueryResolution(
@@ -538,6 +563,20 @@ public class ConfigParserTest {
         assertNull(triggerProcessor.processTrigger(
                 statementTrigger("{\"actor\":{\"name\":[\"this\",[\"MissingParam\"]]}}"),
                 new InteractionInjectionContext("EntityAte", new HashMap<>())));
+
+        String optionalQueryOut = triggerProcessor.processTrigger(
+                statementTrigger(
+                        "{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50],{\"required\":false}]}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+        String optionalThisOut = triggerProcessor.processTrigger(
+                statementTrigger(
+                        "{\"actor\":{\"name\":\"value=<<[\\\"this\\\",[\\\"MissingParam\\\"],{\\\"required\\\":false}]>>\"}}"),
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(optionalQueryOut);
+        assertTrue(optionalQueryOut.contains("\"name\":null"));
+        assertNotNull(optionalThisOut);
+        assertTrue(optionalThisOut.contains("\"name\":\"value=null\""));
     }
 
     private StatementTrigger lookupTrigger(String nameExpression) {

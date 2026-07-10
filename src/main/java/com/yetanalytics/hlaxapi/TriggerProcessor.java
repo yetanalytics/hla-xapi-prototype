@@ -232,11 +232,14 @@ public class TriggerProcessor {
             Boolean embedded,
             ObjectMapper mapper) {
         if (!resolution.present()) {
+            if (!options.required()) {
+                return NullNode.instance;
+            }
             throw new RequiredInjectionException(description + " failed: " + resolution.status());
         }
         Object replacement = resolution.value();
         if (replacement == null) {
-            if (!options.nullable()) {
+            if (options.required() && !options.nullable()) {
                 throw new RequiredInjectionException(description + " failed: unexpected null value");
             }
             return NullNode.instance;

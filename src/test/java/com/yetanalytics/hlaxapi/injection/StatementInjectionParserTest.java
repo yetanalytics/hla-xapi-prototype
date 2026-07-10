@@ -26,6 +26,7 @@ class StatementInjectionParserTest {
                 MAPPER.readTree("[\"this\",[\"EntityId\"]]"));
         ThisInjection thisInjection = assertInstanceOf(ThisInjection.class, thisResult.injection());
         assertEquals(List.of("EntityId"), thisInjection.target().parts);
+        assertTrue(thisInjection.options().required());
 
         ParseResult queryResult = StatementInjectionParser.parse(MAPPER.readTree(
                 "[\"QUERY\",\"Rabbit\",[\"Position\",\"X\"],[[\"Hunger\"],\">\",50]]"));
@@ -33,6 +34,7 @@ class StatementInjectionParserTest {
         assertEquals("Rabbit", query.className());
         assertEquals(List.of("Position", "X"), query.target().parts);
         assertInstanceOf(Criterion.class, query.criteria());
+        assertTrue(query.options().required());
 
         ParseResult lookupResult = StatementInjectionParser.parse(MAPPER.readTree(
                 "[\"lookup\",\"predator\",[\"EntityType\"],{\"nullable\":true}]"));
@@ -40,6 +42,24 @@ class StatementInjectionParserTest {
         assertEquals("predator", lookup.alias());
         assertEquals(List.of("EntityType"), lookup.target().parts);
         assertTrue(lookup.options().nullable());
+        assertTrue(lookup.options().required());
+    }
+
+    @Test
+    void parsesOptionalInjectionsForEveryType() throws Exception {
+        ThisInjection thisInjection = assertInstanceOf(ThisInjection.class, StatementInjectionParser.parse(
+                MAPPER.readTree("[\"this\",[\"EntityId\"],{\"required\":false}]")).injection());
+        QueryInjection queryInjection = assertInstanceOf(QueryInjection.class, StatementInjectionParser.parse(
+                MAPPER.readTree(
+                        "[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50],{\"required\":false}]")).injection());
+        LookupInjection lookupInjection = assertInstanceOf(LookupInjection.class, StatementInjectionParser.parse(
+                MAPPER.readTree(
+                        "[\"lookup\",\"predator\",[\"EntityType\"],{\"nullable\":true,\"required\":false}]")).injection());
+
+        assertFalse(thisInjection.options().required());
+        assertFalse(queryInjection.options().required());
+        assertFalse(lookupInjection.options().required());
+        assertTrue(lookupInjection.options().nullable());
     }
 
     @Test

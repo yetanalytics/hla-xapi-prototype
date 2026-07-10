@@ -103,7 +103,10 @@ public final class StatementInjectionParser {
         if (node.size() <= index || !node.get(index).isObject()) {
             return InjectionOptions.DEFAULT;
         }
-        return new InjectionOptions(node.get(index).path(InjectionOptions.NULLABLE_KEY).asBoolean(false));
+        JsonNode options = node.get(index);
+        return new InjectionOptions(
+                options.path(InjectionOptions.NULLABLE_KEY).asBoolean(false),
+                options.path(InjectionOptions.REQUIRED_KEY).asBoolean(true));
     }
 
     public sealed interface StatementInjection
@@ -147,10 +150,11 @@ public final class StatementInjectionParser {
         }
     }
 
-    public record InjectionOptions(boolean nullable) {
+    public record InjectionOptions(boolean nullable, boolean required) {
 
         public static final String NULLABLE_KEY = "nullable";
-        public static final InjectionOptions DEFAULT = new InjectionOptions(false);
+        public static final String REQUIRED_KEY = "required";
+        public static final InjectionOptions DEFAULT = new InjectionOptions(false, true);
     }
 
     public record ParseResult(

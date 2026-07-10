@@ -129,10 +129,19 @@ Whole-value injections preserve the replacement's JSON type. Inline injections a
 All injection types accept an optional final options object:
 
 ```json
-["this", ["OptionalField"], {"nullable": true}]
+["this", ["OptionalField"], {"required": false}]
 ```
 
-`nullable` only allows a resolved value of `null` to render as JSON `null` (or as the text `null` inline). It does not allow missing objects or missing values. A missing required injection aborts the statement; the trigger returns no xAPI statement.
+The available options are:
+
+- `required`: Defaults to `true`. When `false`, a missing object, missing value, or resolved `null` renders as JSON `null` (or as the text `null` inline) and statement processing continues.
+- `nullable`: Defaults to `false`. When `required` is `true`, this allows an explicitly resolved `null` to render, but still treats a missing object or value as an error.
+
+A failed required injection aborts the statement, and the trigger returns no xAPI statement. `nullable` is redundant when `required` is `false`. For example, an optional inline injection renders `Rabbit null` when the target cannot be resolved:
+
+```json
+"name": "Rabbit <<[\"query\", \"Rabbit\", [\"Nickname\"], null, {\"required\": false}]>>"
+```
 
 ### `this`
 
@@ -158,7 +167,7 @@ Arguments:
 - Class name: HLA object class to search, using the local FOM class name.
 - Target: cached value to return from the matched object.
 - Criteria: expression evaluated against cached values for each current object.
-- Options: optional `{"nullable": true}`.
+- Options: optional `{"required": false}` and/or `{"nullable": true}`.
 
 Queries use the adapter's current object cache, not arbitrary SQL provided in the config. Removed objects are excluded. If more than one object matches, the first cached object is used.
 
