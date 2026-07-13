@@ -204,8 +204,8 @@ public class ConfigParserTest {
         InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
         com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("FromPosition", "X"));
 
-        Object result = ih.handleTrigger(target, injectionContext);
-        assertEquals(42, result);
+        ValueResolution result = ih.handleTrigger(target, injectionContext);
+        assertEquals(42, result.value());
     }
 
     @Test
@@ -233,8 +233,8 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(
             java.util.List.of("LocationHistory", 0, "X"));
 
-        Object result = ih.handleTrigger(target, injectionContext);
-        assertEquals(42, result);
+        ValueResolution result = ih.handleTrigger(target, injectionContext);
+        assertEquals(42, result.value());
     }
 
     @Test
@@ -259,11 +259,11 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.Target xTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "X"));
         com.yetanalytics.hlaxapi.config.model.Target yTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "Y"));
 
-        Object xResult = ih.handleTrigger(xTarget, injectionContext);
-        Object yResult = ih.handleTrigger(yTarget, injectionContext);
+        ValueResolution xResult = ih.handleTrigger(xTarget, injectionContext);
+        ValueResolution yResult = ih.handleTrigger(yTarget, injectionContext);
 
-        assertEquals(5, xResult);
-        assertEquals(7, yResult);
+        assertEquals(5, xResult.value());
+        assertEquals(7, yResult.value());
     }
 
     @Test
@@ -372,8 +372,8 @@ public class ConfigParserTest {
     public void inlinePlaceholderKeepsWholeValueAsStringWhenInjectionReturnsStructuredData() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
-            public Object handleTrigger(Target t, InjectionContext context) {
-                return List.of("alpha", "beta");
+            public ValueResolution handleTrigger(Target t, InjectionContext context) {
+                return ValueResolution.present(List.of("alpha", "beta"));
             }
         };
 
@@ -394,7 +394,7 @@ public class ConfigParserTest {
         List<List<Object>> paths = new ArrayList<>();
         InjectionHandler ih = new InjectionHandler() {
             @Override
-            public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
+            public ValueResolution handleTrigger(Target t, InjectionContext context) {
                 paths.add(context.getStatementPath());
                 return ValueResolution.present("value");
             }
@@ -402,8 +402,8 @@ public class ConfigParserTest {
         StatementTrigger trigger = new StatementTrigger();
         trigger.statement = """
                 {
-                  "actor": {"name": ["this", ["Name"]]},
-                  "context": {"extensions": {"https://yetanalytics.com/extensions/from-x": [["this", ["FromPosition", "X"]], 4]}
+                  "actor": {"name": ["trigger", ["Name"]]},
+                  "context": {"extensions": {"https://yetanalytics.com/extensions/from-x": [["trigger", ["FromPosition", "X"]], 4]}
                   }
                 }
                 """;
@@ -430,7 +430,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+            public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
                 assertEquals(matchedObject, object);
                 if (attrTarget.parts.equals(List.of("EntityId"))) {
                     return ValueResolution.present("predator-1");
@@ -505,7 +505,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+            public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
                 return ValueResolution.missingValue();
             }
         };
@@ -538,7 +538,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+            public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
                 return ValueResolution.present(null);
             }
         };
@@ -571,7 +571,7 @@ public class ConfigParserTest {
     public void queryAndThisMissingValuesHonorRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
-            public ValueResolution handleQueryResolution(
+            public ValueResolution handleQuery(
                     String clazz,
                     Target attrTarget,
                     Expression criteria,
@@ -580,7 +580,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
+            public ValueResolution handleTrigger(Target t, InjectionContext context) {
                 return ValueResolution.missingValue();
             }
         };

@@ -190,14 +190,14 @@ public class TriggerProcessor {
         try {
             if (injection instanceof TriggerInjection triggerInjection) {
                 return renderResolution(
-                        injectionHandler.handleTriggerResolution(triggerInjection.target(), context),
+                        injectionHandler.handleTrigger(triggerInjection.target(), context),
                         triggerInjection.options(),
                         injectionDescription(triggerInjection, null),
                         embedded,
                         mapper);
             } else if (injection instanceof QueryInjection queryInjection) {
                 return renderResolution(
-                        injectionHandler.handleQueryResolution(
+                        injectionHandler.handleQuery(
                                 queryInjection.className(),
                                 queryInjection.target(),
                                 queryInjection.criteria(),
@@ -208,9 +208,10 @@ public class TriggerProcessor {
                         mapper);
             } else if (injection instanceof LookupInjection lookupInjection) {
                 return renderResolution(
-                        injectionHandler.handleLookupResolution(
+                        injectionHandler.handleLookup(
                                 lookupObjects.get(lookupInjection.alias()),
-                                lookupInjection.target()),
+                                lookupInjection.target(),
+                                context),
                         lookupInjection.options(),
                         injectionDescription(lookupInjection, lookupInjection.alias()),
                         embedded,

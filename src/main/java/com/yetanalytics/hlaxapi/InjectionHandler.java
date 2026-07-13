@@ -51,7 +51,7 @@ public class InjectionHandler {
     public InjectionHandler() {
     }
 
-    public Object handleTrigger(Target t, InjectionContext context) {
+    public ValueResolution handleTrigger(Target t, InjectionContext context) {
         if (context instanceof InteractionInjectionContext) {
             return handleTrigger(t, (InteractionInjectionContext) context);
         } else if (context instanceof ObjectInjectionContext) {
@@ -61,28 +61,29 @@ public class InjectionHandler {
         }
     }
 
-    public Object handleTrigger(Target t, InteractionInjectionContext context) {
+    public ValueResolution handleTrigger(Target t, InteractionInjectionContext context) {
 
         byte[] value = interrogateParameters(context.getHlaClass(), true, t.parts, context.getParameterMap());
         if (value == null)
-            return null;
+            return ValueResolution.missingValue();
 
         PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), t.parts);
-        Object result;
+        Object result = null;
         if (pcr.exists) {
             try {
                 result = hlaDecoderRegistry.decode(pcr.primitiveType, value);
             } catch (DecoderException e) {
                 logger.warn("Problem decoding value:", e);
-                return null;
             }
         } else {
             // TODO: Properly log context of unfound target
             logger.warn("Target does not exist in FOM.", t);
-            return null;
         }
-        // placeholder: return a demo string showing the target and interaction context
-        return result;
+
+        if (result == null) {
+            return ValueResolution.missingValue();
+        }
+        return ValueResolution.present(result);
     }
 
     private byte[] interrogateParameters(String entityName, boolean isInteraction,
@@ -218,29 +219,12 @@ public class InjectionHandler {
         return null;
     }
 
-    public Object handleTrigger(Target t, ObjectInjectionContext context) {
+    public ValueResolution handleTrigger(Target t, ObjectInjectionContext context) {
         // placeholder: return a demo string showing the target and interaction context
-        return "[TRIGGER(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]";
+        return ValueResolution.present("[TRIGGER(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]");
     }
 
-    public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
-        Object value = handleTrigger(t, context);
-        if (value == null) {
-            return ValueResolution.missingValue();
-        }
-        return ValueResolution.present(value);
-    }
-
-    public Object handleQuery(String clazz, Target attrTarget, Expression criteria) {
-        return handleQuery(clazz, attrTarget, criteria, null);
-    }
-
-    public Object handleQuery(String clazz, Target attrTarget, Expression criteria, InjectionContext context) {
-        ValueResolution resolution = handleQueryResolution(clazz, attrTarget, criteria, context);
-        return resolution.present() ? resolution.value() : null;
-    }
-
-    public ValueResolution handleQueryResolution(
+    public ValueResolution handleQuery(
             String clazz,
             Target attrTarget,
             Expression criteria,
@@ -261,12 +245,7 @@ public class InjectionHandler {
         return objectCache.findFirstObject(lookup.clazz, resolvedCriteria);
     }
 
-    public Object handleLookup(CachedObject object, Target attrTarget) {
-        ValueResolution resolution = handleLookupResolution(object, attrTarget);
-        return resolution.present() ? resolution.value() : null;
-    }
-
-    public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+    public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
         if (objectCache == null || object == null) {
             return ValueResolution.missingObject();
         }
