@@ -12,7 +12,7 @@ import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InlineInjecti
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.LookupInjection;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.ParseResult;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.QueryInjection;
-import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.ThisInjection;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.TriggerInjection;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -23,10 +23,10 @@ class StatementInjectionParserTest {
     @Test
     void parsesTypedWholeNodeInjections() throws Exception {
         ParseResult thisResult = StatementInjectionParser.parse(
-                MAPPER.readTree("[\"this\",[\"EntityId\"]]"));
-        ThisInjection thisInjection = assertInstanceOf(ThisInjection.class, thisResult.injection());
-        assertEquals(List.of("EntityId"), thisInjection.target().parts);
-        assertTrue(thisInjection.options().required());
+                MAPPER.readTree("[\"trigger\",[\"EntityId\"]]"));
+        TriggerInjection triggerInjection = assertInstanceOf(TriggerInjection.class, thisResult.injection());
+        assertEquals(List.of("EntityId"), triggerInjection.target().parts);
+        assertTrue(triggerInjection.options().required());
 
         ParseResult queryResult = StatementInjectionParser.parse(MAPPER.readTree(
                 "[\"QUERY\",\"Rabbit\",[\"Position\",\"X\"],[[\"Hunger\"],\">\",50]]"));
@@ -47,8 +47,8 @@ class StatementInjectionParserTest {
 
     @Test
     void parsesOptionalInjectionsForEveryType() throws Exception {
-        ThisInjection thisInjection = assertInstanceOf(ThisInjection.class, StatementInjectionParser.parse(
-                MAPPER.readTree("[\"this\",[\"EntityId\"],{\"required\":false}]")).injection());
+        TriggerInjection triggerInjection = assertInstanceOf(TriggerInjection.class, StatementInjectionParser.parse(
+                MAPPER.readTree("[\"trigger\",[\"EntityId\"],{\"required\":false}]")).injection());
         QueryInjection queryInjection = assertInstanceOf(QueryInjection.class, StatementInjectionParser.parse(
                 MAPPER.readTree(
                         "[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50],{\"required\":false}]")).injection());
@@ -56,7 +56,7 @@ class StatementInjectionParserTest {
                 MAPPER.readTree(
                         "[\"lookup\",\"predator\",[\"EntityType\"],{\"nullable\":true,\"required\":false}]")).injection());
 
-        assertFalse(thisInjection.options().required());
+        assertFalse(triggerInjection.options().required());
         assertFalse(queryInjection.options().required());
         assertFalse(lookupInjection.options().required());
         assertTrue(lookupInjection.options().nullable());
@@ -64,13 +64,13 @@ class StatementInjectionParserTest {
 
     @Test
     void findsInlineInjectionsAndPreservesNonInjectionCandidates() {
-        String text = "before <<[\"this\",[\"EntityId\"]]>> and "
+        String text = "before <<[\"trigger\",[\"EntityId\"]]>> and "
                 + "<<[\"lookup\",\"predator\",[\"EntityType\"]]>> after <<not-json>>";
 
         List<InlineInjection> inline = StatementInjectionParser.findInline(text);
 
         assertEquals(3, inline.size());
-        assertInstanceOf(ThisInjection.class, inline.get(0).result().injection());
+        assertInstanceOf(TriggerInjection.class, inline.get(0).result().injection());
         assertInstanceOf(LookupInjection.class, inline.get(1).result().injection());
         assertFalse(inline.get(2).result().recognized());
         assertEquals("<<not-json>>", inline.get(2).source());

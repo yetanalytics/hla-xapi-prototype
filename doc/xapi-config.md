@@ -30,7 +30,7 @@ At the top level the file supports:
   "lookups": {
     "predator": {
       "class": "SimEntity",
-      "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+      "criteria": [["EntityId"], "=", ["trigger", ["PredatorId"]]]
     }
   },
   "statement": {
@@ -88,12 +88,12 @@ Supported comparison operators:
 - `<=`
 - `>=`
 
-The left or right side may be a target, primitive value, nested criterion, or a `this` expression.
+The left or right side may be a target, primitive value, nested criterion, or a `trigger` expression.
 
 ```json
 [["Hunger"], ">", 50]
-[["EntityId"], "=", ["this", ["PredatorId"]]]
-[["Position", "X"], "<=", ["this", ["ToPosition", "X"]]]
+[["EntityId"], "=", ["trigger", ["PredatorId"]]]
+[["Position", "X"], "<=", ["trigger", ["ToPosition", "X"]]]
 ```
 
 Logical expressions use `and` or `or` between criteria:
@@ -115,13 +115,13 @@ In cache queries, `=` compares numbers numerically when both sides are numeric; 
 An injection can appear as a whole JSON value:
 
 ```json
-"name": ["this", ["EntityId"]]
+"name": ["trigger", ["EntityId"]]
 ```
 
 or inside a JSON string using `<<...>>` with an escaped JSON injection array:
 
 ```json
-"name": "Rabbit <<[\"this\", [\"EntityId\"]]>>"
+"name": "Rabbit <<[\"trigger\", [\"EntityId\"]]>>"
 ```
 
 Whole-value injections preserve the replacement's JSON type. Inline injections are always rendered as text inside the containing string.
@@ -129,7 +129,7 @@ Whole-value injections preserve the replacement's JSON type. Inline injections a
 All injection types accept an optional final options object:
 
 ```json
-["this", ["OptionalField"], {"required": false}]
+["trigger", ["OptionalField"], {"required": false}]
 ```
 
 The available options are:
@@ -143,16 +143,16 @@ A failed required injection aborts the statement, and the trigger returns no xAP
 "name": "Rabbit <<[\"query\", \"Rabbit\", [\"Nickname\"], null, {\"required\": false}]>>"
 ```
 
-### `this`
+### `trigger`
 
-`this` reads a value from the current event context.
+`trigger` reads a value from the current event context.
 
 ```json
-["this", ["PredatorId"]]
-["this", ["FromPosition", "X"]]
+["trigger", ["PredatorId"]]
+["trigger", ["FromPosition", "X"]]
 ```
 
-For interaction triggers, `this` reads the interaction parameter map and decodes the value using the FOM. It supports top-level parameters, fixed-record fields, and array elements. Object-update `this` contexts are present in the codebase but currently return a placeholder value rather than decoded object attributes.
+For interaction triggers, `trigger` reads the interaction parameter map and decodes the value using the FOM. It supports top-level parameters, fixed-record fields, and array elements. Object-update `trigger` contexts are present in the codebase but currently return a placeholder value rather than decoded object attributes.
 
 ### `query`
 
@@ -171,14 +171,14 @@ Arguments:
 
 Queries use the adapter's current object cache, not arbitrary SQL provided in the config. Removed objects are excluded. If more than one object matches, the first cached object is used.
 
-`this` may be used inside query criteria. It is resolved from the triggering event before the cache query runs:
+`trigger` may be used inside query criteria. It is resolved from the triggering event before the cache query runs:
 
 ```json
 [
   "query",
   "SimEntity",
   ["EntityType"],
-  [["EntityId"], "=", ["this", ["PredatorId"]]]
+  [["EntityId"], "=", ["trigger", ["PredatorId"]]]
 ]
 ```
 
@@ -192,11 +192,11 @@ section.
   "lookups": {
     "predator": {
       "class": "SimEntity",
-      "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+      "criteria": [["EntityId"], "=", ["trigger", ["PredatorId"]]]
     },
     "prey": {
       "class": "SimEntity",
-      "criteria": [["EntityId"], "=", ["this", ["PreyId"]]]
+      "criteria": [["EntityId"], "=", ["trigger", ["PreyId"]]]
     }
   },
   "statement": {
@@ -213,7 +213,7 @@ section.
 A lookup definition contains:
 
 - `class`: HLA object class to search in the cache.
-- `criteria`: cache criteria used to select the object. `this` expressions are allowed and are resolved against the triggering event.
+- `criteria`: cache criteria used to select the object. `trigger` expressions are allowed and are resolved against the triggering event.
 
 A lookup injection has this shape:
 
@@ -303,11 +303,11 @@ java -Dxapi.buffer.clear-rate=5000 ...
       "lookups": {
         "predator": {
           "class": "SimEntity",
-          "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+          "criteria": [["EntityId"], "=", ["trigger", ["PredatorId"]]]
         },
         "prey": {
           "class": "SimEntity",
-          "criteria": [["EntityId"], "=", ["this", ["PreyId"]]]
+          "criteria": [["EntityId"], "=", ["trigger", ["PreyId"]]]
         }
       },
       "statement": {
@@ -316,7 +316,7 @@ java -Dxapi.buffer.clear-rate=5000 ...
           "name": "<<[\"lookup\", \"predator\", [\"FirstName\"]]>> <<[\"lookup\", \"predator\", [\"LastName\"]]>>",
           "account": {
             "homePage": "https://hla-federepl.example/entities",
-            "name": ["this", ["PredatorId"]]
+            "name": ["trigger", ["PredatorId"]]
           }
         },
         "verb": {
@@ -328,7 +328,7 @@ java -Dxapi.buffer.clear-rate=5000 ...
           "name": "<<[\"lookup\", \"prey\", [\"FirstName\"]]>> <<[\"lookup\", \"prey\", [\"LastName\"]]>>",
           "account": {
             "homePage": "https://hla-federepl.example/entities",
-            "name": ["this", ["PreyId"]]
+            "name": ["trigger", ["PreyId"]]
           }
         }
       }

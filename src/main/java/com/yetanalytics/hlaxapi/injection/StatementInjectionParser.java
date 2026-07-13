@@ -38,9 +38,9 @@ public final class StatementInjectionParser {
 
         try {
             return switch (type) {
-                case THIS -> node.size() < 2
+                case TRIGGER -> node.size() < 2
                         ? ParseResult.malformed(type)
-                        : ParseResult.valid(new ThisInjection(
+                        : ParseResult.valid(new TriggerInjection(
                                 target(node.get(1)),
                                 options(node, 2)));
                 case QUERY -> node.size() < 4
@@ -110,7 +110,7 @@ public final class StatementInjectionParser {
     }
 
     public sealed interface StatementInjection
-            permits ThisInjection, QueryInjection, LookupInjection {
+            permits TriggerInjection, QueryInjection, LookupInjection {
 
         InjectionType type();
 
@@ -119,11 +119,11 @@ public final class StatementInjectionParser {
         InjectionOptions options();
     }
 
-    public record ThisInjection(Target target, InjectionOptions options) implements StatementInjection {
+    public record TriggerInjection(Target target, InjectionOptions options) implements StatementInjection {
 
         @Override
         public InjectionType type() {
-            return InjectionType.THIS;
+            return InjectionType.TRIGGER;
         }
     }
 

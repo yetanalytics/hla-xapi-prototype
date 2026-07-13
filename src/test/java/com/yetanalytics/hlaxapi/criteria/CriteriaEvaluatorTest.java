@@ -10,7 +10,7 @@ import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.Target;
-import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import java.util.List;
 import java.util.Map;
@@ -70,11 +70,11 @@ class CriteriaEvaluatorTest {
     @Test
     void resolvesContextDependentLeafExpressions() {
         Target target = new Target(List.of("EntityId"));
-        ThisExpression thisExpression = new ThisExpression(new Target(List.of("PredatorId")));
-        Criterion criterion = new Criterion(target, ComparisonOperator.EQ, thisExpression);
+        TriggerExpression triggerExpression = new TriggerExpression(new Target(List.of("PredatorId")));
+        Criterion criterion = new Criterion(target, ComparisonOperator.EQ, triggerExpression);
 
         assertTrue(evaluator.matches(criterion, expression -> {
-            if (expression == target || expression == thisExpression) {
+            if (expression == target || expression == triggerExpression) {
                 return "rabbit-one";
             }
             return null;

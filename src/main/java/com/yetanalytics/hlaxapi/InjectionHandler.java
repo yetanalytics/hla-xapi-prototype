@@ -20,7 +20,7 @@ import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.Target;
-import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
@@ -32,7 +32,7 @@ import hla.rti1516e.encoding.DecoderException;
 
 /**
  * Stubs for injection handlers. In the real app these will implement logic to
- * resolve injection syntaxes like ["this", [target]] or ["query", ...].
+ * resolve injection syntaxes like ["trigger", [target]] or ["query", ...].
  */
 @Component
 public class InjectionHandler {
@@ -51,17 +51,17 @@ public class InjectionHandler {
     public InjectionHandler() {
     }
 
-    public Object handleThis(Target t, InjectionContext context) {
+    public Object handleTrigger(Target t, InjectionContext context) {
         if (context instanceof InteractionInjectionContext) {
-            return handleThis(t, (InteractionInjectionContext) context);
+            return handleTrigger(t, (InteractionInjectionContext) context);
         } else if (context instanceof ObjectInjectionContext) {
-            return handleThis(t, (ObjectInjectionContext) context);
+            return handleTrigger(t, (ObjectInjectionContext) context);
         } else {
             throw new IllegalArgumentException("Unsupported InjectionContext type: " + context.getClass().getName());
         }
     }
 
-    public Object handleThis(Target t, InteractionInjectionContext context) {
+    public Object handleTrigger(Target t, InteractionInjectionContext context) {
 
         byte[] value = interrogateParameters(context.getHlaClass(), true, t.parts, context.getParameterMap());
         if (value == null)
@@ -218,13 +218,13 @@ public class InjectionHandler {
         return null;
     }
 
-    public Object handleThis(Target t, ObjectInjectionContext context) {
+    public Object handleTrigger(Target t, ObjectInjectionContext context) {
         // placeholder: return a demo string showing the target and interaction context
-        return "[THIS(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]";
+        return "[TRIGGER(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]";
     }
 
-    public ValueResolution handleThisResolution(Target t, InjectionContext context) {
-        Object value = handleThis(t, context);
+    public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
+        Object value = handleTrigger(t, context);
         if (value == null) {
             return ValueResolution.missingValue();
         }
@@ -249,7 +249,7 @@ public class InjectionHandler {
             return ValueResolution.missingObject();
         }
 
-        Expression resolvedCriteria = resolveThisExpressions(criteria, context);
+        Expression resolvedCriteria = resolveTriggerExpressions(criteria, context);
         return objectCache.findFirstResolution(clazz, attrTarget, resolvedCriteria);
     }
 
@@ -257,7 +257,7 @@ public class InjectionHandler {
         if (objectCache == null || lookup == null || lookup.clazz == null || lookup.clazz.isBlank()) {
             return Optional.empty();
         }
-        Expression resolvedCriteria = resolveThisExpressions(lookup.criteria, context);
+        Expression resolvedCriteria = resolveTriggerExpressions(lookup.criteria, context);
         return objectCache.findFirstObject(lookup.clazz, resolvedCriteria);
     }
 
@@ -273,24 +273,24 @@ public class InjectionHandler {
         return objectCache.findValueResolution(object, attrTarget);
     }
 
-    private Expression resolveThisExpressions(Expression expression, InjectionContext context) {
+    private Expression resolveTriggerExpressions(Expression expression, InjectionContext context) {
         if (expression == null || context == null) {
             return expression;
         }
-        if (expression instanceof ThisExpression thisExpression) {
-            return new ValueExpression(handleThis(thisExpression.target, context));
+        if (expression instanceof TriggerExpression triggerExpression) {
+            return new ValueExpression(handleTrigger(triggerExpression.target, context));
         }
         if (expression instanceof Criterion criterion) {
             return new Criterion(
-                    resolveThisExpressions(criterion.left, context),
+                    resolveTriggerExpressions(criterion.left, context),
                     criterion.operator,
-                    resolveThisExpressions(criterion.right, context));
+                    resolveTriggerExpressions(criterion.right, context));
         }
         if (expression instanceof LogicalExpression logicalExpression) {
             return new LogicalExpression(
                     logicalExpression.operator,
                     logicalExpression.operands.stream()
-                            .map(operand -> resolveThisExpressions(operand, context))
+                            .map(operand -> resolveTriggerExpressions(operand, context))
                             .toList());
         }
         return expression;

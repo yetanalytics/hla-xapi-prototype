@@ -43,7 +43,7 @@ import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
-import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 
@@ -120,7 +120,7 @@ public class ConfigParserTest {
                             "lookups": {
                                 "predator": {
                                     "class": "SimEntity",
-                                    "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+                                    "criteria": [["EntityId"], "=", ["trigger", ["PredatorId"]]]
                                 }
                             },
                             "statement": {"actor": {"name": ["lookup", "predator", ["EntityType"]]}}
@@ -138,7 +138,7 @@ public class ConfigParserTest {
         assertTrue(lookup.criteria instanceof Criterion);
         Criterion criterion = (Criterion) lookup.criteria;
         assertTrue(criterion.left instanceof Target);
-        assertTrue(criterion.right instanceof ThisExpression);
+        assertTrue(criterion.right instanceof TriggerExpression);
     }
 
     @Test
@@ -204,7 +204,7 @@ public class ConfigParserTest {
         InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
         com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("FromPosition", "X"));
 
-        Object result = ih.handleThis(target, injectionContext);
+        Object result = ih.handleTrigger(target, injectionContext);
         assertEquals(42, result);
     }
 
@@ -233,7 +233,7 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(
             java.util.List.of("LocationHistory", 0, "X"));
 
-        Object result = ih.handleThis(target, injectionContext);
+        Object result = ih.handleTrigger(target, injectionContext);
         assertEquals(42, result);
     }
 
@@ -259,8 +259,8 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.Target xTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "X"));
         com.yetanalytics.hlaxapi.config.model.Target yTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "Y"));
 
-        Object xResult = ih.handleThis(xTarget, injectionContext);
-        Object yResult = ih.handleThis(yTarget, injectionContext);
+        Object xResult = ih.handleTrigger(xTarget, injectionContext);
+        Object yResult = ih.handleTrigger(yTarget, injectionContext);
 
         assertEquals(5, xResult);
         assertEquals(7, yResult);
@@ -300,16 +300,16 @@ public class ConfigParserTest {
     }
 
     @Test
-    public void convertsThisExpressionInsideCriterion() {
-        // raw: [ ["X"], "=", ["this", ["attr"]] ]
-        List<Object> rawThis = List.of("this", List.of("attr"));
-        List<Object> raw = List.of(List.of("X"), "=", rawThis);
+    public void convertsTriggerExpressionInsideCriterion() {
+        // raw: [ ["X"], "=", ["trigger", ["attr"]] ]
+        List<Object> rawTrigger = List.of("trigger", List.of("attr"));
+        List<Object> raw = List.of(List.of("X"), "=", rawTrigger);
 
         Expression e = ConfigConverter.toExpression(raw);
         assertTrue(e instanceof Criterion);
         Criterion c = (Criterion) e;
-        assertTrue(c.right instanceof ThisExpression);
-        ThisExpression te = (ThisExpression) c.right;
+        assertTrue(c.right instanceof TriggerExpression);
+        TriggerExpression te = (TriggerExpression) c.right;
         assertNotNull(te.target);
         assertEquals(List.of("attr"), te.target.parts);
     }
@@ -332,7 +332,7 @@ public class ConfigParserTest {
         InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
 
         // Statement contains an inline placeholder in a string using <<...>> containing JSON array
-        String stmt = "{\"actor\":{\"name\":\"predator-<<[\\\"this\\\", [\\\"EntityId\\\"]]>>-prey\"}}";
+        String stmt = "{\"actor\":{\"name\":\"predator-<<[\\\"trigger\\\", [\\\"EntityId\\\"]]>>-prey\"}}";
 
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
@@ -359,7 +359,7 @@ public class ConfigParserTest {
 
         InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
 
-        String stmt = "{\"actor\":{\"name\":\"from=<<[\\\"this\\\", [\\\"EntityId\\\"]]>>, to=<<[\\\"this\\\", [\\\"EntityId\\\"]]>>\"}}";
+        String stmt = "{\"actor\":{\"name\":\"from=<<[\\\"trigger\\\", [\\\"EntityId\\\"]]>>, to=<<[\\\"trigger\\\", [\\\"EntityId\\\"]]>>\"}}";
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
@@ -372,7 +372,7 @@ public class ConfigParserTest {
     public void inlinePlaceholderKeepsWholeValueAsStringWhenInjectionReturnsStructuredData() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
-            public Object handleThis(Target t, InjectionContext context) {
+            public Object handleTrigger(Target t, InjectionContext context) {
                 return List.of("alpha", "beta");
             }
         };
@@ -380,7 +380,7 @@ public class ConfigParserTest {
         TriggerProcessor triggerProcessor = new TriggerProcessor(ih);
         InteractionInjectionContext injectionContext = new InteractionInjectionContext("CyberEvent", new HashMap<>());
 
-        String stmt = "{\"actor\":{\"name\":\"<<[\\\"this\\\", [\\\"Description\\\"]]>>\"}}";
+        String stmt = "{\"actor\":{\"name\":\"<<[\\\"trigger\\\", [\\\"Description\\\"]]>>\"}}";
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
@@ -420,7 +420,7 @@ public class ConfigParserTest {
         lookup.criteria = new Criterion(
                 new Target(List.of("EntityId")),
                 ComparisonOperator.EQ,
-                new ThisExpression(new Target(List.of("PredatorId"))));
+                new TriggerExpression(new Target(List.of("PredatorId"))));
         trigger.lookups = Map.of("predator", lookup);
         trigger.statement = """
                 {
@@ -551,7 +551,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleThisResolution(Target t, InjectionContext context) {
+            public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
                 return ValueResolution.missingValue();
             }
         };
@@ -561,7 +561,7 @@ public class ConfigParserTest {
                 statementTrigger("{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50]]}}"),
                 new InteractionInjectionContext("EntityAte", new HashMap<>())));
         assertNull(triggerProcessor.processTrigger(
-                statementTrigger("{\"actor\":{\"name\":[\"this\",[\"MissingParam\"]]}}"),
+                statementTrigger("{\"actor\":{\"name\":[\"trigger\",[\"MissingParam\"]]}}"),
                 new InteractionInjectionContext("EntityAte", new HashMap<>())));
 
         String optionalQueryOut = triggerProcessor.processTrigger(
@@ -570,7 +570,7 @@ public class ConfigParserTest {
                 new InteractionInjectionContext("EntityAte", new HashMap<>()));
         String optionalThisOut = triggerProcessor.processTrigger(
                 statementTrigger(
-                        "{\"actor\":{\"name\":\"value=<<[\\\"this\\\",[\\\"MissingParam\\\"],{\\\"required\\\":false}]>>\"}}"),
+                        "{\"actor\":{\"name\":\"value=<<[\\\"trigger\\\",[\\\"MissingParam\\\"],{\\\"required\\\":false}]>>\"}}"),
                 new InteractionInjectionContext("EntityAte", new HashMap<>()));
 
         assertNotNull(optionalQueryOut);
@@ -586,7 +586,7 @@ public class ConfigParserTest {
         lookup.criteria = new Criterion(
                 new Target(List.of("EntityId")),
                 ComparisonOperator.EQ,
-                new ThisExpression(new Target(List.of("PredatorId"))));
+                new TriggerExpression(new Target(List.of("PredatorId"))));
         trigger.lookups = Map.of("predator", lookup);
         return trigger;
     }

@@ -28,7 +28,7 @@ import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.LookupInjecti
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.ParseResult;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.QueryInjection;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.StatementInjection;
-import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.ThisInjection;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.TriggerInjection;
 
 @Component
 public class TriggerProcessor {
@@ -173,11 +173,11 @@ public class TriggerProcessor {
             Boolean embedded,
             Map<String, CachedObject> lookupObjects) {
         try {
-            if (injection instanceof ThisInjection thisInjection) {
+            if (injection instanceof TriggerInjection triggerInjection) {
                 return renderResolution(
-                        injectionHandler.handleThisResolution(thisInjection.target(), context),
-                        thisInjection.options(),
-                        injectionDescription(thisInjection, null),
+                        injectionHandler.handleTriggerResolution(triggerInjection.target(), context),
+                        triggerInjection.options(),
+                        injectionDescription(triggerInjection, null),
                         embedded,
                         mapper);
             } else if (injection instanceof QueryInjection queryInjection) {

@@ -8,7 +8,7 @@ import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
-import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,14 +33,14 @@ public class ConfigConverter {
         if (raw == null) return null;
         if (raw instanceof List) {
             List<?> l = (List<?>) raw;
-            // If this is an injection-style array starting with "this", treat as ThisExpression
+            // If this is an injection-style array starting with "trigger", treat as TriggerExpression
             if (!l.isEmpty()
                     && l.get(0) instanceof String token
-                    && InjectionType.fromString(token) == InjectionType.THIS) {
-                // expected form: ["this", targetArray]
+                    && InjectionType.fromString(token) == InjectionType.TRIGGER) {
+                // expected form: ["trigger", targetArray]
                 Target t = null;
                 if (l.size() >= 2) t = toTarget(l.get(1));
-                return new ThisExpression(t);
+                return new TriggerExpression(t);
             }
             // binary comparison (3 elements, middle is a string, and not a logical operator)
             if (l.size() == 3 && l.get(1) instanceof String && LogicalOperator.fromString((String) l.get(1)) == null) {
