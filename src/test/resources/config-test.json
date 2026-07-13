@@ -3,24 +3,24 @@
         {
             "type": "Interaction",
             "class": "EntityMoved",
-            "criteria": [["this", "key1"], "=", "thing1"],
+            "criteria": [["trigger", "key1"], "=", "thing1"],
             "statement": {
                 "actor": {
                     "objectType": "Agent",
-                    "name": ["this", ["EntityId"]],
+                    "name": ["trigger", ["EntityId"]],
                     "account": {
                         "homePage": "https://homepage.system.io",
-                        "name": "Mr. <<[\"this\", [\"EntityId\"]]>>"
+                        "name": "Mr. <<[\"trigger\", [\"EntityId\"]]>>"
                     }
                 },
                 "context": {
                     "extensions":{
-                        "https://yetanalytics.com/extensions/from-x": ["this", ["FromPosition", "X"]],
-                        "https://yetanalytics.com/extensions/from-y": ["this", ["FromPosition", "Y"]]
+                        "https://yetanalytics.com/extensions/from-x": ["trigger", ["FromPosition", "X"]],
+                        "https://yetanalytics.com/extensions/from-y": ["trigger", ["FromPosition", "Y"]]
                     }
                 },
                 "result": {
-                    "response": "[<<[\"this\", [\"ToPosition\", \"X\"]]>>, <<[\"this\", [\"ToPosition\", \"Y\"]]>>]"
+                    "response": "[<<[\"trigger\", [\"ToPosition\", \"X\"]]>>, <<[\"trigger\", [\"ToPosition\", \"Y\"]]>>]"
                 }
             }
         }

@@ -3,15 +3,15 @@
         {
             "type": "Interaction",
             "class": "EntityAte",
-            "criteria": [["this", "key1"], "=", "thing1"],
+            "criteria": [["trigger", "key1"], "=", "thing1"],
             "lookups": {
                 "predator": {
                     "class": "SimEntity",
-                    "criteria": [["EntityId"], "=", ["this", ["PredatorId"]]]
+                    "criteria": [["EntityId"], "=", ["trigger", ["PredatorId"]]]
                 },
                 "prey": {
                     "class": "SimEntity",
-                    "criteria": [["EntityId"], "=", ["this", ["PreyId"]]]
+                    "criteria": [["EntityId"], "=", ["trigger", ["PreyId"]]]
                 }
             },
             "statement": {
@@ -20,7 +20,7 @@
                     "name": "<<[\"lookup\", \"predator\", [\"FirstName\"]]>> <<[\"lookup\", \"predator\", [\"LastName\"]]>>",
                     "account": {
                         "homePage": "https://hla-federepl.example/entities",
-                        "name": ["this", ["PredatorId"]]
+                        "name": ["trigger", ["PredatorId"]]
                     }
                 },
                 "verb": {
@@ -32,7 +32,7 @@
                     "name": "<<[\"lookup\", \"prey\", [\"FirstName\"]]>> <<[\"lookup\", \"prey\", [\"LastName\"]]>>",
                     "account": {
                         "homePage": "https://hla-federepl.example/entities",
-                        "name": ["this", ["PreyId"]]
+                        "name": ["trigger", ["PreyId"]]
                     }
                 }
             }

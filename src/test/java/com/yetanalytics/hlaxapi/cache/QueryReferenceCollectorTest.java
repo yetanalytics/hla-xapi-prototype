@@ -8,7 +8,7 @@ import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.Target;
-import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,9 +31,9 @@ class QueryReferenceCollectorTest {
     }
 
     @Test
-    void ignoresThisExpressionTargetsInsideQueryCriteria() {
+    void ignoresTriggerExpressionTargetsInsideQueryCriteria() {
         StatementTrigger trigger = trigger("""
-                {"actor":{"name":["query","Rabbit",["EntityId"],[["Hunger"],">",["this",["DesiredHunger"]]]]}}
+                {"actor":{"name":["query","Rabbit",["EntityId"],[["Hunger"],">",["trigger",["DesiredHunger"]]]]}}
                 """);
 
         Map<String, Set<String>> references = QueryReferenceCollector.collect(List.of(trigger));
@@ -57,7 +57,7 @@ class QueryReferenceCollectorTest {
         lookup.criteria = new Criterion(
                 new Target(List.of("EntityId")),
                 ComparisonOperator.EQ,
-                new ThisExpression(new Target(List.of("PredatorId"))));
+                new TriggerExpression(new Target(List.of("PredatorId"))));
         trigger.lookups = Map.of("predator", lookup);
 
         Map<String, Set<String>> references = QueryReferenceCollector.collect(List.of(trigger));
