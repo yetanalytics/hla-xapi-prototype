@@ -44,6 +44,7 @@ import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 
@@ -99,6 +100,12 @@ public class ConfigParserTest {
             logger.info(statement);
             assertEquals(statement, CONFIG_STATEMENT_RESULT);
 
+            trigger.criteria = new Criterion(
+                    new Target(List.of("FromPosition", "X")),
+                    ComparisonOperator.EQ,
+                    new ValueExpression(5));
+            assertNull(triggerProcessor.processTrigger(trigger, injectionContext));
+
         });
 
         assertEquals(config.lrsConfig.batch, 4);
@@ -139,6 +146,34 @@ public class ConfigParserTest {
         Criterion criterion = (Criterion) lookup.criteria;
         assertTrue(criterion.left instanceof Target);
         assertTrue(criterion.right instanceof ThisExpression);
+    }
+
+    @Test
+    public void parsesLogicalTriggerCriteria(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, """
+                {
+                    "statementTriggers": [
+                        {
+                            "type": "Interaction",
+                            "class": "EntityMoved",
+                            "criteria": [
+                                [["FromPosition", "X"], "=", 4],
+                                "and",
+                                [["ToPosition", "Y"], ">", 10]
+                            ],
+                            "statement": {}
+                        }
+                    ]
+                }
+                """);
+
+        XapiConfig config = ConfigParser.fromFile(configPath.toString()).parse();
+
+        assertTrue(config.statementTriggers.get(0).criteria instanceof LogicalExpression);
+        LogicalExpression criteria = (LogicalExpression) config.statementTriggers.get(0).criteria;
+        assertEquals(LogicalOperator.AND, criteria.operator);
+        assertEquals(2, criteria.operands.size());
     }
 
     @Test

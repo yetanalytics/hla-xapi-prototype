@@ -57,7 +57,7 @@ public class ConfigParser {
                 // map "class" json prop to clazz
                 stt.clazz = tnode.path("class").asText(null);
                 Object rawCrit = parseCriteriaNode(tnode.get("criteria"));
-                stt.criteria = ConfigConverter.toCriterion(rawCrit);
+                stt.criteria = rawCrit == null ? null : ConfigConverter.toExpression(rawCrit);
                 stt.lookups = parseLookups(tnode.get("lookups"));
                 if (tnode.has("statement")) {
                     try {

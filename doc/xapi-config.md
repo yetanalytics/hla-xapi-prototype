@@ -53,7 +53,7 @@ Fields:
 
 - `type`: Type of trigger. `Interaction` is currently wired into RTI subscriptions and statement processing. `ObjectUpdate` is parsed by the config model but object updates currently feed the object cache rather than firing statement triggers directly.
 - `class`: The local HLA interaction class name. For interactions this is matched against the final segment of the RTI interaction class name.
-- `criteria`: **NOTE: Not Yet Implemented!** Parsed as a criteria expression, but not currently applied when deciding whether an incoming interaction should fire the trigger.
+- `criteria`: Optional criteria evaluated against the incoming interaction before lookups or statement injections are processed. A trigger that does not match is skipped without producing an xAPI statement. A trigger without criteria always matches.
 - `lookups`: Optional named cache lookups resolved once before the statement template is processed. These can be used to reduce the size and complexity of queries in the body of the statement config.
 - `statement`: An xAPI statement template. Any JSON object accepted by the xAPI spec can be used here, with injection expressions inserted where dynamic values are needed.
 
@@ -95,6 +95,8 @@ The left or right side may be a target, primitive value, nested criterion, or a 
 [["EntityId"], "=", ["this", ["PredatorId"]]]
 [["Position", "X"], "<=", ["this", ["ToPosition", "X"]]]
 ```
+
+For statement-trigger criteria, both plain targets and `this` expressions resolve values from the incoming interaction. For cache query and lookup criteria, plain targets resolve cached object values while `this` continues to refer to the triggering interaction.
 
 Logical expressions use `and` or `or` between criteria:
 

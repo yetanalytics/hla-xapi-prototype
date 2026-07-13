@@ -17,9 +17,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.yetanalytics.hlaxapi.cache.CachedObject;
 import com.yetanalytics.hlaxapi.cache.ValueResolution;
+import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.ThisExpression;
+import com.yetanalytics.hlaxapi.criteria.CriteriaEvaluator;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InjectionOptions;
@@ -34,6 +37,8 @@ import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.ThisInjection
 public class TriggerProcessor {
 
     private static final Logger logger = LogManager.getLogger(TriggerProcessor.class);
+
+    private final CriteriaEvaluator criteriaEvaluator = new CriteriaEvaluator();
 
     @Autowired
     private InjectionHandler injectionHandler;
@@ -52,6 +57,12 @@ public class TriggerProcessor {
         }
         ObjectMapper mapper = new ObjectMapper();
         try {
+            if (!criteriaEvaluator.matches(
+                    trigger.criteria,
+                    expression -> resolveCriteriaExpression(expression, context))) {
+                logger.trace("Skipping trigger {}.{} because criteria did not match", trigger.type, trigger.clazz);
+                return null;
+            }
             JsonNode stmtNode = mapper.readTree(trigger.statement);
             Map<String, CachedObject> lookupObjects = resolveLookups(trigger, context);
 
@@ -67,6 +78,19 @@ public class TriggerProcessor {
             logger.debug("Could not process statement for trigger", e);
             return null;
         }
+    }
+
+    private Object resolveCriteriaExpression(Expression expression, InjectionContext context) {
+        Target target = null;
+        if (expression instanceof Target targetExpression) {
+            target = targetExpression;
+        } else if (expression instanceof ThisExpression thisExpression) {
+            target = thisExpression.target;
+        }
+        if (target == null || context == null) {
+            return null;
+        }
+        return injectionHandler.handleThis(target, context);
     }
 
     private Map<String, CachedObject> resolveLookups(StatementTrigger trigger, InjectionContext context) {
