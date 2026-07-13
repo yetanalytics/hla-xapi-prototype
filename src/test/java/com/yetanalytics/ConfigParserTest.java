@@ -394,7 +394,7 @@ public class ConfigParserTest {
         List<List<Object>> paths = new ArrayList<>();
         InjectionHandler ih = new InjectionHandler() {
             @Override
-            public ValueResolution handleThisResolution(Target t, InjectionContext context) {
+            public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
                 paths.add(context.getStatementPath());
                 return ValueResolution.present("value");
             }
