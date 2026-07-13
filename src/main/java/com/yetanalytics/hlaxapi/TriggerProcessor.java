@@ -55,7 +55,7 @@ public class TriggerProcessor {
             JsonNode stmtNode = mapper.readTree(trigger.statement);
             Map<String, CachedObject> lookupObjects = resolveLookups(trigger, context);
 
-            JsonNode processed = processNode(stmtNode, context, mapper, lookupObjects);
+            JsonNode processed = processNode(stmtNode, context, mapper, lookupObjects, List.of());
 
             String output = mapper.writeValueAsString(processed);
             logger.trace("Processed statement output: {}", output);
@@ -85,7 +85,8 @@ public class TriggerProcessor {
             JsonNode node,
             InjectionContext context,
             ObjectMapper mapper,
-            Map<String, CachedObject> lookupObjects) {
+            Map<String, CachedObject> lookupObjects,
+            List<Object> statementPath) {
         if (node == null || node.isNull())
             return node;
 
@@ -95,7 +96,12 @@ public class TriggerProcessor {
                 ObjectNode out = mapper.createObjectNode();
                 node.fieldNames().forEachRemaining(field -> {
                     JsonNode child = node.get(field);
-                    JsonNode processedChild = processNode(child, context, mapper, lookupObjects);
+                    JsonNode processedChild = processNode(
+                            child,
+                            context,
+                            mapper,
+                            lookupObjects,
+                            appendPath(statementPath, field));
                     out.set(field, processedChild);
                 });
                 return out;
@@ -105,12 +111,17 @@ public class TriggerProcessor {
                 ParseResult parsed = StatementInjectionParser.parse(node);
                 if (parsed.recognized()) {
                     return parsed.valid()
-                            ? handleInjection(parsed.injection(), context, mapper, false, lookupObjects)
+                            ? handleInjection(parsed.injection(), context, mapper, false, lookupObjects, statementPath)
                             : NullNode.instance;
                 }
                 ArrayNode out = mapper.createArrayNode();
-                for (JsonNode el : node) {
-                    out.add(processNode(el, context, mapper, lookupObjects));
+                for (int index = 0; index < node.size(); index++) {
+                    out.add(processNode(
+                            node.get(index),
+                            context,
+                            mapper,
+                            lookupObjects,
+                            appendPath(statementPath, index)));
                 }
                 return out;
             }
@@ -134,7 +145,8 @@ public class TriggerProcessor {
                                     context,
                                     mapper,
                                     true,
-                                    lookupObjects);
+                                    lookupObjects,
+                                    statementPath);
                         } else if (inline.result().recognized()) {
                             repNode = NullNode.instance;
                         }
@@ -171,7 +183,10 @@ public class TriggerProcessor {
             InjectionContext context,
             ObjectMapper mapper,
             Boolean embedded,
-            Map<String, CachedObject> lookupObjects) {
+            Map<String, CachedObject> lookupObjects,
+            List<Object> statementPath) {
+        List<Object> previousPath = context.getStatementPath();
+        context.setStatementPath(statementPath);
         try {
             if (injection instanceof ThisInjection thisInjection) {
                 return renderResolution(
@@ -205,8 +220,16 @@ public class TriggerProcessor {
             throw e;
         } catch (Exception e) {
             logger.debug("Error handling statement injection", e);
+        } finally {
+            context.setStatementPath(previousPath);
         }
         return NullNode.instance;
+    }
+
+    private List<Object> appendPath(List<Object> statementPath, Object part) {
+        java.util.ArrayList<Object> childPath = new java.util.ArrayList<>(statementPath);
+        childPath.add(part);
+        return List.copyOf(childPath);
     }
 
     /**

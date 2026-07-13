@@ -390,6 +390,35 @@ public class ConfigParserTest {
     }
 
     @Test
+    public void exposesStatementPathForWholeNodeInjections() {
+        List<List<Object>> paths = new ArrayList<>();
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public ValueResolution handleThisResolution(Target t, InjectionContext context) {
+                paths.add(context.getStatementPath());
+                return ValueResolution.present("value");
+            }
+        };
+        StatementTrigger trigger = new StatementTrigger();
+        trigger.statement = """
+                {
+                  "actor": {"name": ["this", ["Name"]]},
+                  "context": {"extensions": {"https://yetanalytics.com/extensions/from-x": [["this", ["FromPosition", "X"]], 4]}
+                  }
+                }
+                """;
+
+        String output = new TriggerProcessor(ih).processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+
+        assertNotNull(output);
+        assertEquals(List.of(
+                List.of("actor", "name"),
+                List.of("context", "extensions", "https://yetanalytics.com/extensions/from-x", 0)), paths);
+    }
+
+    @Test
     public void lookupInjectionResolvesAliasOnceAndReusesObject() {
         AtomicInteger resolveCount = new AtomicInteger();
         CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
