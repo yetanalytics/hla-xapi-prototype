@@ -25,7 +25,7 @@ import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 import com.yetanalytics.hlaxapi.injection.ObjectInjectionContext;
-import com.yetanalytics.hlaxapi.injection.RandomXapiValueGenerator;
+import com.yetanalytics.hlaxapi.injection.XapiValueGenerator;
 
 import hla.rti1516e.encoding.ByteWrapper;
 import hla.rti1516e.encoding.DataElement;
@@ -64,17 +64,21 @@ public class InjectionHandler {
 
     public ValueResolution handleTrigger(Target t, InteractionInjectionContext context) {
 
-        byte[] value = interrogateParameters(context.getHlaClass(), true, t.parts, context.getParameterMap());
-        if (value == null)
-            return ValueResolution.missingValue();
-
         PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), t.parts);
         Object result = null;
 
+        // Validation Test-Injection
         if (context.isValidationInjection()){
-            result = RandomXapiValueGenerator.getRandomValue(context.getStatementPath(), t, null);
+            Class<?> hlaJavaType = null;
+            if (pcr.exists) hlaJavaType = hlaDecoderRegistry.getClassForType(pcr.primitiveType);
+            result = XapiValueGenerator.getRandomValue(context.getStatementPath(), t, null, hlaJavaType);
             return ValueResolution.present(result);
         }
+
+        //Actual Injection
+        byte[] value = interrogateParameters(context.getHlaClass(), true, t.parts, context.getParameterMap());
+        if (value == null)
+            return ValueResolution.missingValue();
 
         if (pcr.exists) {
             try {

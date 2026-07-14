@@ -1,11 +1,20 @@
 package com.yetanalytics.hlaxapi.injection;
 
+import com.yetanalytics.hlaxapi.InjectionHandler;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.exception.InjectionDatatypeMismatchException;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
-public class RandomXapiValueGenerator {
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public class XapiValueGenerator {
+
+    private static final Logger logger = LogManager.getLogger(XapiValueGenerator.class);
 
     private static final String DEFAULT_URI = "https://example.com/object";
     private static final String DEFAULT_MBOX = "mailto:test@example.com";
@@ -16,13 +25,20 @@ public class RandomXapiValueGenerator {
     private static final String DEFAULT_DURATION = "PT1S";
     private static final Boolean DEFAULT_BOOLEAN = true;
 
-    public static Object getRandomValue(List<Object> statementPath, Target target, String objectType) {
+    private static final Set<Class<?>> STRING_CLASSES = Set.of(String.class, byte[].class, Byte.class, Character.class);
+    private static final Set<Class<?>> NUMERIC_CLASSES = Set.of(Integer.class, Long.class, Double.class, Float.class, Short.class);
+    private static final Set<Class<?>> BOOLEAN_CLASSES = Set.of(Boolean.class);
+
+    public static Object getRandomValue(List<Object> statementPath, Target target, String objectType, Class<?> hlaJavaType) 
+            throws InjectionDatatypeMismatchException {
         if (statementPath == null || statementPath.isEmpty()) {
             return null;
         }
         
         List<List<Object>> uriCandidates = new ArrayList<>(uriPaths);
         List<List<Object>> uuidCandidates = new ArrayList<>(uuidPaths);
+
+        //handle object.id changing types for different statement types
         if (objectType != null && ("StatementRef".equals(objectType) || "SubStatement".equals(objectType))) {
             uuidCandidates.add(List.of("object", "id"));
         } else if (objectType == null || "Activity".equals(objectType)) {
@@ -30,27 +46,43 @@ public class RandomXapiValueGenerator {
         }
 
         if (containsPath(uriCandidates, statementPath)) {
+            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_URI;
         }
         if (containsPath(uuidCandidates, statementPath)) {
+            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_UUID;
         }
         if (containsPath(timestampPaths, statementPath)) {
+            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_TIMESTAMP;
         }
         if (containsPath(numericPaths, statementPath)) {
+            if (hlaJavaType != null && !NUMERIC_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_NUMERIC;
         }
         if (containsPath(booleanPaths, statementPath)) {
+            if (hlaJavaType != null && !BOOLEAN_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_BOOLEAN;
         }
         if (containsPath(durationPaths, statementPath)) {
+            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_DURATION;
         }
         if (containsPath(mboxPaths, statementPath)) {
+            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_MBOX;
         }
         if (containsPath(sha1Paths, statementPath)) {
+            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
+                throwMismatch(statementPath, hlaJavaType);
             return DEFAULT_SHA1;
         }
 
@@ -76,7 +108,7 @@ public class RandomXapiValueGenerator {
                         matches = false;
                         break;
                     }
-                } else if (!"*".equals(candidatePart) && !candidatePart.equals(pathPart)) {
+                } else if (!candidatePart.equals("*") && !candidatePart.equals(pathPart)) {
                     matches = false;
                     break;
                 }
@@ -88,6 +120,12 @@ public class RandomXapiValueGenerator {
         }
 
         return false;
+    }
+
+    private static void throwMismatch(List<Object> statementPath, Class<?> fomType) 
+            throws InjectionDatatypeMismatchException {
+        String message = String.format("Mismatch between statement path %s and FOM type %s", statementPath.toString(), fomType.toString());
+        throw new InjectionDatatypeMismatchException(message);
     }
 
     private static final List<List<Object>> numericPaths = List.of(
