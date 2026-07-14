@@ -25,6 +25,7 @@ import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 import com.yetanalytics.hlaxapi.injection.ObjectInjectionContext;
+import com.yetanalytics.hlaxapi.injection.RandomXapiValueGenerator;
 
 import hla.rti1516e.encoding.ByteWrapper;
 import hla.rti1516e.encoding.DataElement;
@@ -69,6 +70,12 @@ public class InjectionHandler {
 
         PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), t.parts);
         Object result = null;
+
+        if (context.isValidationInjection()){
+            result = RandomXapiValueGenerator.getRandomValue(context.getStatementPath(), t, null);
+            return ValueResolution.present(result);
+        }
+
         if (pcr.exists) {
             try {
                 result = hlaDecoderRegistry.decode(pcr.primitiveType, value);
