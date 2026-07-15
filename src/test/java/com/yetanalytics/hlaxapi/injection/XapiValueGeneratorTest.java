@@ -4,12 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.InjectionHandler;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.TriggerProcessor;
+import com.yetanalytics.hlaxapi.TriggerProcessor.TriggerProcessingResult;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger.Type;
@@ -53,56 +57,34 @@ class XapiValueGeneratorTest {
 
     /**Possibly break out into validation injection tests */
 
-    @Test
-    void injectsRandomValuesForTemplate() {
-        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-                "config/HlaFedereplFOM.xml");
-        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
-        InjectionHandler ih = new InjectionHandler();
-        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
-        ih.setHLADecoderRegistry(decoderRegistry);
+    private record XapiValidationTestEntry (String statement, InjectionContext ic, boolean pass, String errorSubString) {}
 
-        TriggerProcessor tp = new TriggerProcessor(ih);
-        String statementTemplate = """
-                {
-                    "actor": {
-                        "objectType": "Agent",
-                        "name": ["trigger", ["PredatorType"]],
-                        "account": {
-                            "homePage": "https://hla-federepl.example/entities",
-                            "name": ["trigger", ["PredatorId"]]
-                        }
-                    },
-                    "verb": {
-                        "id": "http://example.com/verbs/ate",
-                        "display": {"en-US": "Ate"}
-                    },
-                    "object": {
-                        "id": ["trigger", ["PreyId"]]
+    List<XapiValidationTestEntry> testList = List.of(
+        new XapiValidationTestEntry(
+            """
+            {
+                "actor": {
+                    "objectType": "Agent",
+                    "name": ["trigger", ["PredatorType"]],
+                    "account": {
+                        "homePage": "https://hla-federepl.example/entities",
+                        "name": ["trigger", ["PredatorId"]]
                     }
+                },
+                "verb": {
+                    "id": "http://example.com/verbs/ate",
+                    "display": {"en-US": "Ate"}
+                },
+                "object": {
+                    "id": ["trigger", ["PreyId"]]
                 }
-                """;
-        InteractionInjectionContext iic = new InteractionInjectionContext("EntityAte", null);
-        iic.setValidationInjection(true);
-        StatementTrigger st = new StatementTrigger();
-        st.type = Type.INTERACTION;
-        st.statement = statementTemplate;
-
-        String result = tp.processTrigger(st, iic);
-        assertNotNull(result);
-    }
-
-    @Test
-    void injectsMismatchValuesForTemplate() {
-        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
-                "config/HlaFedereplFOM.xml");
-        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
-        InjectionHandler ih = new InjectionHandler();
-        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
-        ih.setHLADecoderRegistry(decoderRegistry);
-
-        TriggerProcessor tp = new TriggerProcessor(ih);
-        String statementTemplate = """
+            }
+            """,
+            new InteractionInjectionContext("EntityAte", null),
+            true, null
+        ),
+        new XapiValidationTestEntry(
+            """
                 {
                     "actor": {
                         "name": ["trigger", ["PredatorType"]],
@@ -116,14 +98,42 @@ class XapiValueGeneratorTest {
                     },
                     "result": {"score": {"min": ["trigger", ["PreyId"]]}}
                 }
-                """;
-        InteractionInjectionContext iic = new InteractionInjectionContext("EntityAte", null);
-        iic.setValidationInjection(true);
-        StatementTrigger st = new StatementTrigger();
-        st.type = Type.INTERACTION;
-        st.statement = statementTemplate;
+            """,
+            new InteractionInjectionContext("EntityAte", null),
+            false,
+            "Mismatch between statement path [result, score, min] and FOM type class java.lang.String"
+        )
+    );
 
-        String result = tp.processTrigger(st, iic);
-        assertNotNull(result);
+
+
+
+    @Test
+    void validationInjectionTests() {
+        SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
+                "config/HlaFedereplFOM.xml");
+        HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(new HLA1516eEncoderFactory());
+        InjectionHandler ih = new InjectionHandler();
+        ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
+        ih.setHLADecoderRegistry(decoderRegistry);
+
+        TriggerProcessor tp = new TriggerProcessor(ih);
+        for (XapiValidationTestEntry testEntry : testList) {
+            testEntry.ic.setValidationInjection(true);
+            StatementTrigger st = new StatementTrigger();
+            st.type = (testEntry.ic instanceof InteractionInjectionContext) ? Type.INTERACTION : Type.OBJECT_UPDATE;
+            st.clazz = testEntry.ic.getHlaClass();
+            st.statement = testEntry.statement;
+            TriggerProcessingResult result = tp.processTrigger(st, testEntry.ic);
+            if (testEntry.pass) {
+                assertTrue(result.success());
+                assertNotNull(result.statement());
+            } else {
+                assertFalse(result.success());
+                assertNull(result.statement());
+                assertNotNull(result.error());
+                assertTrue(result.error().getMessage().contains(testEntry.errorSubString()));
+            }
+        }
     }
 }

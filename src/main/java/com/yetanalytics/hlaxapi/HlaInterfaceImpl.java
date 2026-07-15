@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.yetanalytics.hlaxapi.TriggerProcessor.TriggerProcessingResult;
 import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -407,11 +408,16 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                     .forEach(trigger -> {
                         logger.trace("Processing trigger for interaction {}", trigger.clazz);
                         // TODO: this is nullable, implement DLQ
-                        String xapi = triggerProcessor.processTrigger(trigger, context);
-                        try {
-                            xapiClient.sendStatement(xapi);
-                        } catch (Exception e) {
-                            logger.error("Error parsing or posting statement {}", xapi, e);
+                        TriggerProcessingResult result = triggerProcessor.processTrigger(trigger, context);
+                        if (result.success()){
+                            try {
+                                xapiClient.sendStatement(result.statement());
+                            } catch (Exception e) {
+                                logger.error("Error parsing or posting statement {}", result.statement(), e);
+                            }
+                        } else {
+                            logger.error("Error processing Interaction: {}", result.error().getMessage(),
+                                result.error());
                         }
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {

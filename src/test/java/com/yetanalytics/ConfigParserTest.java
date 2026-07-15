@@ -95,7 +95,7 @@ public class ConfigParserTest {
             assertNotNull(trigger.statement);
             logger.info(trigger);
 
-            String statement = triggerProcessor.processTrigger(trigger, injectionContext);
+            String statement = triggerProcessor.processTrigger(trigger, injectionContext).statement();
             logger.info(statement);
             assertEquals(statement, CONFIG_STATEMENT_RESULT);
 
@@ -337,7 +337,7 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
-        String out = triggerProcessor.processTrigger(st, injectionContext);
+        String out = triggerProcessor.processTrigger(st, injectionContext).statement();
         assertNotNull(out);
         // Expect the placeholder to be replaced by the parameter value inside the string
         assertTrue(out.contains("predator-entity-uuid-123-prey"));
@@ -363,7 +363,7 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
-        String out = triggerProcessor.processTrigger(st, injectionContext);
+        String out = triggerProcessor.processTrigger(st, injectionContext).statement();
         assertNotNull(out);
         assertTrue(out.contains("from=entity-001, to=entity-001"));
     }
@@ -384,7 +384,7 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
-        String out = triggerProcessor.processTrigger(st, injectionContext);
+        String out = triggerProcessor.processTrigger(st, injectionContext).statement();
         assertNotNull(out);
         assertTrue(out.contains("\"name\":\"[alpha, beta]\""));
     }
@@ -410,7 +410,8 @@ public class ConfigParserTest {
 
         String output = new TriggerProcessor(ih).processTrigger(
                 trigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(output);
         assertEquals(List.of(
@@ -462,7 +463,8 @@ public class ConfigParserTest {
 
         String out = triggerProcessor.processTrigger(
                 trigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(out);
         assertEquals(1, resolveCount.get());
@@ -483,13 +485,15 @@ public class ConfigParserTest {
 
         String out = new TriggerProcessor(ih).processTrigger(
                 trigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNull(out);
 
         String optionalOut = new TriggerProcessor(ih).processTrigger(
                 lookupTrigger("[\"lookup\", \"predator\", [\"EntityId\"], {\"required\": false}]"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(optionalOut);
         assertTrue(optionalOut.contains("\"name\":null"));
@@ -514,7 +518,8 @@ public class ConfigParserTest {
 
         String out = new TriggerProcessor(ih).processTrigger(
                 trigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNull(out);
 
@@ -522,7 +527,8 @@ public class ConfigParserTest {
                 "[\"lookup\", \"predator\", [\"Nickname\"], {\"required\": false}]");
         String optionalOut = new TriggerProcessor(ih).processTrigger(
                 optionalTrigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(optionalOut);
         assertTrue(optionalOut.contains("\"name\":null"));
@@ -546,13 +552,14 @@ public class ConfigParserTest {
 
         assertNull(triggerProcessor.processTrigger(
                 lookupTrigger("[\"lookup\", \"predator\", [\"Nickname\"]]"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement());
 
         StatementTrigger nullableTrigger = lookupTrigger(
                 "\"the <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"nullable\\\": true}]>>\"");
         String out = triggerProcessor.processTrigger(
                 nullableTrigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(out);
         assertTrue(out.contains("\"name\":\"the null\""));
@@ -561,7 +568,8 @@ public class ConfigParserTest {
                 "\"optional <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"required\\\": false}]>>\"");
         String optionalOut = triggerProcessor.processTrigger(
                 optionalTrigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(optionalOut);
         assertTrue(optionalOut.contains("\"name\":\"optional null\""));
@@ -588,19 +596,19 @@ public class ConfigParserTest {
 
         assertNull(triggerProcessor.processTrigger(
                 statementTrigger("{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50]]}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement());
         assertNull(triggerProcessor.processTrigger(
                 statementTrigger("{\"actor\":{\"name\":[\"trigger\",[\"MissingParam\"]]}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement());
 
         String optionalQueryOut = triggerProcessor.processTrigger(
                 statementTrigger(
                         "{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50],{\"required\":false}]}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement();
         String optionalThisOut = triggerProcessor.processTrigger(
                 statementTrigger(
                         "{\"actor\":{\"name\":\"value=<<[\\\"trigger\\\",[\\\"MissingParam\\\"],{\\\"required\\\":false}]>>\"}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement();
 
         assertNotNull(optionalQueryOut);
         assertTrue(optionalQueryOut.contains("\"name\":null"));

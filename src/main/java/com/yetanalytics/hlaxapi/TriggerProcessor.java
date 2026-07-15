@@ -1,5 +1,6 @@
 package com.yetanalytics.hlaxapi;
 
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -20,6 +22,7 @@ import com.yetanalytics.hlaxapi.cache.ValueResolution;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.exception.InjectionDatatypeMismatchException;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InjectionOptions;
@@ -46,7 +49,9 @@ public class TriggerProcessor {
         this.injectionHandler = injectionHandler;
     }
 
-    public String processTrigger(StatementTrigger trigger, InjectionContext context) {
+    public record TriggerProcessingResult(String statement, boolean success, Throwable error){}
+
+    public TriggerProcessingResult processTrigger(StatementTrigger trigger, InjectionContext context) {
         if (trigger == null || trigger.statement == null) {
             return null;
         }
@@ -59,13 +64,10 @@ public class TriggerProcessor {
 
             String output = mapper.writeValueAsString(processed);
             logger.trace("Processed statement output: {}", output);
-            return output;
-        } catch (RequiredInjectionException e) {
-            logger.error("Could not process trigger {}.{}: {}", trigger.type, trigger.clazz, e.getMessage());
-            return null;
+            return new TriggerProcessingResult(output, true, null);
         } catch (Exception e) {
-            logger.debug("Could not process statement for trigger", e);
-            return null;
+            logger.error("Could not process trigger %s.%s: %s", trigger.type, trigger.clazz, e.getMessage(), e);
+            return new TriggerProcessingResult(null, false, e);
         }
     }
 
@@ -86,96 +88,85 @@ public class TriggerProcessor {
             InjectionContext context,
             ObjectMapper mapper,
             Map<String, CachedObject> lookupObjects,
-            List<Object> statementPath) {
+            List<Object> statementPath) throws JsonProcessingException {
         if (node == null || node.isNull())
             return node;
 
-        try {
-            if (node.isObject()) {
-                // no injection possible, just process children
-                ObjectNode out = mapper.createObjectNode();
-                node.fieldNames().forEachRemaining(field -> {
-                    JsonNode child = node.get(field);
-                    JsonNode processedChild = processNode(
-                            child,
-                            context,
-                            mapper,
-                            lookupObjects,
-                            appendPath(statementPath, field));
-                    out.set(field, processedChild);
-                });
-                return out;
+        if (node.isObject()) {
+            // no injection possible, just process children
+            ObjectNode out = mapper.createObjectNode();
+            Iterator<String> fields = node.fieldNames();
+            while(fields.hasNext()){
+                String field = fields.next();
+                JsonNode child = node.get(field);
+                JsonNode processedChild = processNode(
+                        child,
+                        context,
+                        mapper,
+                        lookupObjects,
+                        appendPath(statementPath, field));
+                out.set(field, processedChild);
             }
-
-            if (node.isArray()) {
-                ParseResult parsed = StatementInjectionParser.parse(node);
-                if (parsed.recognized()) {
-                    return parsed.valid()
-                            ? handleInjection(parsed.injection(), context, mapper, false, lookupObjects, statementPath)
-                            : NullNode.instance;
-                }
-                ArrayNode out = mapper.createArrayNode();
-                for (int index = 0; index < node.size(); index++) {
-                    out.add(processNode(
-                            node.get(index),
-                            context,
-                            mapper,
-                            lookupObjects,
-                            appendPath(statementPath, index)));
-                }
-                return out;
-            }
-
-            if (node.isTextual()) {
-                String txt = node.asText();
-                List<InlineInjection> injections = StatementInjectionParser.findInline(txt);
-                if (injections.isEmpty()) {
-                    return node;
-                }
-
-                StringBuilder rendered = new StringBuilder();
-                int cursor = 0;
-                for (InlineInjection inline : injections) {
-                    rendered.append(txt, cursor, inline.start());
-                    try {
-                        JsonNode repNode = null;
-                        if (inline.result().valid()) {
-                            repNode = handleInjection(
-                                    inline.result().injection(),
-                                    context,
-                                    mapper,
-                                    true,
-                                    lookupObjects,
-                                    statementPath);
-                        } else if (inline.result().recognized()) {
-                            repNode = NullNode.instance;
-                        }
-                        if (repNode == null) {
-                            rendered.append(inline.source());
-                        } else {
-                            String replacementText = repNode.isValueNode()
-                                    ? repNode.asText()
-                                    : mapper.writeValueAsString(repNode);
-                            rendered.append(replacementText);
-                        }
-                    } catch (RequiredInjectionException e) {
-                        throw e;
-                    } catch (Exception e) {
-                        rendered.append(inline.source());
-                    }
-                    cursor = inline.end();
-                }
-                rendered.append(txt, cursor, txt.length());
-                return TextNode.valueOf(rendered.toString());
-            }
-
-            return node;
-        } catch (RequiredInjectionException e) {
-            throw e;
-        } catch (Exception e) {
-            logger.debug("Error processing node", e);
-            return node;
+            return out;
         }
+
+        if (node.isArray()) {
+            ParseResult parsed = StatementInjectionParser.parse(node);
+            if (parsed.recognized()) {
+                return parsed.valid()
+                        ? handleInjection(parsed.injection(), context, mapper, false, lookupObjects, statementPath)
+                        : NullNode.instance;
+            }
+            ArrayNode out = mapper.createArrayNode();
+            for (int index = 0; index < node.size(); index++) {
+                out.add(processNode(
+                        node.get(index),
+                        context,
+                        mapper,
+                        lookupObjects,
+                        appendPath(statementPath, index)));
+            }
+            return out;
+        }
+
+        if (node.isTextual()) {
+            String txt = node.asText();
+            List<InlineInjection> injections = StatementInjectionParser.findInline(txt);
+            if (injections.isEmpty()) {
+                return node;
+            }
+
+            StringBuilder rendered = new StringBuilder();
+            int cursor = 0;
+            for (InlineInjection inline : injections) {
+                rendered.append(txt, cursor, inline.start());
+                JsonNode repNode = null;
+                if (inline.result().valid()) {
+                    repNode = handleInjection(
+                            inline.result().injection(),
+                            context,
+                            mapper,
+                            true,
+                            lookupObjects,
+                            statementPath);
+                } else if (inline.result().recognized()) {
+                    repNode = NullNode.instance;
+                }
+                if (repNode == null) {
+                    rendered.append(inline.source());
+                } else {
+                    String replacementText = repNode.isValueNode()
+                            ? repNode.asText()
+                            : mapper.writeValueAsString(repNode);
+                    rendered.append(replacementText);
+                }
+                cursor = inline.end();
+            }
+            rendered.append(txt, cursor, txt.length());
+            return TextNode.valueOf(rendered.toString());
+        }
+
+        return node;
     }
 
     private JsonNode handleInjection(
@@ -217,10 +208,10 @@ public class TriggerProcessor {
                         embedded,
                         mapper);
             }
-        } catch (RequiredInjectionException e) {
+        } catch (RequiredInjectionException | InjectionDatatypeMismatchException e) {
             throw e;
         } catch (Exception e) {
-            logger.debug("Error handling statement injection", e);
+            logger.error("Error handling statement injection", e);
         } finally {
             context.setStatementPath(previousPath);
         }

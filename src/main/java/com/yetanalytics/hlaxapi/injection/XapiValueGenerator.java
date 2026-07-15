@@ -1,9 +1,5 @@
 package com.yetanalytics.hlaxapi.injection;
 
-import com.yetanalytics.hlaxapi.InjectionHandler;
-import com.yetanalytics.hlaxapi.config.model.Target;
-import com.yetanalytics.hlaxapi.exception.InjectionDatatypeMismatchException;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -11,6 +7,9 @@ import java.util.UUID;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.exception.InjectionDatatypeMismatchException;
 
 public class XapiValueGenerator {
 
@@ -26,19 +25,20 @@ public class XapiValueGenerator {
     private static final Boolean DEFAULT_BOOLEAN = true;
 
     private static final Set<Class<?>> STRING_CLASSES = Set.of(String.class, byte[].class, Byte.class, Character.class);
-    private static final Set<Class<?>> NUMERIC_CLASSES = Set.of(Integer.class, Long.class, Double.class, Float.class, Short.class);
+    private static final Set<Class<?>> NUMERIC_CLASSES = Set.of(Integer.class, Long.class, Double.class, Float.class,
+            Short.class);
     private static final Set<Class<?>> BOOLEAN_CLASSES = Set.of(Boolean.class);
 
-    public static Object getRandomValue(List<Object> statementPath, Target target, String objectType, Class<?> hlaJavaType) 
-            throws InjectionDatatypeMismatchException {
+    public static Object getRandomValue(List<Object> statementPath, Target target, String objectType,
+            Class<?> hlaJavaType) throws InjectionDatatypeMismatchException {
         if (statementPath == null || statementPath.isEmpty()) {
             return null;
         }
-        
+
         List<List<Object>> uriCandidates = new ArrayList<>(uriPaths);
         List<List<Object>> uuidCandidates = new ArrayList<>(uuidPaths);
 
-        //handle object.id changing types for different statement types
+        // handle object.id changing types for different statement types
         if (objectType != null && ("StatementRef".equals(objectType) || "SubStatement".equals(objectType))) {
             uuidCandidates.add(List.of("object", "id"));
         } else if (objectType == null || "Activity".equals(objectType)) {
@@ -122,9 +122,10 @@ public class XapiValueGenerator {
         return false;
     }
 
-    private static void throwMismatch(List<Object> statementPath, Class<?> fomType) 
+    private static void throwMismatch(List<Object> statementPath, Class<?> fomType)
             throws InjectionDatatypeMismatchException {
-        String message = String.format("Mismatch between statement path %s and FOM type %s", statementPath.toString(), fomType.toString());
+        String message = String.format("Mismatch between statement path %s and FOM type %s", statementPath.toString(),
+                fomType.toString());
         throw new InjectionDatatypeMismatchException(message);
     }
 
@@ -132,27 +133,22 @@ public class XapiValueGenerator {
             List.of("result", "score", "scaled"),
             List.of("result", "score", "raw"),
             List.of("result", "score", "min"),
-            List.of("result", "score", "max")
-    );
+            List.of("result", "score", "max"));
 
     private static final List<List<Object>> booleanPaths = List.of(
             List.of("result", "success"),
-            List.of("result", "completion")
-    );
+            List.of("result", "completion"));
 
     private static final List<List<Object>> durationPaths = List.of(
-            List.of("result", "duration")
-    );
+            List.of("result", "duration"));
 
     private static final List<List<Object>> uuidPaths = List.of(
             List.of("context", "registration"),
-            List.of("id")
-    );
+            List.of("id"));
 
     private static final List<List<Object>> timestampPaths = List.of(
             List.of("timestamp"),
-            List.of("stored")
-    );
+            List.of("stored"));
 
     private static final List<List<Object>> mboxPaths = List.of(
             List.of("actor", "mbox"),
@@ -161,8 +157,7 @@ public class XapiValueGenerator {
             List.of("object", "member", "*", "mbox"),
             List.of("context", "instructor", "mbox"),
             List.of("context", "instructor", "member", "*", "mbox"),
-            List.of("context", "team", "member", "*", "mbox")
-    );
+            List.of("context", "team", "member", "*", "mbox"));
 
     private static final List<List<Object>> sha1Paths = List.of(
             List.of("actor", "mbox_sha1sum"),
@@ -171,8 +166,7 @@ public class XapiValueGenerator {
             List.of("object", "member", "*", "mbox_sha1sum"),
             List.of("context", "instructor", "mbox_sha1sum"),
             List.of("context", "instructor", "member", "*", "mbox_sha1sum"),
-            List.of("context", "team", "member", "*", "mbox_sha1sum")
-    );
+            List.of("context", "team", "member", "*", "mbox_sha1sum"));
 
     private static final List<List<Object>> uriPaths = List.of(
             List.of("actor", "openid"),
@@ -192,8 +186,7 @@ public class XapiValueGenerator {
             List.of("object", "definition", "moreInfo"),
             List.of("context", "contextActivities", "*", "*", "id"),
             List.of("context", "contextActivities", "*", "*", "definition", "type"),
-            List.of("context", "contextActivities", "*", "*", "definition", "moreInfo")            
-    );
+            List.of("context", "contextActivities", "*", "*", "definition", "moreInfo"));
 
     private static String randomString() {
         return "random-" + UUID.randomUUID().toString().substring(0, 8);
