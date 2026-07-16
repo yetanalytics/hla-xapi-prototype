@@ -1,0 +1,328 @@
+package com.yetanalytics.hlaxapi.cache;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+final class JdbcObjectCacheStore implements ObjectCacheStore {
+
+    private static final int SCHEMA_VERSION = 1;
+
+    private final ObjectCacheQueries queries;
+    private final ObjectMapper mapper = new ObjectMapper();
+    private Connection connection;
+
+    JdbcObjectCacheStore(Connection connection, ObjectCacheQueries queries, FomCatalog catalog) throws SQLException {
+        this.connection = Objects.requireNonNull(connection, "connection");
+        this.queries = Objects.requireNonNull(queries, "queries");
+        initialize(Objects.requireNonNull(catalog, "catalog"));
+    }
+
+    @Override
+    public boolean isOpen() {
+        return connection != null;
+    }
+
+    @Override
+    public CachedObject ensureObject(
+            String objectHandle,
+            String objectName,
+            FomCatalog.ObjectClassDef clazz) {
+        try (PreparedStatement statement = connection.prepareStatement(queries.upsertObject())) {
+            statement.setString(1, Objects.requireNonNull(objectHandle, "objectHandle"));
+            statement.setString(2, objectName);
+            statement.setInt(3, clazz.id());
+            statement.setString(4, java.time.Instant.now().toString());
+            statement.executeUpdate();
+            return loadObject(objectHandle, clazz.localName());
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not upsert object instance " + objectHandle, e);
+        }
+    }
+
+    @Override
+    public void removeObject(String objectHandle, String removedAt) {
+        try (PreparedStatement statement = connection.prepareStatement(queries.removeObject())) {
+            statement.setString(1, removedAt);
+            statement.setString(2, objectHandle);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not mark object removed: " + objectHandle, e);
+        }
+    }
+
+    @Override
+    public Optional<CachedValue> findCurrentValue(long instanceId, String pathKey) {
+        String normalizedPath = FomCatalog.wildcardArrayIndexes(pathKey);
+        try (PreparedStatement statement = connection.prepareStatement(queries.findCurrentValue())) {
+            statement.setLong(1, instanceId);
+            statement.setString(2, pathKey);
+            statement.setString(3, normalizedPath);
+            statement.setString(4, pathKey);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(readCachedValue(resultSet));
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not read current cached value", e);
+        }
+    }
+
+    @Override
+    public Optional<CachedValue> findCurrentValue(String objectHandle, String pathKey) {
+        try (PreparedStatement statement = connection.prepareStatement(queries.findObjectId())) {
+            statement.setString(1, objectHandle);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return findCurrentValue(resultSet.getLong("id"), pathKey);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not read object handle: " + objectHandle, e);
+        }
+    }
+
+    @Override
+    public List<CachedObject> currentObjects(FomCatalog.ObjectClassDef clazz) {
+        List<CachedObject> objects = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(queries.listCurrentObjects())) {
+            statement.setInt(1, clazz.id());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    objects.add(new CachedObject(
+                            resultSet.getLong("id"),
+                            resultSet.getString("object_handle"),
+                            resultSet.getString("object_name"),
+                            clazz.localName()));
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(
+                    "Could not list cached objects for class " + clazz.localName(), e);
+        }
+        return objects;
+    }
+
+    @Override
+    public void upsertCurrentValue(
+            long instanceId,
+            FomCatalog.ObjectClassDef clazz,
+            DecodedAttributeValue value,
+            String observedAt,
+            long observedSequence) {
+        attributeIdForPath(clazz, value.pathKey()).ifPresent(attributeId -> upsertCurrentValue(
+                instanceId,
+                attributeId,
+                value,
+                observedAt,
+                observedSequence));
+    }
+
+    @Override
+    public Connection connection() {
+        return connection;
+    }
+
+    @Override
+    public void close() {
+        if (connection == null) {
+            return;
+        }
+        try {
+            connection.close();
+            connection = null;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not close HLA object cache", e);
+        }
+    }
+
+    private void initialize(FomCatalog catalog) throws SQLException {
+        executeStatements(queries.connectionSetupStatements());
+        boolean autoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            executeStatements(queries.resetSchemaStatements());
+            executeStatements(queries.createSchemaStatements());
+            insertSchemaVersion();
+            insertClasses(catalog);
+            insertAttributes(catalog);
+            if (queries.afterSeedFomMetadata().isPresent()) {
+                executeStatements(List.of(queries.afterSeedFomMetadata().orElseThrow()));
+            }
+            connection.commit();
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(autoCommit);
+        }
+    }
+
+    private void executeStatements(List<String> statements) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            for (String sql : statements) {
+                statement.execute(sql);
+            }
+        }
+    }
+
+    private void insertSchemaVersion() throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(queries.insertSchemaVersion())) {
+            statement.setInt(1, SCHEMA_VERSION);
+            statement.executeUpdate();
+        }
+    }
+
+    private void insertClasses(FomCatalog catalog) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(queries.insertClass())) {
+            for (FomCatalog.ObjectClassDef clazz : catalog.objectClasses()) {
+                statement.setInt(1, clazz.id());
+                statement.setString(2, clazz.hlaName());
+                statement.setString(3, clazz.localName());
+                statement.setString(4, clazz.parentName());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    private void insertAttributes(FomCatalog catalog) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(queries.insertAttribute())) {
+            for (FomCatalog.ObjectClassDef clazz : catalog.objectClasses()) {
+                for (FomCatalog.FomAttribute attribute : clazz.attributes()) {
+                    statement.setInt(1, attribute.id());
+                    statement.setInt(2, attribute.classId());
+                    statement.setString(3, attribute.attributeName());
+                    statement.setString(4, attribute.pathKey());
+                    statement.setString(5, attribute.dataType());
+                    statement.setString(6, attribute.primitiveType());
+                    statement.setInt(7, attribute.leaf() ? 1 : 0);
+                    statement.addBatch();
+                }
+            }
+            statement.executeBatch();
+        }
+    }
+
+    private CachedObject loadObject(String objectHandle, String className) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(queries.loadObject())) {
+            statement.setString(1, objectHandle);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    throw new SQLException("Object instance was not inserted: " + objectHandle);
+                }
+                return new CachedObject(
+                        resultSet.getLong("id"),
+                        objectHandle,
+                        resultSet.getString("object_name"),
+                        className);
+            }
+        }
+    }
+
+    private void upsertCurrentValue(
+            long instanceId,
+            int attributeId,
+            DecodedAttributeValue value,
+            String observedAt,
+            long observedSequence) {
+        try (PreparedStatement statement = connection.prepareStatement(queries.upsertCurrentValue())) {
+            Object objectValue = value.value();
+            String valueType = CachedValue.valueType(objectValue);
+            statement.setLong(1, instanceId);
+            statement.setInt(2, attributeId);
+            statement.setString(3, valueType);
+            if (objectValue instanceof byte[] bytes) {
+                statement.setBytes(4, bytes);
+                statement.setNull(5, Types.VARCHAR);
+            } else {
+                statement.setNull(4, queries.binaryJdbcType());
+                statement.setString(5, serializeJson(objectValue));
+            }
+            statement.setBytes(6, value.rawBytes());
+            statement.setString(7, observedAt);
+            statement.setLong(8, observedSequence);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not upsert current object attribute", e);
+        }
+    }
+
+    private Optional<Integer> attributeIdForPath(FomCatalog.ObjectClassDef clazz, String pathKey) {
+        Optional<Integer> existingId = attributeIdFromDatabase(clazz.id(), pathKey);
+        if (existingId.isPresent()) {
+            return existingId;
+        }
+
+        String wildcardPath = FomCatalog.wildcardArrayIndexes(pathKey);
+        FomCatalog.FomAttribute template = clazz.attribute(wildcardPath).orElse(null);
+        if (template == null || wildcardPath.equals(pathKey)) {
+            return Optional.empty();
+        }
+
+        try (PreparedStatement statement = connection.prepareStatement(queries.insertDynamicAttribute())) {
+            statement.setInt(1, clazz.id());
+            statement.setString(2, template.attributeName());
+            statement.setString(3, pathKey);
+            statement.setString(4, template.dataType());
+            statement.setString(5, template.primitiveType());
+            statement.setInt(6, template.leaf() ? 1 : 0);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not insert dynamic FOM attribute path " + pathKey, e);
+        }
+        return attributeIdFromDatabase(clazz.id(), pathKey);
+    }
+
+    private Optional<Integer> attributeIdFromDatabase(int classId, String pathKey) {
+        try (PreparedStatement statement = connection.prepareStatement(queries.findAttributeId())) {
+            statement.setInt(1, classId);
+            statement.setString(2, pathKey);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return Optional.of(resultSet.getInt("id"));
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not read FOM attribute path " + pathKey, e);
+        }
+        return Optional.empty();
+    }
+
+    private String serializeJson(Object value) throws SQLException {
+        try {
+            return mapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new SQLException("Could not serialize cached value as JSON", e);
+        }
+    }
+
+    private CachedValue readCachedValue(ResultSet resultSet) throws SQLException {
+        String valueType = resultSet.getString("value_type");
+        byte[] rawBytes = resultSet.getBytes("raw_bytes");
+        if ("blob".equals(valueType)) {
+            return new CachedValue(valueType, resultSet.getBytes("value_blob"), rawBytes);
+        }
+        String valueJson = resultSet.getString("value_json");
+        if (valueJson == null) {
+            return new CachedValue(valueType, null, rawBytes);
+        }
+        try {
+            return new CachedValue(valueType, mapper.readValue(valueJson, Object.class), rawBytes);
+        } catch (JsonProcessingException e) {
+            throw new SQLException("Could not deserialize cached value JSON", e);
+        }
+    }
+}

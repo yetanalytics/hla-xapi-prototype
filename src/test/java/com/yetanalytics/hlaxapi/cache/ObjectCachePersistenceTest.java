@@ -22,28 +22,26 @@ import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.EncoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.HLAfixedRecord;
-import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
-final class ObjectCachePersistenceTest {
+abstract class ObjectCachePersistenceTest {
 
-    private final EncoderFactory encoderFactory = new HLA1516eEncoderFactory();
-    private final HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(encoderFactory);
-    private final FOMXML fomXml = new FOMXML(
+    protected final EncoderFactory encoderFactory = new HLA1516eEncoderFactory();
+    protected final HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(encoderFactory);
+    protected final FOMXML fomXml = new FOMXML(
             new SimulationConfig(null, null, null, null, "config/HlaFedereplFOM.xml"),
             decoderRegistry);
-    private final FomCatalog catalog = new FomCatalog(fomXml);
+    protected final FomCatalog catalog = new FomCatalog(fomXml);
 
     @Test
     void initializesSchemaAndSeedsFomMetadata() throws SQLException {
         try (ObjectCache cache = newCache()) {
-            assertEquals(1, scalarLong(cache, "PRAGMA user_version"));
+            assertEquals(1, scalarLong(cache, "SELECT schema_version FROM object_cache_metadata"));
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_attribute WHERE path_key = 'Position.X'") > 0);
         }
@@ -149,10 +147,8 @@ final class ObjectCachePersistenceTest {
     }
 
     @Test
-    void persistentCacheStartsFreshOnInitialization(@TempDir Path tempDir) throws SQLException {
-        String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("cache.sqlite");
-
-        try (ObjectCache cache = newCache(jdbcUrl)) {
+    void persistentCacheStartsFreshOnInitialization() throws SQLException {
+        try (ObjectCache cache = newCache("fresh-start")) {
             cache.discoverObject("object-1", "Rabbit One", "Rabbit");
             cache.reflectAttributeValue("object-1", "Rabbit", "Hunger",
                     encoded(encoderFactory.createHLAinteger32BE(75)));
@@ -161,22 +157,20 @@ final class ObjectCachePersistenceTest {
             assertEquals(1, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
         }
 
-        try (ObjectCache cache = newCache(jdbcUrl)) {
+        try (ObjectCache cache = newCache("fresh-start")) {
             assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_instance"));
             assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
         }
     }
 
-    private ObjectCache newCache() {
-        return newCache("jdbc:sqlite::memory:");
+    protected ObjectCache newCache() {
+        return newCache("default");
     }
 
-    private ObjectCache newCache(String jdbcUrl) {
-        return new ObjectCache(enabledConfig(), catalog, fomXml, decoderRegistry, jdbcUrl);
-    }
+    protected abstract ObjectCache newCache(String name);
 
-    private XapiConfig enabledConfig() {
+    protected XapiConfig enabledConfig() {
         TrackedObject trackedObject = new TrackedObject();
         trackedObject.clazz = "Rabbit";
         trackedObject.allAttributes = true;
@@ -187,14 +181,14 @@ final class ObjectCachePersistenceTest {
         return config;
     }
 
-    private byte[] position(int x, int y) {
+    protected byte[] position(int x, int y) {
         HLAfixedRecord record = encoderFactory.createHLAfixedRecord();
         record.add(encoderFactory.createHLAinteger32BE(x));
         record.add(encoderFactory.createHLAinteger32BE(y));
         return encoded(record);
     }
 
-    private byte[] encoded(DataElement element) {
+    protected byte[] encoded(DataElement element) {
         try {
             return element.toByteArray();
         } catch (EncoderException e) {
@@ -202,18 +196,18 @@ final class ObjectCachePersistenceTest {
         }
     }
 
-    private long count(ObjectCache cache, String sql) throws SQLException {
+    protected long count(ObjectCache cache, String sql) throws SQLException {
         return scalarLong(cache, sql);
     }
 
-    private long scalarLong(ObjectCache cache, String sql) throws SQLException {
+    protected long scalarLong(ObjectCache cache, String sql) throws SQLException {
         try (PreparedStatement statement = cache.connection().prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()) {
             return resultSet.next() ? resultSet.getLong(1) : 0L;
         }
     }
 
-    private byte[] rawBytes(ObjectCache cache, String pathKey) throws SQLException {
+    protected byte[] rawBytes(ObjectCache cache, String pathKey) throws SQLException {
         String sql = """
                 SELECT c.raw_bytes
                 FROM object_attribute_current c

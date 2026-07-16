@@ -9,6 +9,7 @@ import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
+import com.yetanalytics.hlaxapi.config.model.ObjectCacheBackend;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
@@ -54,6 +55,17 @@ class ObjectCacheTest {
             assertTrue(cache.subscriptions().isEmpty());
             assertFalse(cache.findFirstValue("Rabbit", new Target(List.of("Hunger")), null).isPresent());
             assertFalse(Files.exists(databasePath));
+        }
+    }
+
+    @Test
+    void disabledPostgresqlCacheDoesNotRequireConnectionSettings() {
+        XapiConfig config = new XapiConfig();
+        config.objectCacheConfig = new ObjectCacheConfig();
+        config.objectCacheConfig.backend = ObjectCacheBackend.POSTGRESQL;
+
+        try (ObjectCache cache = new ObjectCache(config, catalog, fomXml, decoderRegistry)) {
+            assertFalse(cache.isEnabled());
         }
     }
 
