@@ -28,7 +28,7 @@ class XapiValueGeneratorTest {
     void usesPresetUriForObjectIdPaths() {
         Object value = XapiValueGenerator.getRandomValue(
                 List.of("object", "id"), 
-                new Target(List.of("object", "id")), "Activity", String.class);
+                new Target(List.of("object", "id")), "Activity", String.class, false);
 
         assertInstanceOf(String.class, value);
         assertEquals("https://example.com/object", value);
@@ -38,7 +38,7 @@ class XapiValueGeneratorTest {
     void usesPresetUuidForObjectIdPaths() {
         Object value = XapiValueGenerator.getRandomValue(
                 List.of("object", "id"), 
-                new Target(List.of("object", "id")), "StatementRef", String.class);
+                new Target(List.of("object", "id")), "StatementRef", String.class, false);
 
         assertInstanceOf(String.class, value);
         assertEquals("00000000-0000-4000-8000-000000000000", value);
@@ -48,7 +48,7 @@ class XapiValueGeneratorTest {
     void returnsRandomStringForActorNamePaths() {
         Object value = XapiValueGenerator.getRandomValue(
                 List.of("actor", "name"), 
-                new Target(List.of("actor", "name")), "Activity", String.class);
+                new Target(List.of("actor", "name")), "Activity", String.class, false);
 
         assertNotNull(value);
         assertInstanceOf(String.class, value);
@@ -102,10 +102,91 @@ class XapiValueGeneratorTest {
             new InteractionInjectionContext("EntityAte", null),
             false,
             "Mismatch between statement path [result, score, min] and FOM type class java.lang.String"
+        ),
+        // Numeric in result.duration
+        new XapiValidationTestEntry(
+            """
+            {
+                "result": {"duration": ["trigger", ["StepNumber"]]}
+            }
+            """,
+            new InteractionInjectionContext("StepCompleted", null),
+            false,
+            "Mismatch"
+        ),
+        // Numeric in embedded result.duration, ignore HLA type and feed generative value
+        new XapiValidationTestEntry(
+            """
+            {
+                "result": {"duration": "PT<<[\\"trigger\\", [\\"StepNumber\\"]]>>S"}
+            }
+            """,
+            new InteractionInjectionContext("StepCompleted", null),
+            true,
+            null
+        ),
+        
+        // InitializeWorld with string in InitialCarrots path (type mismatch)
+        new XapiValidationTestEntry(
+            """
+            {
+                "context": {"language": ["trigger", ["InitialCarrots"]]}
+            }
+            """,
+            new InteractionInjectionContext("InitializeWorld", null),
+            false,
+            "Mismatch between statement path [context, language] and FOM type class java.lang.Integer"
+        ),
+        // EntityCreated with type mismatch on Position parameter (expecting GridPosition, not string)
+        new XapiValidationTestEntry(
+            """
+            {
+                "context": {
+                    "contextActivities": {
+                        "grouping": ["trigger", ["Position"]]
+                    }
+                }
+            }
+            """,
+            new InteractionInjectionContext("EntityCreated", null),
+            false,
+            "Mismatch between statement path [context, contextActivities, grouping] and FOM type"
+        ),
+        // SimulationParametersChanged with float CarrotGrowthRate
+        new XapiValidationTestEntry(
+            """
+            {
+                "result": {"completion": ["trigger", ["CarrotGrowthRate"]]}
+            }
+            """,
+            new InteractionInjectionContext("SimulationParametersChanged", null),
+            true, null
+        ),
+        // SimulationParametersChanged with string in MaxRabbitHunger (integer expected)
+        new XapiValidationTestEntry(
+            """
+            {
+                "context": {"language": ["trigger", ["MaxRabbitHunger"]]}
+            }
+            """,
+            new InteractionInjectionContext("SimulationParametersChanged", null),
+            false,
+            "Mismatch between statement path [context, language] and FOM type class java.lang.String"
         )
     );
 
-
+     List<XapiValidationTestEntry> testList1 = List.of(
+        new XapiValidationTestEntry(
+            """
+            {
+                "context": {"language": ["trigger", ["InitialCarrots"]]}
+            }
+            """,
+            new InteractionInjectionContext("InitializeWorld", null),
+            false,
+            "Mismatch between statement path [context, language] and FOM type class java.lang.Integer"
+        )
+     );
 
 
     @Test
@@ -136,4 +217,15 @@ class XapiValueGeneratorTest {
             }
         }
     }
+    @Test
+    public void stringFuckery() {
+        String thing = """
+                {
+                "result": {"duration": "PT<<[\\"trigger\\", [\\"StepNumber\\"]]>>S"}
+                }
+                """;
+        assertNotNull(thing);
+    }
 }
+
+

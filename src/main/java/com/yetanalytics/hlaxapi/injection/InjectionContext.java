@@ -7,6 +7,7 @@ public abstract class InjectionContext {
     private String hlaClass;
     private List<Object> statementPath = List.of();
     private boolean validationInjection = false;
+    private Boolean embedded;
 
     public String getHlaClass() {
         return hlaClass;
@@ -35,5 +36,13 @@ public abstract class InjectionContext {
 
     public void setValidationInjection(boolean validationInjection) {
         this.validationInjection = validationInjection;
+    }
+
+    public void setEmbedded(Boolean embedded) {
+        this.embedded = embedded;
+    }
+
+    public boolean isEmbedded() {
+        return embedded;
     }
 }

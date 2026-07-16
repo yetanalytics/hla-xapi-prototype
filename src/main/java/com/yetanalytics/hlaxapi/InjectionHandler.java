@@ -71,7 +71,7 @@ public class InjectionHandler {
         if (context.isValidationInjection()){
             Class<?> hlaJavaType = null;
             if (pcr.exists) hlaJavaType = hlaDecoderRegistry.getClassForType(pcr.primitiveType);
-            result = XapiValueGenerator.getRandomValue(context.getStatementPath(), t, null, hlaJavaType);
+            result = XapiValueGenerator.getRandomValue(context.getStatementPath(), t, null, hlaJavaType, context.isEmbedded());
             return ValueResolution.present(result);
         }
 

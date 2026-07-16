@@ -22,6 +22,7 @@ public class XapiValueGenerator {
     private static final String DEFAULT_SHA1 = "7f5fba166bdface761c25e91cab0744eb5f56d90";
     private static final Double DEFAULT_NUMERIC = 0.5;
     private static final String DEFAULT_DURATION = "PT1S";
+    private static final String DEFAULT_LANGUAGE = "en-us";
     private static final Boolean DEFAULT_BOOLEAN = true;
 
     private static final Set<Class<?>> STRING_CLASSES = Set.of(String.class, byte[].class, Byte.class, Character.class);
@@ -30,7 +31,7 @@ public class XapiValueGenerator {
     private static final Set<Class<?>> BOOLEAN_CLASSES = Set.of(Boolean.class);
 
     public static Object getRandomValue(List<Object> statementPath, Target target, String objectType,
-            Class<?> hlaJavaType) throws InjectionDatatypeMismatchException {
+            Class<?> hlaJavaType, boolean embedded) throws InjectionDatatypeMismatchException {
         if (statementPath == null || statementPath.isEmpty()) {
             return null;
         }
@@ -46,43 +47,39 @@ public class XapiValueGenerator {
         }
 
         if (containsPath(uriCandidates, statementPath)) {
-            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, STRING_CLASSES, hlaJavaType, embedded);
             return DEFAULT_URI;
         }
         if (containsPath(uuidCandidates, statementPath)) {
-            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, STRING_CLASSES, hlaJavaType, embedded);
             return DEFAULT_UUID;
         }
         if (containsPath(timestampPaths, statementPath)) {
-            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, STRING_CLASSES, hlaJavaType, embedded);
             return DEFAULT_TIMESTAMP;
         }
         if (containsPath(numericPaths, statementPath)) {
-            if (hlaJavaType != null && !NUMERIC_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, NUMERIC_CLASSES, hlaJavaType, embedded);
             return DEFAULT_NUMERIC;
         }
         if (containsPath(booleanPaths, statementPath)) {
-            if (hlaJavaType != null && !BOOLEAN_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, BOOLEAN_CLASSES, hlaJavaType, embedded);
             return DEFAULT_BOOLEAN;
         }
         if (containsPath(durationPaths, statementPath)) {
-            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, STRING_CLASSES, hlaJavaType, embedded);
             return DEFAULT_DURATION;
         }
         if (containsPath(mboxPaths, statementPath)) {
-            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, STRING_CLASSES, hlaJavaType, embedded);
             return DEFAULT_MBOX;
         }
+        if (containsPath(languagePaths, statementPath)) {
+            detectFOMMismatch(statementPath, STRING_CLASSES, hlaJavaType, embedded);
+            return DEFAULT_LANGUAGE;
+        }
         if (containsPath(sha1Paths, statementPath)) {
-            if (hlaJavaType != null && !STRING_CLASSES.contains(hlaJavaType))
-                throwMismatch(statementPath, hlaJavaType);
+            detectFOMMismatch(statementPath, STRING_CLASSES, hlaJavaType, embedded);
             return DEFAULT_SHA1;
         }
 
@@ -118,15 +115,16 @@ public class XapiValueGenerator {
                 return true;
             }
         }
-
         return false;
     }
 
-    private static void throwMismatch(List<Object> statementPath, Class<?> fomType)
-            throws InjectionDatatypeMismatchException {
-        String message = String.format("Mismatch between statement path %s and FOM type %s", statementPath.toString(),
-                fomType.toString());
-        throw new InjectionDatatypeMismatchException(message);
+    private static void detectFOMMismatch(List<Object> statementPath, Set<Class<?>> candidates, Class<?> fomType, 
+            boolean embedded) throws InjectionDatatypeMismatchException {
+        if (!embedded && fomType != null && !candidates.contains(fomType)){
+            String message = String.format("Mismatch between statement path %s and FOM type %s", 
+                    statementPath.toString(), fomType.toString());
+            throw new InjectionDatatypeMismatchException(message);
+        }
     }
 
     private static final List<List<Object>> numericPaths = List.of(
@@ -141,6 +139,9 @@ public class XapiValueGenerator {
 
     private static final List<List<Object>> durationPaths = List.of(
             List.of("result", "duration"));
+
+    private static final List<List<Object>> languagePaths = List.of(
+            List.of("context", "language"));
 
     private static final List<List<Object>> uuidPaths = List.of(
             List.of("context", "registration"),

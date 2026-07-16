@@ -158,6 +158,12 @@ public class TriggerProcessor {
                     String replacementText = repNode.isValueNode()
                             ? repNode.asText()
                             : mapper.writeValueAsString(repNode);
+                    //if this is a validation run, just short circuit the embedded injection 
+                    // and return an appropriate example datatype. We cannot validate the 
+                    // correctness of composite strings
+                    if (context.isValidationInjection()) {
+                        return TextNode.valueOf(replacementText);
+                    }
                     rendered.append(replacementText);
                 }
                 cursor = inline.end();
@@ -178,6 +184,7 @@ public class TriggerProcessor {
             List<Object> statementPath) {
         List<Object> previousPath = context.getStatementPath();
         context.setStatementPath(statementPath);
+        context.setEmbedded(embedded);
         try {
             if (injection instanceof TriggerInjection triggerInjection) {
                 return renderResolution(
