@@ -83,9 +83,7 @@ final class PostgresqlObjectCacheQueries implements ObjectCacheQueries {
                     sequence BIGINT NOT NULL,
                     PRIMARY KEY(instance_id, attribute_id)
                 )
-                """,
-                "CREATE UNIQUE INDEX idx_object_handle ON object_instance(object_handle)",
-                "CREATE INDEX idx_fom_attribute_class_path ON fom_attribute(class_id, path_key)");
+                """);
     }
 
     @Override
