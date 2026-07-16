@@ -280,12 +280,22 @@ Select PostgreSQL in the xAPI configuration:
 }
 ```
 
+For local development, start the included PostgreSQL 17 service:
+
+```shell
+docker compose up -d --wait postgres
+```
+
+The service listens on `localhost:5432` and uses a named volume with database `hla_xapi`, username `hla_xapi`, and
+password `hla_xapi_dev`. Stop it with `docker compose down`. To also delete its data and start with an empty database,
+run `docker compose down -v`.
+
 Then provide the connection settings at runtime:
 
 ```shell
 HLA_OBJECT_CACHE_JDBC_URL=jdbc:postgresql://localhost:5432/hla_xapi \
 HLA_OBJECT_CACHE_USERNAME=hla_xapi \
-HLA_OBJECT_CACHE_PASSWORD=secret \
+HLA_OBJECT_CACHE_PASSWORD=hla_xapi_dev \
 HLA_OBJECT_CACHE_SCHEMA=hla_object_cache \
 make run-dev
 ```
