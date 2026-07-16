@@ -136,14 +136,13 @@ public class ObjectCache implements AutoCloseable {
         List<DecodedAttributeValue> values = valueFlattener.flatten(attributeName, topAttribute.dataType(), bytes);
         String observedAt = Instant.now().toString();
         long observedSequence = sequence.incrementAndGet();
-        for (DecodedAttributeValue value : values) {
-            store.upsertCurrentValue(
-                    object.id(),
-                    clazz,
-                    value,
-                    observedAt,
-                    observedSequence);
-        }
+        store.replaceCurrentValues(
+                object.id(),
+                clazz,
+                attributeName,
+                values,
+                observedAt,
+                observedSequence);
     }
 
     public synchronized void removeObject(String objectHandle) {

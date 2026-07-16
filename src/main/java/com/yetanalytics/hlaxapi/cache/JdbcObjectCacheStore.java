@@ -116,18 +116,36 @@ final class JdbcObjectCacheStore implements ObjectCacheStore {
     }
 
     @Override
-    public void upsertCurrentValue(
+    public void replaceCurrentValues(
             long instanceId,
             FomCatalog.ObjectClassDef clazz,
-            DecodedAttributeValue value,
+            String attributeName,
+            List<DecodedAttributeValue> values,
             String observedAt,
             long observedSequence) {
-        attributeIdForPath(clazz, value.pathKey()).ifPresent(attributeId -> upsertCurrentValue(
-                instanceId,
-                attributeId,
-                value,
-                observedAt,
-                observedSequence));
+        boolean autoCommit = currentAutoCommit();
+        try {
+            connection.setAutoCommit(false);
+            deleteCurrentValues(instanceId, clazz.id(), attributeName);
+            for (DecodedAttributeValue value : values) {
+                Optional<Integer> attributeId = attributeIdForPath(clazz, value.pathKey());
+                if (attributeId.isPresent()) {
+                    upsertCurrentValue(
+                            instanceId,
+                            attributeId.orElseThrow(),
+                            value,
+                            observedAt,
+                            observedSequence);
+                }
+            }
+            connection.commit();
+        } catch (SQLException | RuntimeException e) {
+            rollbackAfterReplacementFailure(e);
+            throw new IllegalStateException(
+                    "Could not replace current object attribute " + attributeName, e);
+        } finally {
+            restoreAutoCommit(autoCommit);
+        }
     }
 
     @Override
@@ -232,12 +250,21 @@ final class JdbcObjectCacheStore implements ObjectCacheStore {
         }
     }
 
+    private void deleteCurrentValues(long instanceId, int classId, String attributeName) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(queries.deleteCurrentValues())) {
+            statement.setLong(1, instanceId);
+            statement.setInt(2, classId);
+            statement.setString(3, attributeName);
+            statement.executeUpdate();
+        }
+    }
+
     private void upsertCurrentValue(
             long instanceId,
             int attributeId,
             DecodedAttributeValue value,
             String observedAt,
-            long observedSequence) {
+            long observedSequence) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(queries.upsertCurrentValue())) {
             Object objectValue = value.value();
             String valueType = CachedValue.valueType(objectValue);
@@ -255,12 +282,10 @@ final class JdbcObjectCacheStore implements ObjectCacheStore {
             statement.setString(7, observedAt);
             statement.setLong(8, observedSequence);
             statement.executeUpdate();
-        } catch (SQLException e) {
-            throw new IllegalStateException("Could not upsert current object attribute", e);
         }
     }
 
-    private Optional<Integer> attributeIdForPath(FomCatalog.ObjectClassDef clazz, String pathKey) {
+    private Optional<Integer> attributeIdForPath(FomCatalog.ObjectClassDef clazz, String pathKey) throws SQLException {
         Optional<Integer> existingId = attributeIdFromDatabase(clazz.id(), pathKey);
         if (existingId.isPresent()) {
             return existingId;
@@ -280,13 +305,11 @@ final class JdbcObjectCacheStore implements ObjectCacheStore {
             statement.setString(5, template.primitiveType());
             statement.setInt(6, template.leaf() ? 1 : 0);
             statement.executeUpdate();
-        } catch (SQLException e) {
-            throw new IllegalStateException("Could not insert dynamic FOM attribute path " + pathKey, e);
         }
         return attributeIdFromDatabase(clazz.id(), pathKey);
     }
 
-    private Optional<Integer> attributeIdFromDatabase(int classId, String pathKey) {
+    private Optional<Integer> attributeIdFromDatabase(int classId, String pathKey) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(queries.findAttributeId())) {
             statement.setInt(1, classId);
             statement.setString(2, pathKey);
@@ -295,10 +318,32 @@ final class JdbcObjectCacheStore implements ObjectCacheStore {
                     return Optional.of(resultSet.getInt("id"));
                 }
             }
-        } catch (SQLException e) {
-            throw new IllegalStateException("Could not read FOM attribute path " + pathKey, e);
         }
         return Optional.empty();
+    }
+
+    private void rollbackAfterReplacementFailure(Exception failure) {
+        try {
+            connection.rollback();
+        } catch (SQLException rollbackError) {
+            failure.addSuppressed(rollbackError);
+        }
+    }
+
+    private boolean currentAutoCommit() {
+        try {
+            return connection.getAutoCommit();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not read object cache auto-commit", e);
+        }
+    }
+
+    private void restoreAutoCommit(boolean autoCommit) {
+        try {
+            connection.setAutoCommit(autoCommit);
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not restore object cache auto-commit", e);
+        }
     }
 
     private String serializeJson(Object value) throws SQLException {

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yetanalytics.hlaxapi.FOMXML;
+import com.yetanalytics.hlaxapi.HLAEncodingTestSupport;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -37,6 +38,10 @@ abstract class ObjectCachePersistenceTest {
             new SimulationConfig(null, null, null, null, "config/HlaFedereplFOM.xml"),
             decoderRegistry);
     protected final FomCatalog catalog = new FomCatalog(fomXml);
+    private final FOMXML dynamicArrayFomXml = new FOMXML(
+            new SimulationConfig(null, null, null, null, "src/test/resources/config/ObjectCacheTestFOM.xml"),
+            decoderRegistry);
+    private final FomCatalog dynamicArrayCatalog = new FomCatalog(dynamicArrayFomXml);
 
     @Test
     void initializesSchemaAndSeedsFomMetadata() throws SQLException {
@@ -79,6 +84,69 @@ abstract class ObjectCachePersistenceTest {
             assertEquals(12, cache.findCurrentValue("object-1", "Position.X").orElseThrow().value());
             assertEquals(8, cache.findCurrentValue("object-1", "Position.Y").orElseThrow().value());
             assertTrue(cache.findCurrentValue("object-1", "Position").orElseThrow().value() instanceof java.util.Map);
+        }
+    }
+
+    @Test
+    void replacesDynamicArrayPathsWhenArrayShrinksAndReusesMetadata() throws SQLException {
+        byte[] hunger = encoded(encoderFactory.createHLAinteger32BE(75));
+
+        try (ObjectCache cache = newCache(
+                "dynamic-array",
+                enabledConfig(),
+                dynamicArrayCatalog,
+                dynamicArrayFomXml)) {
+            cache.discoverObject("object-1", "Rabbit One", "Rabbit");
+            cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", hunger);
+            cache.reflectAttributeValue(
+                    "object-1",
+                    "Rabbit",
+                    "PositionHistory",
+                    positionHistory(position(1, 2), position(3, 4)));
+
+            assertEquals(2, ((List<?>) cache.findCurrentValue("object-1", "PositionHistory")
+                            .orElseThrow()
+                            .value())
+                    .size());
+            assertEquals(1, cache.findCurrentValue("object-1", "PositionHistory[0].X")
+                    .orElseThrow()
+                    .value());
+            assertEquals(4, cache.findCurrentValue("object-1", "PositionHistory[1].Y")
+                    .orElseThrow()
+                    .value());
+            assertEquals(5, currentValueCount(cache, "PositionHistory"));
+            long secondElementXId = attributeId(cache, "PositionHistory[1].X");
+
+            cache.reflectAttributeValue(
+                    "object-1",
+                    "Rabbit",
+                    "PositionHistory",
+                    positionHistory(position(9, 10)));
+
+            assertEquals(1, ((List<?>) cache.findCurrentValue("object-1", "PositionHistory")
+                            .orElseThrow()
+                            .value())
+                    .size());
+            assertEquals(9, cache.findCurrentValue("object-1", "PositionHistory[0].X")
+                    .orElseThrow()
+                    .value());
+            assertFalse(cache.findCurrentValue("object-1", "PositionHistory[1].X").isPresent());
+            assertFalse(cache.findCurrentValue("object-1", "PositionHistory[1].Y").isPresent());
+            assertEquals(3, currentValueCount(cache, "PositionHistory"));
+            assertEquals(75, cache.findCurrentValue("object-1", "Hunger").orElseThrow().value());
+            assertEquals(secondElementXId, attributeId(cache, "PositionHistory[1].X"));
+
+            cache.reflectAttributeValue(
+                    "object-1",
+                    "Rabbit",
+                    "PositionHistory",
+                    positionHistory(position(11, 12), position(13, 14)));
+
+            assertEquals(13, cache.findCurrentValue("object-1", "PositionHistory[1].X")
+                    .orElseThrow()
+                    .value());
+            assertEquals(5, currentValueCount(cache, "PositionHistory"));
+            assertEquals(secondElementXId, attributeId(cache, "PositionHistory[1].X"));
         }
     }
 
@@ -168,7 +236,15 @@ abstract class ObjectCachePersistenceTest {
         return newCache("default");
     }
 
-    protected abstract ObjectCache newCache(String name);
+    protected ObjectCache newCache(String name) {
+        return newCache(name, enabledConfig(), catalog, fomXml);
+    }
+
+    protected abstract ObjectCache newCache(
+            String name,
+            XapiConfig config,
+            FomCatalog cacheCatalog,
+            FOMXML cacheFomXml);
 
     protected XapiConfig enabledConfig() {
         TrackedObject trackedObject = new TrackedObject();
@@ -186,6 +262,10 @@ abstract class ObjectCachePersistenceTest {
         record.add(encoderFactory.createHLAinteger32BE(x));
         record.add(encoderFactory.createHLAinteger32BE(y));
         return encoded(record);
+    }
+
+    protected byte[] positionHistory(byte[]... positions) {
+        return HLAEncodingTestSupport.variableArray(positions);
     }
 
     protected byte[] encoded(DataElement element) {
@@ -218,6 +298,31 @@ abstract class ObjectCachePersistenceTest {
             statement.setString(1, pathKey);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next() ? resultSet.getBytes(1) : null;
+            }
+        }
+    }
+
+    private long currentValueCount(ObjectCache cache, String attributeName) throws SQLException {
+        String sql = """
+                SELECT COUNT(*)
+                FROM object_attribute_current c
+                JOIN fom_attribute a ON a.id = c.attribute_id
+                WHERE a.attribute_name = ?
+                """;
+        try (PreparedStatement statement = cache.connection().prepareStatement(sql)) {
+            statement.setString(1, attributeName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong(1) : 0L;
+            }
+        }
+    }
+
+    private long attributeId(ObjectCache cache, String pathKey) throws SQLException {
+        try (PreparedStatement statement = cache.connection()
+                        .prepareStatement("SELECT id FROM fom_attribute WHERE path_key = ?")) {
+            statement.setString(1, pathKey);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong(1) : 0L;
             }
         }
     }

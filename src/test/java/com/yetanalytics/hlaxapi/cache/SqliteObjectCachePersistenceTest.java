@@ -2,6 +2,8 @@ package com.yetanalytics.hlaxapi.cache;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.yetanalytics.hlaxapi.FOMXML;
+import com.yetanalytics.hlaxapi.config.XapiConfig;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import org.junit.jupiter.api.Test;
@@ -13,11 +15,15 @@ final class SqliteObjectCachePersistenceTest extends ObjectCachePersistenceTest 
     private Path tempDir;
 
     @Override
-    protected ObjectCache newCache(String name) {
+    protected ObjectCache newCache(
+            String name,
+            XapiConfig config,
+            FomCatalog cacheCatalog,
+            FOMXML cacheFomXml) {
         return new ObjectCache(
-                enabledConfig(),
-                catalog,
-                fomXml,
+                config,
+                cacheCatalog,
+                cacheFomXml,
                 decoderRegistry,
                 "jdbc:sqlite:" + tempDir.resolve(name + ".sqlite"));
     }

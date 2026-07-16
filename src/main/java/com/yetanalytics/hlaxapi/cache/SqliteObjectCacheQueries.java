@@ -158,6 +158,19 @@ final class SqliteObjectCacheQueries implements ObjectCacheQueries {
     }
 
     @Override
+    public String deleteCurrentValues() {
+        return """
+                DELETE FROM object_attribute_current
+                WHERE instance_id = ?
+                    AND attribute_id IN (
+                        SELECT id
+                        FROM fom_attribute
+                        WHERE class_id = ? AND attribute_name = ?
+                    )
+                """;
+    }
+
+    @Override
     public String upsertCurrentValue() {
         return """
                 INSERT INTO object_attribute_current

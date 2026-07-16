@@ -32,6 +32,8 @@ interface ObjectCacheQueries {
 
     String listCurrentObjects();
 
+    String deleteCurrentValues();
+
     String upsertCurrentValue();
 
     String insertDynamicAttribute();

@@ -3,6 +3,8 @@ package com.yetanalytics.hlaxapi.cache;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.yetanalytics.hlaxapi.FOMXML;
+import com.yetanalytics.hlaxapi.config.XapiConfig;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -23,14 +25,18 @@ final class PostgresqlObjectCachePersistenceTest extends ObjectCachePersistenceT
             .withTmpFs(Map.of("/var/lib/postgresql/data", "rw"));
 
     @Override
-    protected ObjectCache newCache(String name) {
+    protected ObjectCache newCache(
+            String name,
+            XapiConfig config,
+            FomCatalog cacheCatalog,
+            FOMXML cacheFomXml) {
         String schema = "hla_object_cache_test_" + name.replace('-', '_');
         ObjectCacheConnectionSettings settings = ObjectCacheConnectionSettings.postgresql(
                 POSTGRESQL.getJdbcUrl(),
                 POSTGRESQL.getUsername(),
                 POSTGRESQL.getPassword(),
                 schema);
-        return new ObjectCache(enabledConfig(), catalog, fomXml, decoderRegistry, settings);
+        return new ObjectCache(config, cacheCatalog, cacheFomXml, decoderRegistry, settings);
     }
 
     @Test
