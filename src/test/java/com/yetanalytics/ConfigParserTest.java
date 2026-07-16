@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
+import com.yetanalytics.hlaxapi.config.model.ObjectCacheBackend;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
@@ -147,6 +149,7 @@ public class ConfigParserTest {
         Files.writeString(configPath, """
                 {
                     "objectCache": {
+                        "backend": "PostgreSQL",
                         "trackedObjects": [
                             {"class": "Rabbit", "attributes": ["EntityId", "Hunger"]},
                             {"class": "World", "allAttributes": true},
@@ -159,6 +162,7 @@ public class ConfigParserTest {
         XapiConfig config = ConfigParser.fromFile(configPath.toString()).parse();
 
         assertNotNull(config.objectCacheConfig);
+        assertEquals(ObjectCacheBackend.POSTGRESQL, config.objectCacheConfig.backend);
         assertNotNull(config.objectCacheConfig.trackedObjects);
         assertEquals(3, config.objectCacheConfig.trackedObjects.size());
         assertEquals("Rabbit", config.objectCacheConfig.trackedObjects.get(0).clazz);
@@ -166,6 +170,24 @@ public class ConfigParserTest {
         assertTrue(config.objectCacheConfig.trackedObjects.get(1).allAttributes);
         assertEquals("*", config.objectCacheConfig.trackedObjects.get(2).clazz);
         assertTrue(config.objectCacheConfig.trackedObjects.get(2).allAttributes);
+    }
+
+    @Test
+    public void defaultsObjectCacheBackendToSqlite(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, "{\"objectCache\": {}}");
+
+        XapiConfig config = ConfigParser.fromFile(configPath.toString()).parse();
+
+        assertEquals(ObjectCacheBackend.SQLITE, config.objectCacheConfig.backend);
+    }
+
+    @Test
+    public void rejectsUnknownObjectCacheBackend(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, "{\"objectCache\": {\"backend\": \"mysql\"}}");
+
+        assertThrows(IllegalArgumentException.class, () -> ConfigParser.fromFile(configPath.toString()).parse());
     }
 
     @Test
