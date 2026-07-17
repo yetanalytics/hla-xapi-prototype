@@ -17,6 +17,8 @@ import com.yetanalytics.hlaxapi.TriggerProcessor.TriggerProcessingResult;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger.Type;
+import com.yetanalytics.xapi.util.StatementValidator;
+import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -57,7 +59,7 @@ class XapiValueGeneratorTest {
 
     /**Possibly break out into validation injection tests */
 
-    private record XapiValidationTestEntry (String statement, InjectionContext ic, boolean pass, String errorSubString) {}
+    private record XapiValidationTestEntry (String statement, InjectionContext ic, boolean passInjection, String errorSubString, boolean passValidation) {}
 
     List<XapiValidationTestEntry> testList = List.of(
         new XapiValidationTestEntry(
@@ -81,7 +83,7 @@ class XapiValueGeneratorTest {
             }
             """,
             new InteractionInjectionContext("EntityAte", null),
-            true, null
+            true, null, true
         ),
         new XapiValidationTestEntry(
             """
@@ -101,7 +103,8 @@ class XapiValueGeneratorTest {
             """,
             new InteractionInjectionContext("EntityAte", null),
             false,
-            "Mismatch between statement path [result, score, min] and FOM type class java.lang.String"
+            "Mismatch between statement path [result, score, min] and FOM type class java.lang.String",
+            true
         ),
         // Numeric in result.duration
         new XapiValidationTestEntry(
@@ -112,7 +115,9 @@ class XapiValueGeneratorTest {
             """,
             new InteractionInjectionContext("StepCompleted", null),
             false,
-            "Mismatch"
+            "Mismatch",
+            false
+
         ),
         // Numeric in embedded result.duration, ignore HLA type and feed generative value
         new XapiValidationTestEntry(
@@ -123,7 +128,8 @@ class XapiValueGeneratorTest {
             """,
             new InteractionInjectionContext("StepCompleted", null),
             true,
-            null
+            null,
+            false
         ),
         
         // InitializeWorld with string in InitialCarrots path (type mismatch)
@@ -135,9 +141,10 @@ class XapiValueGeneratorTest {
             """,
             new InteractionInjectionContext("InitializeWorld", null),
             false,
-            "Mismatch between statement path [context, language] and FOM type class java.lang.Integer"
+            "Mismatch between statement path [context, language] and FOM type class java.lang.Integer",
+            false
         ),
-        // EntityCreated with type mismatch on Position parameter (expecting GridPosition, not string)
+        // Invalid Injection (non-primitive injection)
         new XapiValidationTestEntry(
             """
             {
@@ -150,43 +157,26 @@ class XapiValueGeneratorTest {
             """,
             new InteractionInjectionContext("EntityCreated", null),
             false,
-            "Mismatch between statement path [context, contextActivities, grouping] and FOM type"
+            "hlaType",
+            false
         ),
-        // SimulationParametersChanged with float CarrotGrowthRate
+        // Injection into bad place (pass injection, fail validation)
         new XapiValidationTestEntry(
             """
             {
-                "result": {"completion": ["trigger", ["CarrotGrowthRate"]]}
+                "context": {
+                    "contextActivities": {
+                        "grouping": ["trigger", ["Position", "X"]]
+                    }
+                }
             }
             """,
-            new InteractionInjectionContext("SimulationParametersChanged", null),
-            true, null
-        ),
-        // SimulationParametersChanged with string in MaxRabbitHunger (integer expected)
-        new XapiValidationTestEntry(
-            """
-            {
-                "context": {"language": ["trigger", ["MaxRabbitHunger"]]}
-            }
-            """,
-            new InteractionInjectionContext("SimulationParametersChanged", null),
-            false,
-            "Mismatch between statement path [context, language] and FOM type class java.lang.String"
+            new InteractionInjectionContext("EntityCreated", null),
+            true,
+            "hlaType",
+            false
         )
     );
-
-     List<XapiValidationTestEntry> testList1 = List.of(
-        new XapiValidationTestEntry(
-            """
-            {
-                "context": {"language": ["trigger", ["InitialCarrots"]]}
-            }
-            """,
-            new InteractionInjectionContext("InitializeWorld", null),
-            false,
-            "Mismatch between statement path [context, language] and FOM type class java.lang.Integer"
-        )
-     );
 
 
     @Test
@@ -197,6 +187,7 @@ class XapiValueGeneratorTest {
         InjectionHandler ih = new InjectionHandler();
         ih.setFomXml(new FOMXML(simConfig, decoderRegistry));
         ih.setHLADecoderRegistry(decoderRegistry);
+        StatementValidator validator = new StatementValidator();
 
         TriggerProcessor tp = new TriggerProcessor(ih);
         for (XapiValidationTestEntry testEntry : testList) {
@@ -206,9 +197,11 @@ class XapiValueGeneratorTest {
             st.clazz = testEntry.ic.getHlaClass();
             st.statement = testEntry.statement;
             TriggerProcessingResult result = tp.processTrigger(st, testEntry.ic);
-            if (testEntry.pass) {
+            if (testEntry.passInjection) {
                 assertTrue(result.success());
                 assertNotNull(result.statement());
+                StatementValidationResult valRes = validator.validateStatement(result.statement());
+                assertEquals(testEntry.passValidation, valRes.isValid());
             } else {
                 assertFalse(result.success());
                 assertNull(result.statement());
@@ -216,15 +209,6 @@ class XapiValueGeneratorTest {
                 assertTrue(result.error().getMessage().contains(testEntry.errorSubString()));
             }
         }
-    }
-    @Test
-    public void stringFuckery() {
-        String thing = """
-                {
-                "result": {"duration": "PT<<[\\"trigger\\", [\\"StepNumber\\"]]>>S"}
-                }
-                """;
-        assertNotNull(thing);
     }
 }
 

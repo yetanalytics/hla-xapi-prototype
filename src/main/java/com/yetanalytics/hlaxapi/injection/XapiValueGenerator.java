@@ -118,10 +118,10 @@ public class XapiValueGenerator {
         return false;
     }
 
-    private static void detectFOMMismatch(List<Object> statementPath, Set<Class<?>> candidates, Class<?> fomType, 
+    private static void detectFOMMismatch(List<Object> statementPath, Set<Class<?>> candidates, Class<?> fomType,
             boolean embedded) throws InjectionDatatypeMismatchException {
         if (!embedded && fomType != null && !candidates.contains(fomType)){
-            String message = String.format("Mismatch between statement path %s and FOM type %s", 
+            String message = String.format("Mismatch between statement path %s and FOM type %s",
                     statementPath.toString(), fomType.toString());
             throw new InjectionDatatypeMismatchException(message);
         }

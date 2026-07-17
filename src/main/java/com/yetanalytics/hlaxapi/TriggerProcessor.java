@@ -66,7 +66,7 @@ public class TriggerProcessor {
             logger.trace("Processed statement output: {}", output);
             return new TriggerProcessingResult(output, true, null);
         } catch (Exception e) {
-            logger.error("Could not process trigger %s.%s: %s", trigger.type, trigger.clazz, e.getMessage(), e);
+            logger.error("Could not process trigger {}.{}: {}", trigger.type, trigger.clazz, e.getMessage(), e);
             return new TriggerProcessingResult(null, false, e);
         }
     }
@@ -158,8 +158,8 @@ public class TriggerProcessor {
                     String replacementText = repNode.isValueNode()
                             ? repNode.asText()
                             : mapper.writeValueAsString(repNode);
-                    //if this is a validation run, just short circuit the embedded injection 
-                    // and return an appropriate example datatype. We cannot validate the 
+                    //if this is a validation run, just short circuit the embedded injection
+                    // and return an appropriate example datatype. We cannot validate the
                     // correctness of composite strings
                     if (context.isValidationInjection()) {
                         return TextNode.valueOf(replacementText);
@@ -215,10 +215,9 @@ public class TriggerProcessor {
                         embedded,
                         mapper);
             }
-        } catch (RequiredInjectionException | InjectionDatatypeMismatchException e) {
-            throw e;
         } catch (Exception e) {
             logger.error("Error handling statement injection", e);
+            throw e;
         } finally {
             context.setStatementPath(previousPath);
         }
