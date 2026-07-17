@@ -24,6 +24,7 @@ import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser;
+import com.yetanalytics.hlaxapi.injection.TestInjectionContext;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InjectionOptions;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InlineInjection;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.LookupInjection;
@@ -172,7 +173,7 @@ public class TriggerProcessor {
                     //if this is a validation run, just short circuit the embedded injection
                     // and return an appropriate example datatype. We cannot validate the
                     // correctness of composite strings
-                    if (context.isValidationInjection()) {
+                    if (context instanceof TestInjectionContext) {
                         return TextNode.valueOf(replacementText);
                     }
                     rendered.append(replacementText);

@@ -87,7 +87,7 @@ class XapiValueGeneratorTest {
                 }
             }
             """,
-            new InteractionInjectionContext("EntityAte", null),
+            new TestInjectionContext("EntityAte"),
             true, null, true
         ),
         new XapiValidationTestEntry(
@@ -106,7 +106,7 @@ class XapiValueGeneratorTest {
                     "result": {"score": {"min": ["trigger", ["PreyId"]]}}
                 }
             """,
-            new InteractionInjectionContext("EntityAte", null),
+            new TestInjectionContext("EntityAte"),
             false,
             "Mismatch between statement path [result, score, min] and FOM type class java.lang.String",
             true
@@ -118,7 +118,7 @@ class XapiValueGeneratorTest {
                 "result": {"duration": ["trigger", ["StepNumber"]]}
             }
             """,
-            new InteractionInjectionContext("StepCompleted", null),
+            new TestInjectionContext("StepCompleted"),
             false,
             "Mismatch",
             false
@@ -131,7 +131,8 @@ class XapiValueGeneratorTest {
                 "result": {"duration": "PT<<[\\"trigger\\", [\\"StepNumber\\"]]>>S"}
             }
             """,
-            new InteractionInjectionContext("StepCompleted", null),
+            new TestInjectionContext("StepCompleted"),
+            
             true,
             null,
             false
@@ -144,7 +145,7 @@ class XapiValueGeneratorTest {
                 "context": {"language": ["trigger", ["InitialCarrots"]]}
             }
             """,
-            new InteractionInjectionContext("InitializeWorld", null),
+            new TestInjectionContext("InitializeWorld"),
             false,
             "Mismatch between statement path [context, language] and FOM type class java.lang.Integer",
             false
@@ -160,7 +161,7 @@ class XapiValueGeneratorTest {
                 }
             }
             """,
-            new InteractionInjectionContext("EntityCreated", null),
+            new TestInjectionContext("EntityCreated"),
             false,
             "hlaType",
             false
@@ -176,40 +177,12 @@ class XapiValueGeneratorTest {
                 }
             }
             """,
-            new InteractionInjectionContext("EntityCreated", null),
+            new TestInjectionContext("EntityCreated"),
             true,
             "hlaType",
             false
         )
     );
-
-    List<XapiValidationTestEntry> testList1 = List.of(
-        new XapiValidationTestEntry(
-            """
-            {
-                "actor": {
-                    "objectType": "Agent",
-                    "name": ["trigger", ["PredatorType"]],
-                    "account": {
-                        "homePage": "https://hla-federepl.example/entities",
-                        "name": ["trigger", ["PredatorId"]]
-                    }
-                },
-                "verb": {
-                    "id": "http://example.com/verbs/ate",
-                    "display": {"en-US": "Ate"}
-                },
-                "object": {
-                    "id": ["trigger", ["PreyId"]],
-                    "objectType": "Activity"
-                }
-            }
-            """,
-            new InteractionInjectionContext("EntityAte", null),
-            true, null, true
-        )
-    );
-
 
     @Test
     void validationInjectionTests() {
@@ -222,10 +195,9 @@ class XapiValueGeneratorTest {
         StatementValidator validator = new StatementValidator();
 
         TriggerProcessor tp = new TriggerProcessor(ih);
-        for (XapiValidationTestEntry testEntry : testList1) {
-            testEntry.ic.setValidationInjection(true);
+        for (XapiValidationTestEntry testEntry : testList) {
             StatementTrigger st = new StatementTrigger();
-            st.type = (testEntry.ic instanceof InteractionInjectionContext) ? Type.INTERACTION : Type.OBJECT_UPDATE;
+            st.type = Type.INTERACTION;
             st.clazz = testEntry.ic.getHlaClass();
             st.statement = testEntry.statement;
             TriggerProcessingResult result = tp.processTrigger(st, testEntry.ic);

@@ -25,6 +25,7 @@ import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 import com.yetanalytics.hlaxapi.injection.ObjectInjectionContext;
+import com.yetanalytics.hlaxapi.injection.TestInjectionContext;
 import com.yetanalytics.hlaxapi.injection.XapiValueGenerator;
 
 import hla.rti1516e.encoding.ByteWrapper;
@@ -57,22 +58,24 @@ public class InjectionHandler {
             return handleTrigger(t, (InteractionInjectionContext) context);
         } else if (context instanceof ObjectInjectionContext) {
             return handleTrigger(t, (ObjectInjectionContext) context);
+        } else if (context instanceof TestInjectionContext) {
+            return handleTrigger(t, (TestInjectionContext) context);
         } else {
             throw new IllegalArgumentException("Unsupported InjectionContext type: " + context.getClass().getName());
         }
+    }
+
+    public ValueResolution handleTrigger(Target t, TestInjectionContext context) {
+        PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), t.parts);
+        Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
+        Object result = XapiValueGenerator.getTestValue(context, t, hlaJavaType);
+        return ValueResolution.present(result);
     }
 
     public ValueResolution handleTrigger(Target t, InteractionInjectionContext context) {
 
         PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), t.parts);
         Object result = null;
-
-        // Validation Test-Injection
-        if (context.isValidationInjection()){
-            Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
-            result = XapiValueGenerator.getTestValue(context, t, hlaJavaType);
-            return ValueResolution.present(result);
-        }
 
         //Actual Injection
         byte[] value = interrogateParameters(context.getHlaClass(), true, t.parts, context.getParameterMap());
@@ -241,7 +244,7 @@ public class InjectionHandler {
             InjectionContext context) {
 
         // Validation Test-Injection
-        if (context.isValidationInjection()){
+        if (context instanceof TestInjectionContext){
             PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), attrTarget.parts);
             Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
             Object result = XapiValueGenerator.getTestValue(context, attrTarget, hlaJavaType);
@@ -267,7 +270,7 @@ public class InjectionHandler {
     public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
 
         // Validation Test-Injection
-        if (context.isValidationInjection()){
+        if (context instanceof TestInjectionContext){
             PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), attrTarget.parts);
             Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
             Object result = XapiValueGenerator.getTestValue(context, attrTarget, hlaJavaType);

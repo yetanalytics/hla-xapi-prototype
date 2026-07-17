@@ -6,7 +6,6 @@ public abstract class InjectionContext {
 
     private String hlaClass;
     private List<Object> statementPath = List.of();
-    private boolean validationInjection = false;
     private boolean embedded = false;
     private String objectType;
 
@@ -29,14 +28,6 @@ public abstract class InjectionContext {
 
     public void setStatementPath(List<Object> statementPath) {
         this.statementPath = statementPath == null ? List.of() : List.copyOf(statementPath);
-    }
-
-    public boolean isValidationInjection() {
-        return validationInjection;
-    }
-
-    public void setValidationInjection(boolean validationInjection) {
-        this.validationInjection = validationInjection;
     }
 
     public void setEmbedded(Boolean embedded) {

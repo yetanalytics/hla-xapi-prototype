@@ -20,6 +20,7 @@ import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.exception.XapiConfigurationException;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
+import com.yetanalytics.hlaxapi.injection.TestInjectionContext;
 import com.yetanalytics.xapi.util.StatementValidator;
 import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
@@ -192,9 +193,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
 
     public void validateConfig() throws XapiConfigurationException {
         for(StatementTrigger st : xapiConfig.statementTriggers){
-            InteractionInjectionContext ic = new InteractionInjectionContext(st.clazz, null);
-            ic.setValidationInjection(true);
-            TriggerProcessingResult tpr = triggerProcessor.processTrigger(st, ic);
+            TriggerProcessingResult tpr = triggerProcessor.processTrigger(st, new TestInjectionContext(st.clazz));
             if (tpr.success()) {
                 StatementValidationResult svr = validator.validateStatement(tpr.statement());
                 if (!svr.isValid()){
