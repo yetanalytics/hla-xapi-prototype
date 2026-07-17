@@ -8,10 +8,9 @@ import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
-import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
-import com.yetanalytics.hlaxapi.config.model.ObjectCacheBackend;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
+import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TrackedObject;
@@ -59,12 +58,8 @@ class ObjectCacheTest {
     }
 
     @Test
-    void disabledPostgresqlCacheDoesNotRequireConnectionSettings() {
-        XapiConfig config = new XapiConfig();
-        config.objectCacheConfig = new ObjectCacheConfig();
-        config.objectCacheConfig.backend = ObjectCacheBackend.POSTGRESQL;
-
-        try (ObjectCache cache = new ObjectCache(config, catalog, fomXml, decoderRegistry)) {
+    void disabledCacheDoesNotRequireConnectionSettings() {
+        try (ObjectCache cache = new ObjectCache(new XapiConfig(), catalog, fomXml, decoderRegistry)) {
             assertFalse(cache.isEnabled());
         }
     }

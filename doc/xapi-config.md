@@ -236,7 +236,6 @@ When enabled, the adapter subscribes to the top-level object attributes required
 ```json
 {
   "objectCache": {
-    "backend": "sqlite",
     "trackedObjects": [
       {"class": "Rabbit", "attributes": ["EntityId", "Hunger"]},
       {"class": "World", "allAttributes": true},
@@ -252,7 +251,8 @@ Tracked object fields:
 - `attributes`: Top-level attribute names to subscribe to.
 - `allAttributes`: When `true`, expands to all top-level attributes for the class.
 
-`objectCache.backend` selects `sqlite` or `postgresql` case-insensitively. It defaults to `sqlite`, so existing configurations do not need to change.
+`HLA_OBJECT_CACHE_BACKEND` selects `sqlite` or `postgresql` case-insensitively. It defaults to `sqlite`.
+Backend and connection settings are runtime configuration and cannot be set in the xAPI JSON file.
 
 The cache decodes reflected values using the FOM and stores both top-level values and flattened nested values for fixed records and arrays. For example, reflecting `Position` can make `Position`, `Position.X`, and `Position.Y` available to query and lookup targets.
 
@@ -267,19 +267,6 @@ HLA_OBJECT_CACHE_JDBC_URL=jdbc:sqlite:/path/to/cache.sqlite make run-dev
 
 ### PostgreSQL
 
-Select PostgreSQL in the xAPI configuration:
-
-```json
-{
-  "objectCache": {
-    "backend": "postgresql",
-    "trackedObjects": [
-      {"class": "Rabbit", "allAttributes": true}
-    ]
-  }
-}
-```
-
 For local development, start the included PostgreSQL 17 service:
 
 ```shell
@@ -293,6 +280,7 @@ run `docker compose down -v`.
 Then provide the connection settings at runtime:
 
 ```shell
+HLA_OBJECT_CACHE_BACKEND=postgresql \
 HLA_OBJECT_CACHE_JDBC_URL=jdbc:postgresql://localhost:5432/hla_xapi \
 HLA_OBJECT_CACHE_USERNAME=hla_xapi \
 HLA_OBJECT_CACHE_PASSWORD=hla_xapi_dev \
@@ -300,7 +288,7 @@ HLA_OBJECT_CACHE_SCHEMA=hla_object_cache \
 make run-dev
 ```
 
-`HLA_OBJECT_CACHE_JDBC_URL` is required for PostgreSQL. Username and password are optional when authentication is already present in the JDBC URL or supplied by the driver, but they must be supplied together through these variables when used. The schema defaults to `hla_object_cache` and must be a simple unquoted SQL identifier.
+`HLA_OBJECT_CACHE_BACKEND=postgresql` selects PostgreSQL, and `HLA_OBJECT_CACHE_JDBC_URL` is then required. Username and password are optional when authentication is already present in the JDBC URL or supplied by the driver, but they must be supplied together through these variables when used. The schema defaults to `hla_object_cache` and must be a simple unquoted SQL identifier.
 
 The PostgreSQL account must be able to create and use the configured schema and create, drop, read, and write the cache tables. Assign a separate schema to each running adapter process; concurrent writers must not share one cache schema.
 

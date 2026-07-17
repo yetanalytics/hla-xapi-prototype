@@ -9,7 +9,6 @@ import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
-import com.yetanalytics.hlaxapi.config.model.ObjectCacheBackend;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.TrackedObject;
 
@@ -81,7 +80,6 @@ public class ConfigParser {
         JsonNode oc = root.get("objectCache");
         if (oc != null && oc.isObject()) {
             ObjectCacheConfig objectCacheConfig = new ObjectCacheConfig();
-            objectCacheConfig.backend = ObjectCacheBackend.fromString(oc.path("backend").asText(null));
             JsonNode trackedObjects = oc.get("trackedObjects");
             if (trackedObjects != null && trackedObjects.isArray()) {
                 List<TrackedObject> tracked = new ArrayList<>();

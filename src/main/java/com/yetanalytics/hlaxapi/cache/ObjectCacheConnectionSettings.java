@@ -1,6 +1,5 @@
 package com.yetanalytics.hlaxapi.cache;
 
-import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.ObjectCacheBackend;
 import java.util.Map;
 import java.util.Objects;
@@ -17,13 +16,9 @@ record ObjectCacheConnectionSettings(
     static final String DEFAULT_POSTGRESQL_SCHEMA = "hla_object_cache";
     private static final Pattern SQL_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
-    static ObjectCacheConnectionSettings from(XapiConfig config, Map<String, String> environment) {
+    static ObjectCacheConnectionSettings from(Map<String, String> environment) {
         Objects.requireNonNull(environment, "environment");
-        ObjectCacheBackend backend = config != null
-                        && config.objectCacheConfig != null
-                        && config.objectCacheConfig.backend != null
-                ? config.objectCacheConfig.backend
-                : ObjectCacheBackend.SQLITE;
+        ObjectCacheBackend backend = ObjectCacheBackend.fromString(environment.get("HLA_OBJECT_CACHE_BACKEND"));
         return switch (backend) {
             case SQLITE -> sqlite(environment);
             case POSTGRESQL -> postgresql(environment);

@@ -56,7 +56,7 @@ public class ObjectCache implements AutoCloseable {
         this.queryService = new CacheQueryService(this);
         if (!subscriptions.isEmpty()) {
             ObjectCacheConnectionSettings effectiveSettings = settings == null
-                    ? ObjectCacheConnectionSettings.from(xapiConfig, System.getenv())
+                    ? ObjectCacheConnectionSettings.from(System.getenv())
                     : settings;
             this.store = ObjectCacheStoreFactory.open(effectiveSettings, catalog);
         }
