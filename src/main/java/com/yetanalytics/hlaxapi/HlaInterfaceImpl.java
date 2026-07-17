@@ -18,7 +18,10 @@ import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.exception.XapiConfigurationException;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
+import com.yetanalytics.xapi.util.StatementValidator;
+import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
 import hla.rti1516e.AttributeHandle;
 import hla.rti1516e.AttributeHandleSet;
@@ -89,6 +92,9 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     private TriggerProcessor triggerProcessor;
 
     @Autowired
+    private StatementValidator validator;
+
+    @Autowired
     private ObjectCache objectCache;
 
     @Autowired
@@ -97,7 +103,10 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
-            FederateServiceInvocationsAreBeingReportedViaMOM {
+            FederateServiceInvocationsAreBeingReportedViaMOM, XapiConfigurationException {
+
+        validateConfig();
+
         RtiFactory rtiFactory = RtiFactoryFactory.getRtiFactory();
         ambassador = rtiFactory.getRtiAmbassador();
 
@@ -178,6 +187,24 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             }
         } catch (NotConnected ignored) {
+        }
+    }
+
+    public void validateConfig() throws XapiConfigurationException {
+        for(StatementTrigger st : xapiConfig.statementTriggers){
+            InteractionInjectionContext ic = new InteractionInjectionContext(st.clazz, null);
+            ic.setValidationInjection(true);
+            TriggerProcessingResult tpr = triggerProcessor.processTrigger(st, ic);
+            if (tpr.success()) {
+                StatementValidationResult svr = validator.validateStatement(tpr.statement());
+                if (!svr.isValid()){
+                    logger.error("Invalid Statement Trigger (Invalid xAPI): {}. {}", st, svr.getErrors());
+                    throw new XapiConfigurationException("Could not validate xAPI Configuration");
+                }
+            } else {
+                logger.error("Invalid Statement Trigger (Could not Process): {}. {}", st, tpr.error());
+                throw new XapiConfigurationException("Could not validate xAPI Configuration", tpr.error());
+            }
         }
     }
 

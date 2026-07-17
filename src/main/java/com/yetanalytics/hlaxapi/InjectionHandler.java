@@ -69,14 +69,8 @@ public class InjectionHandler {
 
         // Validation Test-Injection
         if (context.isValidationInjection()){
-            Class<?> hlaJavaType = null;
-            if (pcr.exists) hlaJavaType = hlaDecoderRegistry.getClassForType(pcr.primitiveType);
-            result = XapiValueGenerator.getRandomValue(
-                context.getStatementPath(),
-                t,
-                null,
-                hlaJavaType,
-                context.isEmbedded());
+            Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
+            result = XapiValueGenerator.getTestValue(context, t, hlaJavaType);
             return ValueResolution.present(result);
         }
 
@@ -245,6 +239,15 @@ public class InjectionHandler {
             Target attrTarget,
             Expression criteria,
             InjectionContext context) {
+
+        // Validation Test-Injection
+        if (context.isValidationInjection()){
+            PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), attrTarget.parts);
+            Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
+            Object result = XapiValueGenerator.getTestValue(context, attrTarget, hlaJavaType);
+            return ValueResolution.present(result);
+        }
+
         if (objectCache == null) {
             return ValueResolution.missingObject();
         }
@@ -262,6 +265,15 @@ public class InjectionHandler {
     }
 
     public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
+
+        // Validation Test-Injection
+        if (context.isValidationInjection()){
+            PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), attrTarget.parts);
+            Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
+            Object result = XapiValueGenerator.getTestValue(context, attrTarget, hlaJavaType);
+            return ValueResolution.present(result);
+        }
+
         if (objectCache == null || object == null) {
             return ValueResolution.missingObject();
         }

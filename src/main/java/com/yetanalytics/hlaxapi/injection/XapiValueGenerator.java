@@ -30,8 +30,11 @@ public class XapiValueGenerator {
             Short.class);
     private static final Set<Class<?>> BOOLEAN_CLASSES = Set.of(Boolean.class);
 
-    public static Object getRandomValue(List<Object> statementPath, Target target, String objectType,
-            Class<?> hlaJavaType, boolean embedded) throws InjectionDatatypeMismatchException {
+    public static Object getTestValue(InjectionContext context, Target target, Class<?> hlaJavaType)
+            throws InjectionDatatypeMismatchException {
+        List<Object> statementPath = context.getStatementPath();
+        String objectType = context.getObjectType();
+        boolean embedded = context.isEmbedded();
         if (statementPath == null || statementPath.isEmpty()) {
             return null;
         }

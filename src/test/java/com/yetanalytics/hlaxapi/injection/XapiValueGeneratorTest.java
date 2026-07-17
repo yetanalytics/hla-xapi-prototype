@@ -17,6 +17,7 @@ import com.yetanalytics.hlaxapi.TriggerProcessor.TriggerProcessingResult;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger.Type;
+import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.TriggerInjection;
 import com.yetanalytics.xapi.util.StatementValidator;
 import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
@@ -28,9 +29,10 @@ class XapiValueGeneratorTest {
 
     @Test
     void usesPresetUriForObjectIdPaths() {
-        Object value = XapiValueGenerator.getRandomValue(
-                List.of("object", "id"), 
-                new Target(List.of("object", "id")), "Activity", String.class, false);
+        InjectionContext ctx = new InjectionContext() {};
+        ctx.setStatementPath(List.of("object", "id"));
+        ctx.setObjectType("Activity");
+        Object value = XapiValueGenerator.getTestValue(ctx, new Target(List.of("object", "id")), String.class);
 
         assertInstanceOf(String.class, value);
         assertEquals("https://example.com/object", value);
@@ -38,9 +40,11 @@ class XapiValueGeneratorTest {
 
     @Test
     void usesPresetUuidForObjectIdPaths() {
-        Object value = XapiValueGenerator.getRandomValue(
-                List.of("object", "id"), 
-                new Target(List.of("object", "id")), "StatementRef", String.class, false);
+
+        InjectionContext ctx = new InjectionContext() {};
+        ctx.setStatementPath(List.of("object", "id"));
+        ctx.setObjectType("StatementRef");
+        Object value = XapiValueGenerator.getTestValue(ctx, new Target(List.of("object", "id")), String.class);
 
         assertInstanceOf(String.class, value);
         assertEquals("00000000-0000-4000-8000-000000000000", value);
@@ -48,9 +52,10 @@ class XapiValueGeneratorTest {
 
     @Test
     void returnsRandomStringForActorNamePaths() {
-        Object value = XapiValueGenerator.getRandomValue(
-                List.of("actor", "name"), 
-                new Target(List.of("actor", "name")), "Activity", String.class, false);
+        InjectionContext ctx = new InjectionContext() {};
+        ctx.setStatementPath(List.of("actor", "name"));
+        ctx.setObjectType("StatementRef");
+        Object value = XapiValueGenerator.getTestValue(ctx, new Target(List.of("actor", "name")), String.class);
 
         assertNotNull(value);
         assertInstanceOf(String.class, value);
@@ -160,7 +165,7 @@ class XapiValueGeneratorTest {
             "hlaType",
             false
         ),
-        // Injection into bad place (pass injection, fail validation)
+        // Injection into bad place (pass injection as no rules for location, but fail validation)
         new XapiValidationTestEntry(
             """
             {
@@ -178,6 +183,33 @@ class XapiValueGeneratorTest {
         )
     );
 
+    List<XapiValidationTestEntry> testList1 = List.of(
+        new XapiValidationTestEntry(
+            """
+            {
+                "actor": {
+                    "objectType": "Agent",
+                    "name": ["trigger", ["PredatorType"]],
+                    "account": {
+                        "homePage": "https://hla-federepl.example/entities",
+                        "name": ["trigger", ["PredatorId"]]
+                    }
+                },
+                "verb": {
+                    "id": "http://example.com/verbs/ate",
+                    "display": {"en-US": "Ate"}
+                },
+                "object": {
+                    "id": ["trigger", ["PreyId"]],
+                    "objectType": "Activity"
+                }
+            }
+            """,
+            new InteractionInjectionContext("EntityAte", null),
+            true, null, true
+        )
+    );
+
 
     @Test
     void validationInjectionTests() {
@@ -190,7 +222,7 @@ class XapiValueGeneratorTest {
         StatementValidator validator = new StatementValidator();
 
         TriggerProcessor tp = new TriggerProcessor(ih);
-        for (XapiValidationTestEntry testEntry : testList) {
+        for (XapiValidationTestEntry testEntry : testList1) {
             testEntry.ic.setValidationInjection(true);
             StatementTrigger st = new StatementTrigger();
             st.type = (testEntry.ic instanceof InteractionInjectionContext) ? Type.INTERACTION : Type.OBJECT_UPDATE;

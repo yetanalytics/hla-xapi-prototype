@@ -22,7 +22,6 @@ import com.yetanalytics.hlaxapi.cache.ValueResolution;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
-import com.yetanalytics.hlaxapi.exception.InjectionDatatypeMismatchException;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InjectionOptions;
@@ -59,7 +58,7 @@ public class TriggerProcessor {
         try {
             JsonNode stmtNode = mapper.readTree(trigger.statement);
             Map<String, CachedObject> lookupObjects = resolveLookups(trigger, context);
-
+            context.setObjectType(getObjectType(stmtNode));
             JsonNode processed = processNode(stmtNode, context, mapper, lookupObjects, List.of());
 
             String output = mapper.writeValueAsString(processed);
@@ -69,6 +68,18 @@ public class TriggerProcessor {
             logger.error("Could not process trigger {}.{}: {}", trigger.type, trigger.clazz, e.getMessage(), e);
             return new TriggerProcessingResult(null, false, e);
         }
+    }
+
+    public String getObjectType(JsonNode stmtNode) {
+        try {
+            return stmtNode.get("object").get("objectType").asText();
+        } catch (Exception e) {
+            // if there is any problem whatsoever either the statement is invalid
+            // which is not the concern of this function or the objectType is null
+            // which should be reflected.
+            return null;
+        }
+
     }
 
     private Map<String, CachedObject> resolveLookups(StatementTrigger trigger, InjectionContext context) {
