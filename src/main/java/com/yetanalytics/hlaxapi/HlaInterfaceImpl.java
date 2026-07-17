@@ -193,6 +193,7 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
 
     public void validateConfig() throws XapiConfigurationException {
         for(StatementTrigger st : xapiConfig.statementTriggers){
+            if (st.skipValidation) continue;
             TriggerProcessingResult tpr = triggerProcessor.processTrigger(st, new TestInjectionContext(st.clazz));
             if (tpr.success()) {
                 StatementValidationResult svr = validator.validateStatement(tpr.statement());

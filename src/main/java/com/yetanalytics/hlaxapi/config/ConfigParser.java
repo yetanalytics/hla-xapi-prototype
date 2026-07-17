@@ -54,6 +54,7 @@ public class ConfigParser {
             for (JsonNode tnode : st) {
                 StatementTrigger stt = new StatementTrigger();
                 stt.type = StatementTrigger.Type.fromString(tnode.path("type").asText(null));
+                stt.skipValidation = tnode.path("skipValidation").asBoolean(false);
                 // map "class" json prop to clazz
                 stt.clazz = tnode.path("class").asText(null);
                 Object rawCrit = parseCriteriaNode(tnode.get("criteria"));
