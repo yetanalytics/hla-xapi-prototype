@@ -288,7 +288,8 @@ public class InjectionHandler {
             return expression;
         }
         if (expression instanceof TriggerExpression triggerExpression) {
-            return new ValueExpression(handleTrigger(triggerExpression.target, context));
+            ValueResolution vr = handleTrigger(triggerExpression.target, context);
+            return new ValueExpression(vr.value());
         }
         if (expression instanceof Criterion criterion) {
             return new Criterion(
