@@ -1,5 +1,7 @@
 package com.yetanalytics.hlaxapi;
 
+import com.yetanalytics.hlaxapi.exception.XapiConfigurationException;
+
 import hla.rti1516e.exceptions.ConnectionFailed;
 import hla.rti1516e.exceptions.CouldNotOpenFDD;
 import hla.rti1516e.exceptions.ErrorReadingFDD;
@@ -32,7 +34,8 @@ public interface HlaInterface {
             InvalidLocalSettingsDesignator,
             ErrorReadingFDD,
             CouldNotOpenFDD,
-            InconsistentFDD;
+            InconsistentFDD,
+            XapiConfigurationException;
 
     /**
      * Resign and disconnect from CRC

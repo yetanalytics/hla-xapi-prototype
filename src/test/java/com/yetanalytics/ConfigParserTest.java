@@ -95,7 +95,7 @@ public class ConfigParserTest {
             assertNotNull(trigger.statement);
             logger.info(trigger);
 
-            String statement = triggerProcessor.processTrigger(trigger, injectionContext);
+            String statement = triggerProcessor.processTrigger(trigger, injectionContext).statement();
             logger.info(statement);
             assertEquals(statement, CONFIG_STATEMENT_RESULT);
 
@@ -204,8 +204,8 @@ public class ConfigParserTest {
         InteractionInjectionContext injectionContext = new InteractionInjectionContext("EntityMoved", paramMap);
         com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("FromPosition", "X"));
 
-        Object result = ih.handleTrigger(target, injectionContext);
-        assertEquals(42, result);
+        ValueResolution result = ih.handleTrigger(target, injectionContext);
+        assertEquals(42, result.value());
     }
 
     @Test
@@ -233,8 +233,8 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.Target target = new com.yetanalytics.hlaxapi.config.model.Target(
             java.util.List.of("LocationHistory", 0, "X"));
 
-        Object result = ih.handleTrigger(target, injectionContext);
-        assertEquals(42, result);
+        ValueResolution result = ih.handleTrigger(target, injectionContext);
+        assertEquals(42, result.value());
     }
 
     @Test
@@ -259,11 +259,11 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.Target xTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "X"));
         com.yetanalytics.hlaxapi.config.model.Target yTarget = new com.yetanalytics.hlaxapi.config.model.Target(java.util.List.of("ToPosition", "Y"));
 
-        Object xResult = ih.handleTrigger(xTarget, injectionContext);
-        Object yResult = ih.handleTrigger(yTarget, injectionContext);
+        ValueResolution xResult = ih.handleTrigger(xTarget, injectionContext);
+        ValueResolution yResult = ih.handleTrigger(yTarget, injectionContext);
 
-        assertEquals(5, xResult);
-        assertEquals(7, yResult);
+        assertEquals(5, xResult.value());
+        assertEquals(7, yResult.value());
     }
 
     @Test
@@ -337,7 +337,7 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
-        String out = triggerProcessor.processTrigger(st, injectionContext);
+        String out = triggerProcessor.processTrigger(st, injectionContext).statement();
         assertNotNull(out);
         // Expect the placeholder to be replaced by the parameter value inside the string
         assertTrue(out.contains("predator-entity-uuid-123-prey"));
@@ -363,7 +363,7 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
-        String out = triggerProcessor.processTrigger(st, injectionContext);
+        String out = triggerProcessor.processTrigger(st, injectionContext).statement();
         assertNotNull(out);
         assertTrue(out.contains("from=entity-001, to=entity-001"));
     }
@@ -372,8 +372,8 @@ public class ConfigParserTest {
     public void inlinePlaceholderKeepsWholeValueAsStringWhenInjectionReturnsStructuredData() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
-            public Object handleTrigger(Target t, InjectionContext context) {
-                return List.of("alpha", "beta");
+            public ValueResolution handleTrigger(Target t, InjectionContext context) {
+                return ValueResolution.present(List.of("alpha", "beta"));
             }
         };
 
@@ -384,9 +384,39 @@ public class ConfigParserTest {
         com.yetanalytics.hlaxapi.config.model.StatementTrigger st = new com.yetanalytics.hlaxapi.config.model.StatementTrigger();
         st.statement = stmt;
 
-        String out = triggerProcessor.processTrigger(st, injectionContext);
+        String out = triggerProcessor.processTrigger(st, injectionContext).statement();
         assertNotNull(out);
         assertTrue(out.contains("\"name\":\"[alpha, beta]\""));
+    }
+
+    @Test
+    public void exposesStatementPathForWholeNodeInjections() {
+        List<List<Object>> paths = new ArrayList<>();
+        InjectionHandler ih = new InjectionHandler() {
+            @Override
+            public ValueResolution handleTrigger(Target t, InjectionContext context) {
+                paths.add(context.getStatementPath());
+                return ValueResolution.present("value");
+            }
+        };
+        StatementTrigger trigger = new StatementTrigger();
+        trigger.statement = """
+                {
+                  "actor": {"name": ["trigger", ["Name"]]},
+                  "context": {"extensions": {"https://yetanalytics.com/extensions/from-x": [["trigger", ["FromPosition", "X"]], 4]}
+                  }
+                }
+                """;
+
+        String output = new TriggerProcessor(ih).processTrigger(
+                trigger,
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
+
+        assertNotNull(output);
+        assertEquals(List.of(
+                List.of("actor", "name"),
+                List.of("context", "extensions", "https://yetanalytics.com/extensions/from-x", 0)), paths);
     }
 
     @Test
@@ -401,7 +431,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+            public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
                 assertEquals(matchedObject, object);
                 if (attrTarget.parts.equals(List.of("EntityId"))) {
                     return ValueResolution.present("predator-1");
@@ -433,7 +463,8 @@ public class ConfigParserTest {
 
         String out = triggerProcessor.processTrigger(
                 trigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(out);
         assertEquals(1, resolveCount.get());
@@ -454,13 +485,15 @@ public class ConfigParserTest {
 
         String out = new TriggerProcessor(ih).processTrigger(
                 trigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNull(out);
 
         String optionalOut = new TriggerProcessor(ih).processTrigger(
                 lookupTrigger("[\"lookup\", \"predator\", [\"EntityId\"], {\"required\": false}]"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(optionalOut);
         assertTrue(optionalOut.contains("\"name\":null"));
@@ -476,7 +509,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+            public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
                 return ValueResolution.missingValue();
             }
         };
@@ -485,7 +518,8 @@ public class ConfigParserTest {
 
         String out = new TriggerProcessor(ih).processTrigger(
                 trigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNull(out);
 
@@ -493,7 +527,8 @@ public class ConfigParserTest {
                 "[\"lookup\", \"predator\", [\"Nickname\"], {\"required\": false}]");
         String optionalOut = new TriggerProcessor(ih).processTrigger(
                 optionalTrigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(optionalOut);
         assertTrue(optionalOut.contains("\"name\":null"));
@@ -509,7 +544,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+            public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
                 return ValueResolution.present(null);
             }
         };
@@ -517,13 +552,14 @@ public class ConfigParserTest {
 
         assertNull(triggerProcessor.processTrigger(
                 lookupTrigger("[\"lookup\", \"predator\", [\"Nickname\"]]"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement());
 
         StatementTrigger nullableTrigger = lookupTrigger(
                 "\"the <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"nullable\\\": true}]>>\"");
         String out = triggerProcessor.processTrigger(
                 nullableTrigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(out);
         assertTrue(out.contains("\"name\":\"the null\""));
@@ -532,7 +568,8 @@ public class ConfigParserTest {
                 "\"optional <<[\\\"lookup\\\", \\\"predator\\\", [\\\"Nickname\\\"], {\\\"required\\\": false}]>>\"");
         String optionalOut = triggerProcessor.processTrigger(
                 optionalTrigger,
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>()))
+                .statement();
 
         assertNotNull(optionalOut);
         assertTrue(optionalOut.contains("\"name\":\"optional null\""));
@@ -542,7 +579,7 @@ public class ConfigParserTest {
     public void queryAndThisMissingValuesHonorRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
-            public ValueResolution handleQueryResolution(
+            public ValueResolution handleQuery(
                     String clazz,
                     Target attrTarget,
                     Expression criteria,
@@ -551,7 +588,7 @@ public class ConfigParserTest {
             }
 
             @Override
-            public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
+            public ValueResolution handleTrigger(Target t, InjectionContext context) {
                 return ValueResolution.missingValue();
             }
         };
@@ -559,19 +596,19 @@ public class ConfigParserTest {
 
         assertNull(triggerProcessor.processTrigger(
                 statementTrigger("{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50]]}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement());
         assertNull(triggerProcessor.processTrigger(
                 statementTrigger("{\"actor\":{\"name\":[\"trigger\",[\"MissingParam\"]]}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>())));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement());
 
         String optionalQueryOut = triggerProcessor.processTrigger(
                 statementTrigger(
                         "{\"actor\":{\"name\":[\"query\",\"Rabbit\",[\"EntityId\"],[[\"Hunger\"],\">\",50],{\"required\":false}]}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement();
         String optionalThisOut = triggerProcessor.processTrigger(
                 statementTrigger(
                         "{\"actor\":{\"name\":\"value=<<[\\\"trigger\\\",[\\\"MissingParam\\\"],{\\\"required\\\":false}]>>\"}}"),
-                new InteractionInjectionContext("EntityAte", new HashMap<>()));
+                new InteractionInjectionContext("EntityAte", new HashMap<>())).statement();
 
         assertNotNull(optionalQueryOut);
         assertTrue(optionalQueryOut.contains("\"name\":null"));

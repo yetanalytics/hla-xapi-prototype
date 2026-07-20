@@ -123,6 +123,10 @@ public class HLADecoderRegistry {
         return registeredDecoderFor(hlaType).decoder();
     }
 
+    public Class<?> getClassForType(String hlaType) {
+        return registeredDecoderFor(hlaType).javaType();
+    }
+
     public <T> HLAValueDecoder<T> decoderFor(String hlaType, Class<T> javaType) {
         RegisteredDecoder registered = registeredDecoderFor(hlaType);
         requireJavaType(hlaType, javaType, registered);
