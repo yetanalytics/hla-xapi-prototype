@@ -20,10 +20,35 @@ import com.yetanalytics.xapi.util.StatementValidator;
 import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.logging.log4j.Level;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
+import static com.yetanalytics.TestLoggingUtils.setLogLevelsByClass;
+import static com.yetanalytics.TestLoggingUtils.suppressLogs;
 
 class XapiValueGeneratorTest {
+
+    private Map<String, Level> originalLevels;
+    @BeforeEach
+    public void silenceLogs(TestInfo testInfo) {
+        if (testInfo.getTags().contains("SuppressLogs")) {
+            // TURNS OFF ERROR LOGGING DURING TEST RUNS. REMOVE TO ENABLE LOGS
+            originalLevels = suppressLogs(Set.of("com.yetanalytics.hlaxapi.TriggerProcessor"));
+        }
+    }
+    @AfterEach
+    public void resetLogs(TestInfo testInfo) {
+        if (testInfo.getTags().contains("SuppressLogs")) {
+            setLogLevelsByClass(originalLevels);
+        }
+    }
 
     @Test
     void usesPresetUriForObjectIdPaths() {
@@ -215,6 +240,7 @@ class XapiValueGeneratorTest {
     );
 
     @Test
+    @Tag("SuppressLogs")
     void validationInjectionTests() {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
                 "config/HlaFedereplFOM.xml");
