@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
@@ -17,7 +16,6 @@ import com.yetanalytics.hlaxapi.TriggerProcessor.TriggerProcessingResult;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger.Type;
-import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.TriggerInjection;
 import com.yetanalytics.xapi.util.StatementValidator;
 import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
@@ -180,6 +178,38 @@ class XapiValueGeneratorTest {
             new TestInjectionContext("EntityCreated"),
             true,
             "hlaType",
+            false
+        ),
+        //Totally invalid JSON
+        new XapiValidationTestEntry(
+            """
+            >>stuff ["trigger", ["PredatorType"]]
+            """,
+            new TestInjectionContext("EntityAte"),
+            false, "Unexpected character", false
+        ),
+        // Langmap Key Injection - keys don't get injected so it's just a wonky value in key, fails xapi val
+        new XapiValidationTestEntry(
+            """
+                {
+                    "actor": {
+                        "name": "name",
+                        "mbox": "mailto:name@yetanalytics.com"
+                    },
+                    "verb": {
+                        "id": "http://example.com/verbs/ate",
+                        "display": {
+                            "<<[\\"trigger\\", [\\"PreyId\\"]]>>": "Thing"
+                        }
+                    },
+                    "object": {
+                        "id": "http://www.yetanalytics.com/objects/1"
+                    }
+                }
+            """,
+            new TestInjectionContext("EntityAte"),
+            true,
+            null,
             false
         )
     );
