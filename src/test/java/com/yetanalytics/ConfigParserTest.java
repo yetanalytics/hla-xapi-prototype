@@ -16,17 +16,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
@@ -57,29 +51,11 @@ import hla.rti1516e.ParameterHandle;
 import hla.rti1516e.ParameterHandleValueMap;
 import hla.rti1516e.encoding.ByteWrapper;
 
-import static com.yetanalytics.TestLoggingUtils.setLogLevelsByClass;
-import static com.yetanalytics.TestLoggingUtils.suppressLogs;
-
 public class ConfigParserTest {
 
     private static final Logger logger = LogManager.getLogger(ConfigParserTest.class);
 
     final static String CONFIG_STATEMENT_RESULT = "{\"actor\":{\"objectType\":\"Agent\",\"name\":\"c5988e0e-c521-4ff7-ba83-df1a63eb72bf\",\"account\":{\"homePage\":\"https://homepage.system.io\",\"name\":\"Mr. c5988e0e-c521-4ff7-ba83-df1a63eb72bf\"}},\"context\":{\"extensions\":{\"https://yetanalytics.com/extensions/from-x\":4,\"https://yetanalytics.com/extensions/from-y\":12}},\"result\":{\"response\":\"[5, 13]\"}}";
-
-    private Map<String, Level> originalLevels;
-    @BeforeEach
-    public void silenceLogs(TestInfo testInfo) {
-        if (testInfo.getTags().contains("SuppressLogs")) {
-            // TURNS OFF ERROR LOGGING DURING TEST RUNS. REMOVE TO ENABLE LOGS
-            originalLevels = suppressLogs(Set.of("com.yetanalytics.hlaxapi.TriggerProcessor"));
-        }
-    }
-    @AfterEach
-    public void resetLogs(TestInfo testInfo) {
-        if (testInfo.getTags().contains("SuppressLogs")) {
-            setLogLevelsByClass(originalLevels);
-        }
-    }
 
     @Test
     public void parsesConfigFile() throws IOException {
@@ -497,7 +473,6 @@ public class ConfigParserTest {
     }
 
     @Test
-    @Tag("SuppressLogs")
     public void lookupInjectionMissingObjectHonorsRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
@@ -525,7 +500,6 @@ public class ConfigParserTest {
     }
 
     @Test
-    @Tag("SuppressLogs")
     public void lookupInjectionMissingValueHonorsRequiredButNotNullable() {
         CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
         InjectionHandler ih = new InjectionHandler() {
@@ -561,7 +535,6 @@ public class ConfigParserTest {
     }
 
     @Test
-    @Tag("SuppressLogs")
     public void lookupInjectionPresentNullAbortsByDefaultAndRendersWhenNullable() {
         CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
         InjectionHandler ih = new InjectionHandler() {
@@ -603,7 +576,6 @@ public class ConfigParserTest {
     }
 
     @Test
-    @Tag("SuppressLogs")
     public void queryAndThisMissingValuesHonorRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override

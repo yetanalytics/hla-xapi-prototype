@@ -8,16 +8,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
-import org.apache.logging.log4j.Level;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInfo;
 
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
@@ -27,8 +20,6 @@ import com.yetanalytics.xapi.client.StatementClient;
 import com.yetanalytics.xapi.exception.StatementClientException;
 import com.yetanalytics.xapi.model.Statement;
 import com.yetanalytics.xapi.util.StatementValidator;
-import static com.yetanalytics.TestLoggingUtils.setLogLevelsByClass;
-import static com.yetanalytics.TestLoggingUtils.suppressLogs;
 
 class XapiClientTest {
 
@@ -66,20 +57,6 @@ class XapiClientTest {
             }
             """;
 
-    private Map<String, Level> originalLevels;
-    @BeforeEach
-    public void silenceLogs(TestInfo testInfo) {
-        if (testInfo.getTags().contains("SuppressLogs")) {
-            // TURNS OFF ERROR LOGGING DURING TEST RUNS. REMOVE TO ENABLE LOGS
-            originalLevels = suppressLogs(Set.of("com.yetanalytics.hlaxapi.XapiClient"));
-        }
-    }
-    @AfterEach
-    public void resetLogs(TestInfo testInfo) {
-        if (testInfo.getTags().contains("SuppressLogs")) {
-            setLogLevelsByClass(originalLevels);
-        }
-    }
 
     @Test
     void buffersStatementFromJsonString() throws Exception {
@@ -91,14 +68,13 @@ class XapiClientTest {
     }
 
     @Test
-    @Tag("SuppressLogs")
     void rejectsInvalidStatementJson() {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
+
         assertThrows(StatementValidationException.class, () -> xapiClient.sendStatement("{"));
     }
 
     @Test
-    @Tag("SuppressLogs")
     void rejectsInvalidStatementXApi() {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
 
@@ -125,7 +101,6 @@ class XapiClientTest {
     }
 
     @Test
-    @Tag("SuppressLogs")
     void clearBufferKeepsStatementsWhenClientErrorsBeforeMaxRetries() throws Exception {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
         FakeStatementClient fakeClient = new FakeStatementClient();
@@ -141,7 +116,6 @@ class XapiClientTest {
     }
 
     @Test
-    @Tag("SuppressLogs")
     void clearBufferClearsStatementsAfterMaxRetries() throws Exception {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
         FakeStatementClient fakeClient = new FakeStatementClient();
