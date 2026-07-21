@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
+import com.yetanalytics.extension.SuppressTestLogging;
 import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.HLAEncodingTestSupport;
@@ -473,6 +474,7 @@ public class ConfigParserTest {
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.TriggerProcessor"})
     public void lookupInjectionMissingObjectHonorsRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override
@@ -500,6 +502,7 @@ public class ConfigParserTest {
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.TriggerProcessor"})
     public void lookupInjectionMissingValueHonorsRequiredButNotNullable() {
         CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
         InjectionHandler ih = new InjectionHandler() {
@@ -535,6 +538,7 @@ public class ConfigParserTest {
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.TriggerProcessor"})
     public void lookupInjectionPresentNullAbortsByDefaultAndRendersWhenNullable() {
         CachedObject matchedObject = new CachedObject(7, "object-7", "Predator", "SimEntity");
         InjectionHandler ih = new InjectionHandler() {
@@ -576,6 +580,7 @@ public class ConfigParserTest {
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.TriggerProcessor"})
     public void queryAndThisMissingValuesHonorRequiredOption() {
         InjectionHandler ih = new InjectionHandler() {
             @Override

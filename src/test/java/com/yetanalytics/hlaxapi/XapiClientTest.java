@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.yetanalytics.extension.SuppressTestLogging;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
 import com.yetanalytics.hlaxapi.exception.StatementValidationException;
@@ -57,7 +58,6 @@ class XapiClientTest {
             }
             """;
 
-
     @Test
     void buffersStatementFromJsonString() throws Exception {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
@@ -68,13 +68,14 @@ class XapiClientTest {
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.XapiClient"})
     void rejectsInvalidStatementJson() {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
-
         assertThrows(StatementValidationException.class, () -> xapiClient.sendStatement("{"));
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.XapiClient"})
     void rejectsInvalidStatementXApi() {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
 
@@ -101,6 +102,7 @@ class XapiClientTest {
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.XapiClient"})
     void clearBufferKeepsStatementsWhenClientErrorsBeforeMaxRetries() throws Exception {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
         FakeStatementClient fakeClient = new FakeStatementClient();
@@ -116,6 +118,7 @@ class XapiClientTest {
     }
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.XapiClient"})
     void clearBufferClearsStatementsAfterMaxRetries() throws Exception {
         XapiClient xapiClient = new XapiClient(config(4, 1), new StatementValidator());
         FakeStatementClient fakeClient = new FakeStatementClient();
