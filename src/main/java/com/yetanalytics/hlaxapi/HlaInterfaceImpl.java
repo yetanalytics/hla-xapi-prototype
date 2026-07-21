@@ -13,11 +13,16 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.yetanalytics.hlaxapi.TriggerProcessor.TriggerProcessingResult;
 import com.yetanalytics.hlaxapi.cache.FomCatalog;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
+import com.yetanalytics.hlaxapi.exception.XapiConfigurationException;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
+import com.yetanalytics.hlaxapi.injection.TestInjectionContext;
+import com.yetanalytics.xapi.util.StatementValidator;
+import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
 import hla.rti1516e.AttributeHandle;
 import hla.rti1516e.AttributeHandleSet;
@@ -88,6 +93,9 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     private TriggerProcessor triggerProcessor;
 
     @Autowired
+    private StatementValidator validator;
+
+    @Autowired
     private ObjectCache objectCache;
 
     @Autowired
@@ -96,7 +104,10 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     public void start()
             throws ConnectionFailed, InvalidLocalSettingsDesignator, RTIinternalError, NotConnected, ErrorReadingFDD,
             CouldNotOpenFDD, InconsistentFDD, RestoreInProgress, SaveInProgress,
-            FederateServiceInvocationsAreBeingReportedViaMOM {
+            FederateServiceInvocationsAreBeingReportedViaMOM, XapiConfigurationException {
+
+        validateConfig();
+
         RtiFactory rtiFactory = RtiFactoryFactory.getRtiFactory();
         ambassador = rtiFactory.getRtiAmbassador();
 
@@ -177,6 +188,23 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                 throw new RTIinternalError("HlaInterfaceFailure", e);
             }
         } catch (NotConnected ignored) {
+        }
+    }
+
+    public void validateConfig() throws XapiConfigurationException {
+        for(StatementTrigger st : xapiConfig.statementTriggers){
+            if (st.skipValidation) continue;
+            TriggerProcessingResult tpr = triggerProcessor.processTrigger(st, new TestInjectionContext(st.clazz));
+            if (tpr.success()) {
+                StatementValidationResult svr = validator.validateStatement(tpr.statement());
+                if (!svr.isValid()){
+                    logger.error("Invalid Statement Trigger (Invalid xAPI): {}. {}", st, svr.getErrors());
+                    throw new XapiConfigurationException("Could not validate xAPI Configuration");
+                }
+            } else {
+                logger.error("Invalid Statement Trigger (Could not Process): {}. {}", st, tpr.error());
+                throw new XapiConfigurationException("Could not validate xAPI Configuration", tpr.error());
+            }
         }
     }
 
@@ -407,11 +435,16 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                     .forEach(trigger -> {
                         logger.trace("Processing trigger for interaction {}", trigger.clazz);
                         // TODO: this is nullable, implement DLQ
-                        String xapi = triggerProcessor.processTrigger(trigger, context);
-                        try {
-                            xapiClient.sendStatement(xapi);
-                        } catch (Exception e) {
-                            logger.error("Error parsing or posting statement {}", xapi, e);
+                        TriggerProcessingResult result = triggerProcessor.processTrigger(trigger, context);
+                        if (result.success()){
+                            try {
+                                xapiClient.sendStatement(result.statement());
+                            } catch (Exception e) {
+                                logger.error("Error parsing or posting statement {}", result.statement(), e);
+                            }
+                        } else {
+                            logger.error("Error processing Interaction: {}", result.error().getMessage(),
+                                result.error());
                         }
                     });
         } catch (InvalidInteractionClassHandle | FederateNotExecutionMember | NotConnected | RTIinternalError e) {

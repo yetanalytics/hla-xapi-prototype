@@ -8,6 +8,8 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.yetanalytics.hlaxapi.exception.XapiConfigurationException;
+
 import hla.rti1516e.exceptions.RTIexception;
 import hla.rti1516e.exceptions.RTIinternalError;
 
@@ -36,9 +38,13 @@ public class Federate {
             logger.info("Attempting RTI Connection");
             hlaInterface.start();
         } catch (RTIexception e) {
-            System.out.println("Could not connect to the RTI using the local settings designator \""
-                    + config.getLocalSettingsDesignator() + "\"");
-            e.printStackTrace();
+            logger.error("Could not connect to the RTI using the local settings designator \""
+                    + config.getLocalSettingsDesignator() + "\"", e);
+            shutdown(hlaInterface, shutdownLatch, shuttingDown);
+            return;
+        } catch (XapiConfigurationException e) {
+            logger.error("Failed to start due to configuration error", e);
+            shutdown(hlaInterface, shutdownLatch, shuttingDown);
             return;
         }
 

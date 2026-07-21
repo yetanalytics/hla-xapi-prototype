@@ -14,11 +14,17 @@ public class App {
         @SuppressWarnings("resource")
         AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 
-        ctx.scan("com.yetanalytics.hlaxapi");
-        ctx.refresh();
-        ctx.registerShutdownHook();
+        try {
+            ctx.scan("com.yetanalytics.hlaxapi");
+            ctx.refresh();
+            ctx.registerShutdownHook();
 
-        Federate federate = ctx.getBean(Federate.class);
-        federate.run(args);
+            Federate federate = ctx.getBean(Federate.class);
+            federate.run(args);
+        } finally {
+            if (ctx.isActive()) {
+                ctx.close();
+            }
+        }
     }
 }

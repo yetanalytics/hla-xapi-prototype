@@ -11,11 +11,12 @@ public class StatementTrigger {
     // keep the original statement as a JSON string (we'll process injections at
     // runtime)
     public String statement;
+    public boolean skipValidation;
 
     @Override
     public String toString() {
-        return String.format("StatementTrigger{type=%s,clazz=%s,criteria=%s,statement=%s}",
-                type, clazz, criteria, statement);
+        return String.format("StatementTrigger{type=%s,clazz=%s,criteria=%s,statement=%s,skipValidation=%b}",
+                type, clazz, criteria, statement, skipValidation);
     }
 
     public enum Type {

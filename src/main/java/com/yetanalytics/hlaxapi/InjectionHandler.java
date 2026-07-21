@@ -25,6 +25,8 @@ import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
 import com.yetanalytics.hlaxapi.injection.InteractionInjectionContext;
 import com.yetanalytics.hlaxapi.injection.ObjectInjectionContext;
+import com.yetanalytics.hlaxapi.injection.TestInjectionContext;
+import com.yetanalytics.hlaxapi.injection.XapiValueGenerator;
 
 import hla.rti1516e.encoding.ByteWrapper;
 import hla.rti1516e.encoding.DataElement;
@@ -51,38 +53,50 @@ public class InjectionHandler {
     public InjectionHandler() {
     }
 
-    public Object handleTrigger(Target t, InjectionContext context) {
+    public ValueResolution handleTrigger(Target t, InjectionContext context) {
         if (context instanceof InteractionInjectionContext) {
             return handleTrigger(t, (InteractionInjectionContext) context);
         } else if (context instanceof ObjectInjectionContext) {
             return handleTrigger(t, (ObjectInjectionContext) context);
+        } else if (context instanceof TestInjectionContext) {
+            return handleTrigger(t, (TestInjectionContext) context);
         } else {
             throw new IllegalArgumentException("Unsupported InjectionContext type: " + context.getClass().getName());
         }
     }
 
-    public Object handleTrigger(Target t, InteractionInjectionContext context) {
+    public ValueResolution handleTrigger(Target t, TestInjectionContext context) {
+        PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), t.parts);
+        Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
+        Object result = XapiValueGenerator.getTestValue(context, t, hlaJavaType);
+        return ValueResolution.present(result);
+    }
 
-        byte[] value = interrogateParameters(context.getHlaClass(), true, t.parts, context.getParameterMap());
-        if (value == null)
-            return null;
+    public ValueResolution handleTrigger(Target t, InteractionInjectionContext context) {
 
         PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), t.parts);
-        Object result;
+        Object result = null;
+
+        //Actual Injection
+        byte[] value = interrogateParameters(context.getHlaClass(), true, t.parts, context.getParameterMap());
+        if (value == null)
+            return ValueResolution.missingValue();
+
         if (pcr.exists) {
             try {
                 result = hlaDecoderRegistry.decode(pcr.primitiveType, value);
             } catch (DecoderException e) {
                 logger.warn("Problem decoding value:", e);
-                return null;
             }
         } else {
             // TODO: Properly log context of unfound target
             logger.warn("Target does not exist in FOM.", t);
-            return null;
         }
-        // placeholder: return a demo string showing the target and interaction context
-        return result;
+
+        if (result == null) {
+            return ValueResolution.missingValue();
+        }
+        return ValueResolution.present(result);
     }
 
     private byte[] interrogateParameters(String entityName, boolean isInteraction,
@@ -218,33 +232,25 @@ public class InjectionHandler {
         return null;
     }
 
-    public Object handleTrigger(Target t, ObjectInjectionContext context) {
+    public ValueResolution handleTrigger(Target t, ObjectInjectionContext context) {
         // placeholder: return a demo string showing the target and interaction context
-        return "[TRIGGER(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]";
+        return ValueResolution.present("[TRIGGER(object):" + t.toString() + ":CONTEXT:" + context.getHlaClass() + "]");
     }
 
-    public ValueResolution handleTriggerResolution(Target t, InjectionContext context) {
-        Object value = handleTrigger(t, context);
-        if (value == null) {
-            return ValueResolution.missingValue();
-        }
-        return ValueResolution.present(value);
-    }
-
-    public Object handleQuery(String clazz, Target attrTarget, Expression criteria) {
-        return handleQuery(clazz, attrTarget, criteria, null);
-    }
-
-    public Object handleQuery(String clazz, Target attrTarget, Expression criteria, InjectionContext context) {
-        ValueResolution resolution = handleQueryResolution(clazz, attrTarget, criteria, context);
-        return resolution.present() ? resolution.value() : null;
-    }
-
-    public ValueResolution handleQueryResolution(
+    public ValueResolution handleQuery(
             String clazz,
             Target attrTarget,
             Expression criteria,
             InjectionContext context) {
+
+        // Validation Test-Injection
+        if (context instanceof TestInjectionContext){
+            PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), attrTarget.parts);
+            Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
+            Object result = XapiValueGenerator.getTestValue(context, attrTarget, hlaJavaType);
+            return ValueResolution.present(result);
+        }
+
         if (objectCache == null) {
             return ValueResolution.missingObject();
         }
@@ -261,12 +267,16 @@ public class InjectionHandler {
         return objectCache.findFirstObject(lookup.clazz, resolvedCriteria);
     }
 
-    public Object handleLookup(CachedObject object, Target attrTarget) {
-        ValueResolution resolution = handleLookupResolution(object, attrTarget);
-        return resolution.present() ? resolution.value() : null;
-    }
+    public ValueResolution handleLookup(CachedObject object, Target attrTarget, InjectionContext context) {
 
-    public ValueResolution handleLookupResolution(CachedObject object, Target attrTarget) {
+        // Validation Test-Injection
+        if (context instanceof TestInjectionContext){
+            PathCheckResult pcr = fomXml.checkInteractionParameterPath(context.getHlaClass(), attrTarget.parts);
+            Class<?> hlaJavaType = (pcr.exists) ? hlaDecoderRegistry.getClassForType(pcr.primitiveType) : null;
+            Object result = XapiValueGenerator.getTestValue(context, attrTarget, hlaJavaType);
+            return ValueResolution.present(result);
+        }
+
         if (objectCache == null || object == null) {
             return ValueResolution.missingObject();
         }
@@ -278,7 +288,8 @@ public class InjectionHandler {
             return expression;
         }
         if (expression instanceof TriggerExpression triggerExpression) {
-            return new ValueExpression(handleTrigger(triggerExpression.target, context));
+            ValueResolution vr = handleTrigger(triggerExpression.target, context);
+            return new ValueExpression(vr.value());
         }
         if (expression instanceof Criterion criterion) {
             return new Criterion(

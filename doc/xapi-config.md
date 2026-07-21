@@ -56,6 +56,7 @@ Fields:
 - `criteria`: **NOTE: Not Yet Implemented!** Parsed as a criteria expression, but not currently applied when deciding whether an incoming interaction should fire the trigger.
 - `lookups`: Optional named cache lookups resolved once before the statement template is processed. These can be used to reduce the size and complexity of queries in the body of the statement config.
 - `statement`: An xAPI statement template. Any JSON object accepted by the xAPI spec can be used here, with injection expressions inserted where dynamic values are needed.
+- `skipValidation`: Optional flag to skip boot validation for xAPI statement template and injections. **NOTE: This may result in invalid statements being sent to LRS!** Only use if startup is throwing unnecessary validation errors for your template. If you encounter validation issues that you believe to be in error, please report them in a Github Issue.
 
 If multiple interaction triggers match the same interaction class, each trigger is processed and each resulting statement is queued for the LRS.
 
