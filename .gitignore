@@ -4,3 +4,4 @@ target/
 logs/
 *.sqlite
 lib/
+dependency-reduced-pom.xml

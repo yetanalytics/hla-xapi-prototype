@@ -1,6 +1,6 @@
 .PHONY: clean build format lint run-dev run-dev-pitch run-rti test verify clean-vendor refresh run-debug-portico
 
-APP_JAR := target/hla-xapi-1.0-SNAPSHOT-jar-with-dependencies.jar
+APP_JAR := target/hla-xapi-1.0-SNAPSHOT.jar
 PORTICO_REPO_URL ?= https://github.com/yetanalytics/portico.git
 PORTICO_REF ?= yet_patch_object_subs
 PORTICO_JAR ?= lib/maven-repository/org/porticoproject/portico/3.0.0-local/portico-3.0.0-local.jar
