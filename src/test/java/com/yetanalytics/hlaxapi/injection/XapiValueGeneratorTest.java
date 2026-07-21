@@ -7,6 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
+
+import com.yetanalytics.extension.SuppressTestLogging;
 import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.InjectionHandler;
@@ -14,14 +20,11 @@ import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.TriggerProcessor;
 import com.yetanalytics.hlaxapi.TriggerProcessor.TriggerProcessingResult;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
-import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger.Type;
+import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.xapi.util.StatementValidator;
 import com.yetanalytics.xapi.util.StatementValidator.StatementValidationResult;
 
-import java.util.List;
-import org.junit.jupiter.api.Test;
-import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
 class XapiValueGeneratorTest {
 
@@ -215,6 +218,7 @@ class XapiValueGeneratorTest {
     );
 
     @Test
+    @SuppressTestLogging({"com.yetanalytics.hlaxapi.TriggerProcessor"})
     void validationInjectionTests() {
         SimulationConfig simConfig = new SimulationConfig(null, null, null, null,
                 "config/HlaFedereplFOM.xml");
