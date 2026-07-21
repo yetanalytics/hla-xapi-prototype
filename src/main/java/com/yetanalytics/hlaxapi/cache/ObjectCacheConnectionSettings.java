@@ -64,8 +64,8 @@ record ObjectCacheConnectionSettings(
         return validated(
                 ObjectCacheBackend.POSTGRESQL,
                 jdbcUrl,
-                trimmed(environment.get("HLA_OBJECT_CACHE_USERNAME")),
-                trimmed(environment.get("HLA_OBJECT_CACHE_PASSWORD")),
+                environment.get("HLA_OBJECT_CACHE_USERNAME"),
+                environment.get("HLA_OBJECT_CACHE_PASSWORD"),
                 Objects.requireNonNullElse(
                         trimmed(environment.get("HLA_OBJECT_CACHE_SCHEMA")),
                         DEFAULT_POSTGRESQL_SCHEMA));
