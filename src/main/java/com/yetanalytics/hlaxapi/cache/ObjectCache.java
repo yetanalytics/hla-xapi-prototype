@@ -187,10 +187,6 @@ public class ObjectCache implements AutoCloseable {
         store = null;
     }
 
-    public static String defaultJdbcUrl() {
-        return ObjectCacheConnectionSettings.defaultSqliteJdbcUrl(System.getenv());
-    }
-
     private FomCatalog.ObjectClassDef requireClass(String className) {
         return catalog.objectClass(className)
                 .orElseThrow(() -> new IllegalArgumentException("No FOM object class " + className));
