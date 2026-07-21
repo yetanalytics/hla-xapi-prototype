@@ -30,6 +30,7 @@ public class ObjectCache implements AutoCloseable {
         this(xapiConfig, catalog, fomXml, decoderRegistry, (ObjectCacheConnectionSettings) null);
     }
 
+    // Convenience overload for SQLite tests that supply a temporary database URL.
     ObjectCache(
             XapiConfig xapiConfig,
             FomCatalog catalog,
