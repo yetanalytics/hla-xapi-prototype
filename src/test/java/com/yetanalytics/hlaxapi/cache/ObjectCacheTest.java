@@ -8,9 +8,9 @@ import com.yetanalytics.hlaxapi.FOMXML;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
-import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
+import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TrackedObject;
@@ -54,6 +54,13 @@ class ObjectCacheTest {
             assertTrue(cache.subscriptions().isEmpty());
             assertFalse(cache.findFirstValue("Rabbit", new Target(List.of("Hunger")), null).isPresent());
             assertFalse(Files.exists(databasePath));
+        }
+    }
+
+    @Test
+    void disabledCacheDoesNotRequireConnectionSettings() {
+        try (ObjectCache cache = new ObjectCache(new XapiConfig(), catalog, fomXml, decoderRegistry)) {
+            assertFalse(cache.isEnabled());
         }
     }
 

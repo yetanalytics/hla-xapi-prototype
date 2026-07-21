@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yetanalytics.hlaxapi.FOMXML;
+import com.yetanalytics.hlaxapi.HLAEncodingTestSupport;
 import com.yetanalytics.hlaxapi.HLADecoderRegistry;
 import com.yetanalytics.hlaxapi.SimulationConfig;
 import com.yetanalytics.hlaxapi.config.XapiConfig;
@@ -22,28 +23,30 @@ import hla.rti1516e.encoding.DataElement;
 import hla.rti1516e.encoding.EncoderException;
 import hla.rti1516e.encoding.EncoderFactory;
 import hla.rti1516e.encoding.HLAfixedRecord;
-import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.portico.impl.hla1516e.types.encoding.HLA1516eEncoderFactory;
 
-final class ObjectCachePersistenceTest {
+abstract class ObjectCachePersistenceTest {
 
-    private final EncoderFactory encoderFactory = new HLA1516eEncoderFactory();
-    private final HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(encoderFactory);
-    private final FOMXML fomXml = new FOMXML(
+    protected final EncoderFactory encoderFactory = new HLA1516eEncoderFactory();
+    protected final HLADecoderRegistry decoderRegistry = new HLADecoderRegistry(encoderFactory);
+    protected final FOMXML fomXml = new FOMXML(
             new SimulationConfig(null, null, null, null, "config/HlaFedereplFOM.xml"),
             decoderRegistry);
-    private final FomCatalog catalog = new FomCatalog(fomXml);
+    protected final FomCatalog catalog = new FomCatalog(fomXml);
+    private final FOMXML dynamicArrayFomXml = new FOMXML(
+            new SimulationConfig(null, null, null, null, "src/test/resources/config/ObjectCacheTestFOM.xml"),
+            decoderRegistry);
+    private final FomCatalog dynamicArrayCatalog = new FomCatalog(dynamicArrayFomXml);
 
     @Test
     void initializesSchemaAndSeedsFomMetadata() throws SQLException {
         try (ObjectCache cache = newCache()) {
-            assertEquals(1, scalarLong(cache, "PRAGMA user_version"));
+            assertEquals(1, scalarLong(cache, "SELECT schema_version FROM object_cache_metadata"));
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_attribute WHERE path_key = 'Position.X'") > 0);
         }
@@ -81,6 +84,69 @@ final class ObjectCachePersistenceTest {
             assertEquals(12, cache.findCurrentValue("object-1", "Position.X").orElseThrow().value());
             assertEquals(8, cache.findCurrentValue("object-1", "Position.Y").orElseThrow().value());
             assertTrue(cache.findCurrentValue("object-1", "Position").orElseThrow().value() instanceof java.util.Map);
+        }
+    }
+
+    @Test
+    void replacesDynamicArrayPathsWhenArrayShrinksAndReusesMetadata() throws SQLException {
+        byte[] hunger = encoded(encoderFactory.createHLAinteger32BE(75));
+
+        try (ObjectCache cache = newCache(
+                "dynamic-array",
+                enabledConfig(),
+                dynamicArrayCatalog,
+                dynamicArrayFomXml)) {
+            cache.discoverObject("object-1", "Rabbit One", "Rabbit");
+            cache.reflectAttributeValue("object-1", "Rabbit", "Hunger", hunger);
+            cache.reflectAttributeValue(
+                    "object-1",
+                    "Rabbit",
+                    "PositionHistory",
+                    positionHistory(position(1, 2), position(3, 4)));
+
+            assertEquals(2, ((List<?>) cache.findCurrentValue("object-1", "PositionHistory")
+                            .orElseThrow()
+                            .value())
+                    .size());
+            assertEquals(1, cache.findCurrentValue("object-1", "PositionHistory[0].X")
+                    .orElseThrow()
+                    .value());
+            assertEquals(4, cache.findCurrentValue("object-1", "PositionHistory[1].Y")
+                    .orElseThrow()
+                    .value());
+            assertEquals(5, currentValueCount(cache, "PositionHistory"));
+            long secondElementXId = attributeId(cache, "PositionHistory[1].X");
+
+            cache.reflectAttributeValue(
+                    "object-1",
+                    "Rabbit",
+                    "PositionHistory",
+                    positionHistory(position(9, 10)));
+
+            assertEquals(1, ((List<?>) cache.findCurrentValue("object-1", "PositionHistory")
+                            .orElseThrow()
+                            .value())
+                    .size());
+            assertEquals(9, cache.findCurrentValue("object-1", "PositionHistory[0].X")
+                    .orElseThrow()
+                    .value());
+            assertFalse(cache.findCurrentValue("object-1", "PositionHistory[1].X").isPresent());
+            assertFalse(cache.findCurrentValue("object-1", "PositionHistory[1].Y").isPresent());
+            assertEquals(3, currentValueCount(cache, "PositionHistory"));
+            assertEquals(75, cache.findCurrentValue("object-1", "Hunger").orElseThrow().value());
+            assertEquals(secondElementXId, attributeId(cache, "PositionHistory[1].X"));
+
+            cache.reflectAttributeValue(
+                    "object-1",
+                    "Rabbit",
+                    "PositionHistory",
+                    positionHistory(position(11, 12), position(13, 14)));
+
+            assertEquals(13, cache.findCurrentValue("object-1", "PositionHistory[1].X")
+                    .orElseThrow()
+                    .value());
+            assertEquals(5, currentValueCount(cache, "PositionHistory"));
+            assertEquals(secondElementXId, attributeId(cache, "PositionHistory[1].X"));
         }
     }
 
@@ -149,10 +215,8 @@ final class ObjectCachePersistenceTest {
     }
 
     @Test
-    void persistentCacheStartsFreshOnInitialization(@TempDir Path tempDir) throws SQLException {
-        String jdbcUrl = "jdbc:sqlite:" + tempDir.resolve("cache.sqlite");
-
-        try (ObjectCache cache = newCache(jdbcUrl)) {
+    void persistentCacheStartsFreshOnInitialization() throws SQLException {
+        try (ObjectCache cache = newCache("fresh-start")) {
             cache.discoverObject("object-1", "Rabbit One", "Rabbit");
             cache.reflectAttributeValue("object-1", "Rabbit", "Hunger",
                     encoded(encoderFactory.createHLAinteger32BE(75)));
@@ -161,22 +225,28 @@ final class ObjectCachePersistenceTest {
             assertEquals(1, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
         }
 
-        try (ObjectCache cache = newCache(jdbcUrl)) {
+        try (ObjectCache cache = newCache("fresh-start")) {
             assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_instance"));
             assertEquals(0, count(cache, "SELECT COUNT(*) FROM object_attribute_current"));
             assertTrue(count(cache, "SELECT COUNT(*) FROM fom_object_class") > 0);
         }
     }
 
-    private ObjectCache newCache() {
-        return newCache("jdbc:sqlite::memory:");
+    protected ObjectCache newCache() {
+        return newCache("default");
     }
 
-    private ObjectCache newCache(String jdbcUrl) {
-        return new ObjectCache(enabledConfig(), catalog, fomXml, decoderRegistry, jdbcUrl);
+    protected ObjectCache newCache(String name) {
+        return newCache(name, enabledConfig(), catalog, fomXml);
     }
 
-    private XapiConfig enabledConfig() {
+    protected abstract ObjectCache newCache(
+            String name,
+            XapiConfig config,
+            FomCatalog cacheCatalog,
+            FOMXML cacheFomXml);
+
+    protected XapiConfig enabledConfig() {
         TrackedObject trackedObject = new TrackedObject();
         trackedObject.clazz = "Rabbit";
         trackedObject.allAttributes = true;
@@ -187,14 +257,18 @@ final class ObjectCachePersistenceTest {
         return config;
     }
 
-    private byte[] position(int x, int y) {
+    protected byte[] position(int x, int y) {
         HLAfixedRecord record = encoderFactory.createHLAfixedRecord();
         record.add(encoderFactory.createHLAinteger32BE(x));
         record.add(encoderFactory.createHLAinteger32BE(y));
         return encoded(record);
     }
 
-    private byte[] encoded(DataElement element) {
+    protected byte[] positionHistory(byte[]... positions) {
+        return HLAEncodingTestSupport.variableArray(positions);
+    }
+
+    protected byte[] encoded(DataElement element) {
         try {
             return element.toByteArray();
         } catch (EncoderException e) {
@@ -202,18 +276,18 @@ final class ObjectCachePersistenceTest {
         }
     }
 
-    private long count(ObjectCache cache, String sql) throws SQLException {
+    protected long count(ObjectCache cache, String sql) throws SQLException {
         return scalarLong(cache, sql);
     }
 
-    private long scalarLong(ObjectCache cache, String sql) throws SQLException {
+    protected long scalarLong(ObjectCache cache, String sql) throws SQLException {
         try (PreparedStatement statement = cache.connection().prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()) {
             return resultSet.next() ? resultSet.getLong(1) : 0L;
         }
     }
 
-    private byte[] rawBytes(ObjectCache cache, String pathKey) throws SQLException {
+    protected byte[] rawBytes(ObjectCache cache, String pathKey) throws SQLException {
         String sql = """
                 SELECT c.raw_bytes
                 FROM object_attribute_current c
@@ -224,6 +298,31 @@ final class ObjectCachePersistenceTest {
             statement.setString(1, pathKey);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next() ? resultSet.getBytes(1) : null;
+            }
+        }
+    }
+
+    private long currentValueCount(ObjectCache cache, String attributeName) throws SQLException {
+        String sql = """
+                SELECT COUNT(*)
+                FROM object_attribute_current c
+                JOIN fom_attribute a ON a.id = c.attribute_id
+                WHERE a.attribute_name = ?
+                """;
+        try (PreparedStatement statement = cache.connection().prepareStatement(sql)) {
+            statement.setString(1, attributeName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong(1) : 0L;
+            }
+        }
+    }
+
+    private long attributeId(ObjectCache cache, String pathKey) throws SQLException {
+        try (PreparedStatement statement = cache.connection()
+                        .prepareStatement("SELECT id FROM fom_attribute WHERE path_key = ?")) {
+            statement.setString(1, pathKey);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getLong(1) : 0L;
             }
         }
     }

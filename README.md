@@ -58,8 +58,13 @@ Use Maven's `verify` lifecycle before opening a PR:
 make verify
 ```
 
-This runs unit tests, builds the package, and fails if linting or formatting checks do not pass. To run only
-linting locally:
+This runs unit tests, builds the package, and fails if linting or formatting checks do not pass. Note that the tests require docker to run.
+
+The PostgreSQL object-cache contract tests use Testcontainers and require a working Docker-compatible container
+runtime. The test suite starts and removes its own PostgreSQL 17 container; no manually configured database is
+needed.
+
+To run only linting locally:
 
 ```shell
 make lint
