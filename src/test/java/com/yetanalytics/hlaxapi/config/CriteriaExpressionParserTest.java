@@ -1,6 +1,7 @@
 package com.yetanalytics.hlaxapi.config;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,14 +13,39 @@ import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LookupExpression;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.QueryExpression;
+import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CriteriaExpressionParserTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void parsesStrictTargetPaths() throws Exception {
+        Target target = CriteriaExpressionParser.parseTarget(
+                MAPPER.readTree("[\"PositionHistory\", 0, \"X\"]"));
+
+        assertEquals(List.of("PositionHistory", 0, "X"), target.parts);
+
+        for (String invalidTarget : List.of(
+                "null",
+                "\"EntityId\"",
+                "[]",
+                "[\"PositionHistory\", -1]",
+                "[\"PositionHistory\", 1.5]",
+                "[\"PositionHistory\", {}]",
+                "[\"PositionHistory\", []]",
+                "[\"PositionHistory\", 2147483648]")) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> CriteriaExpressionParser.parseTarget(MAPPER.readTree(invalidTarget)),
+                    invalidTarget);
+        }
+    }
 
     @Test
     void parsesEveryTriggerValueSourceInNestedExpressions() throws Exception {

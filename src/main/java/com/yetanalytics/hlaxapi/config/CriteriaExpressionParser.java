@@ -105,7 +105,11 @@ public final class CriteriaExpressionParser {
         return new LogicalExpression(operator, List.copyOf(operands));
     }
 
-    private static Target parseTarget(JsonNode node) {
+    /**
+     * Parse a target path represented by a non-empty JSON array. Path parts must
+     * be strings or non-negative integer indexes.
+     */
+    public static Target parseTarget(JsonNode node) {
         if (node == null || !node.isArray() || node.isEmpty()) {
             throw new IllegalArgumentException("target must be a non-empty array");
         }

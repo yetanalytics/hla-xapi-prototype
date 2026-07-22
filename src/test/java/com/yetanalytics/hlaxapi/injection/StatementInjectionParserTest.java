@@ -88,4 +88,18 @@ class StatementInjectionParserTest {
         assertFalse(unknown.recognized());
         assertFalse(unknown.valid());
     }
+
+    @Test
+    void marksKnownInjectionsWithInvalidTargetsAsMalformed() throws Exception {
+        for (String source : List.of(
+                "[\"trigger\",[]]",
+                "[\"trigger\",[\"PositionHistory\",-1]]",
+                "[\"query\",\"Rabbit\",\"EntityId\",null]",
+                "[\"lookup\",\"predator\",[\"EntityId\",{}]]")) {
+            ParseResult malformed = StatementInjectionParser.parse(MAPPER.readTree(source));
+
+            assertTrue(malformed.recognized(), source);
+            assertFalse(malformed.valid(), source);
+        }
+    }
 }
