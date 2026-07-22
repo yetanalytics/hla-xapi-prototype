@@ -2,7 +2,7 @@ package com.yetanalytics.hlaxapi.config.model;
 
 import java.util.List;
 
-public class LogicalExpression implements Expression {
+public final class LogicalExpression implements Expression {
     public final LogicalOperator operator;
     public final List<Expression> operands;
 
