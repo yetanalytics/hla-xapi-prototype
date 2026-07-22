@@ -2,6 +2,7 @@ package com.yetanalytics.hlaxapi.config;
 
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
+import com.yetanalytics.hlaxapi.config.model.ExpressionWalker;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LookupExpression;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
@@ -19,65 +20,99 @@ public final class CriteriaExpressionValidator {
         CACHE_FILTER
     }
 
+    private record ValidationState(
+            Context context,
+            Map<String, ObjectLookup> lookupDefinitions,
+            String location) {
+    }
+
+    private static final ExpressionWalker.Visitor<ValidationState> VALIDATION_VISITOR =
+            new ExpressionWalker.Visitor<>() {
+                @Override
+                public void visit(Expression expression, ValidationState state) {
+                    switch (expression) {
+                        case Criterion ignored -> {
+                        }
+                        case LogicalExpression ignored -> {
+                        }
+                        case LookupExpression lookup -> validateLookup(lookup, state);
+                        case QueryExpression query -> validateQuery(query, state);
+                        case Target target -> validateTarget(target, state);
+                        case TriggerExpression ignored -> {
+                        }
+                        case ValueExpression ignored -> {
+                        }
+                    }
+                }
+
+                @Override
+                public ValidationState stateForChild(
+                        Expression parent,
+                        ExpressionWalker.Child child,
+                        ValidationState state) {
+                    Context childContext = child.role() == ExpressionWalker.ChildRole.QUERY_FILTER
+                            ? Context.CACHE_FILTER
+                            : state.context;
+                    String childLocation = switch (child.role()) {
+                        case LEFT -> state.location + ".left";
+                        case RIGHT -> state.location + ".right";
+                        case OPERAND -> state.location + "[" + child.index() + "]";
+                        case QUERY_FILTER -> state.location + ".queryFilter";
+                    };
+                    return new ValidationState(childContext, state.lookupDefinitions, childLocation);
+                }
+            };
+
     private CriteriaExpressionValidator() {
     }
 
     public static void validateTrigger(Expression criteria, Map<String, ObjectLookup> lookupDefinitions) {
         Map<String, ObjectLookup> definitions = lookupDefinitions == null ? Map.of() : lookupDefinitions;
-        visit(criteria, Context.TRIGGER, definitions, "criteria");
+        ExpressionWalker.walk(
+                criteria,
+                new ValidationState(Context.TRIGGER, definitions, "criteria"),
+                VALIDATION_VISITOR);
     }
 
     public static void validateCacheFilter(Expression criteria) {
-        visit(criteria, Context.CACHE_FILTER, Map.of(), "criteria");
+        ExpressionWalker.walk(
+                criteria,
+                new ValidationState(Context.CACHE_FILTER, Map.of(), "criteria"),
+                VALIDATION_VISITOR);
     }
 
-    private static void visit(
-            Expression expression,
-            Context context,
-            Map<String, ObjectLookup> definitions,
-            String location) {
-        if (expression == null || expression instanceof ValueExpression) {
-            return;
-        }
-        if (expression instanceof Criterion criterion) {
-            visit(criterion.left, context, definitions, location + ".left");
-            visit(criterion.right, context, definitions, location + ".right");
-            return;
-        }
-        if (expression instanceof LogicalExpression logical) {
-            for (int index = 0; index < logical.operands.size(); index++) {
-                visit(logical.operands.get(index), context, definitions, location + "[" + index + "]");
-            }
-            return;
-        }
-        if (expression instanceof TriggerExpression) {
-            return;
-        }
-        if (context == Context.CACHE_FILTER && expression instanceof Target) {
-            return;
-        }
-        if (context == Context.TRIGGER && expression instanceof QueryExpression query) {
-            visit(query.criteria, Context.CACHE_FILTER, definitions, location + ".queryFilter");
-            return;
-        }
-        if (context == Context.TRIGGER && expression instanceof LookupExpression lookup) {
-            ObjectLookup definition = definitions.get(lookup.alias);
-            if (definition == null) {
-                throw new IllegalArgumentException(
-                        location + " references unknown lookup alias '" + lookup.alias + "'");
-            }
-            if (definition.clazz == null || definition.clazz.isBlank()) {
-                throw new IllegalArgumentException(
-                        location + " references lookup alias '" + lookup.alias + "' without a class");
-            }
-            return;
-        }
-        if (context == Context.TRIGGER && expression instanceof Target target) {
+    private static void validateTarget(Target target, ValidationState state) {
+        if (state.context == Context.TRIGGER) {
             throw new IllegalArgumentException(
-                    location + " contains bare target " + target.parts
+                    state.location + " contains bare target " + target.parts
                             + "; use [\"trigger\", [...]] for incoming event values");
         }
-        throw new IllegalArgumentException(
-                location + " contains unsupported " + expression.getClass().getSimpleName());
+    }
+
+    private static void validateQuery(QueryExpression query, ValidationState state) {
+        if (state.context != Context.TRIGGER) {
+            throw unsupported(query, state);
+        }
+    }
+
+    private static void validateLookup(LookupExpression lookup, ValidationState state) {
+        if (state.context != Context.TRIGGER) {
+            throw unsupported(lookup, state);
+        }
+
+        ObjectLookup definition = state.lookupDefinitions.get(lookup.alias);
+        if (definition == null) {
+            throw new IllegalArgumentException(
+                    state.location + " references unknown lookup alias '" + lookup.alias + "'");
+        }
+        if (definition.clazz == null || definition.clazz.isBlank()) {
+            throw new IllegalArgumentException(
+                    state.location + " references lookup alias '" + lookup.alias + "' without a class");
+        }
+    }
+
+    private static IllegalArgumentException unsupported(Expression expression, ValidationState state) {
+        return new IllegalArgumentException(
+                state.location + " contains unsupported " + expression.getClass().getSimpleName());
     }
 }

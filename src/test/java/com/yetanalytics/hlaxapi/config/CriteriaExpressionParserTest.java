@@ -86,6 +86,32 @@ class CriteriaExpressionParserTest {
     }
 
     @Test
+    void triggerValidationAppliesCacheFilterRulesInsideQueries() throws Exception {
+        Expression expression = CriteriaExpressionParser.parse(MAPPER.readTree("""
+                [
+                  [
+                    "query",
+                    "World",
+                    ["Size"],
+                    [["WorldId"], "=", ["lookup", "subject", ["MinimumSize"]]]
+                  ],
+                  ">",
+                  0
+                ]
+                """));
+        ObjectLookup subject = new ObjectLookup();
+        subject.clazz = "World";
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> CriteriaExpressionValidator.validateTrigger(expression, Map.of("subject", subject)));
+
+        assertEquals(
+                "criteria.left.queryFilter.right contains unsupported LookupExpression",
+                error.getMessage());
+    }
+
+    @Test
     void rejectsExpressionRenderingOptionsAndMixedLogicalOperators() throws Exception {
         assertThrows(
                 IllegalArgumentException.class,
