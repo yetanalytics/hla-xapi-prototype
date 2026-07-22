@@ -3,6 +3,8 @@ package com.yetanalytics.hlaxapi.injection;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yetanalytics.hlaxapi.config.ConfigConverter;
+import com.yetanalytics.hlaxapi.config.CriteriaExpressionParser;
+import com.yetanalytics.hlaxapi.config.CriteriaExpressionValidator;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 import com.yetanalytics.hlaxapi.config.model.Target;
@@ -95,8 +97,9 @@ public final class StatementInjectionParser {
     }
 
     private static Expression expression(JsonNode node) {
-        Object raw = MAPPER.convertValue(node, Object.class);
-        return ConfigConverter.toExpression(raw);
+        Expression expression = CriteriaExpressionParser.parseNullable(node);
+        CriteriaExpressionValidator.validateCacheFilter(expression);
+        return expression;
     }
 
     private static InjectionOptions options(JsonNode node, int index) {

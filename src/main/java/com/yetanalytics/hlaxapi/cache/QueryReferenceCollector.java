@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
+import com.yetanalytics.hlaxapi.config.model.LookupExpression;
+import com.yetanalytics.hlaxapi.config.model.QueryExpression;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
@@ -34,10 +36,14 @@ public final class QueryReferenceCollector {
             return references;
         }
         for (StatementTrigger trigger : triggers) {
-            if (trigger == null || trigger.statement == null) {
+            if (trigger == null) {
                 continue;
             }
             Map<String, String> lookupClasses = collectLookupDefinitions(trigger, references);
+            collectTriggerExpression(trigger.criteria, references, lookupClasses);
+            if (trigger.statement == null) {
+                continue;
+            }
             try {
                 collectFromNode(MAPPER.readTree(trigger.statement), references, lookupClasses);
             } catch (IOException ignored) {
@@ -62,6 +68,22 @@ public final class QueryReferenceCollector {
             collectCriteriaTargets(references, lookup.clazz, lookup.criteria);
         });
         return lookupClasses;
+    }
+
+    private static void collectTriggerExpression(
+            Expression expression,
+            Map<String, Set<String>> references,
+            Map<String, String> lookupClasses) {
+        if (expression instanceof QueryExpression query) {
+            collectQueryReference(query.clazz, query.target, query.criteria, references);
+        } else if (expression instanceof LookupExpression lookup) {
+            addTarget(references, lookupClasses.get(lookup.alias), lookup.target);
+        } else if (expression instanceof Criterion criterion) {
+            collectTriggerExpression(criterion.left, references, lookupClasses);
+            collectTriggerExpression(criterion.right, references, lookupClasses);
+        } else if (expression instanceof LogicalExpression logical) {
+            logical.operands.forEach(operand -> collectTriggerExpression(operand, references, lookupClasses));
+        }
     }
 
     private static void collectFromNode(
@@ -109,13 +131,20 @@ public final class QueryReferenceCollector {
     }
 
     private static void collectQuery(QueryInjection query, Map<String, Set<String>> references) {
-        String className = query.className();
+        collectQueryReference(query.className(), query.target(), query.criteria(), references);
+    }
+
+    private static void collectQueryReference(
+            String className,
+            Target target,
+            Expression criteria,
+            Map<String, Set<String>> references) {
         if (className == null || className.isBlank()) {
             return;
         }
 
-        addTarget(references, className, query.target());
-        collectCriteriaTargets(references, className, query.criteria());
+        addTarget(references, className, target);
+        collectCriteriaTargets(references, className, criteria);
     }
 
     private static void collectLookup(
@@ -147,6 +176,9 @@ public final class QueryReferenceCollector {
     }
 
     private static void addTarget(Map<String, Set<String>> references, String className, Target target) {
+        if (className == null || className.isBlank()) {
+            return;
+        }
         String topLevelAttribute = target == null ? null : FomCatalog.topLevelTargetPart(target.parts);
         if (topLevelAttribute == null || topLevelAttribute.isBlank()) {
             return;

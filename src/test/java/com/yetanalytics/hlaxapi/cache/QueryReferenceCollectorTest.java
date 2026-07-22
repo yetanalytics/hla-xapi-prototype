@@ -6,9 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
+import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
+import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
+import com.yetanalytics.hlaxapi.config.model.LookupExpression;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
+import com.yetanalytics.hlaxapi.config.model.QueryExpression;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
+import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +69,41 @@ class QueryReferenceCollectorTest {
 
         assertEquals(Set.of("EntityId", "EntityType"), references.get("SimEntity"));
         assertFalse(references.get("SimEntity").contains("PredatorId"));
+    }
+
+    @Test
+    void findsCacheReferencesUsedOnlyByTriggerCriteria() {
+        StatementTrigger trigger = trigger("{}");
+        ObjectLookup subject = new ObjectLookup();
+        subject.clazz = "SimEntity";
+        subject.criteria = new Criterion(
+                new Target(List.of("EntityId")),
+                ComparisonOperator.EQ,
+                new TriggerExpression(new Target(List.of("SubjectId"))));
+        trigger.lookups = Map.of("subject", subject);
+        trigger.criteria = new LogicalExpression(
+                LogicalOperator.AND,
+                List.of(
+                        new Criterion(
+                                new LookupExpression("subject", new Target(List.of("Hunger"))),
+                                ComparisonOperator.GT,
+                                new ValueExpression(50)),
+                        new Criterion(
+                                new QueryExpression(
+                                        "World",
+                                        new Target(List.of("Size")),
+                                        new Criterion(
+                                                new Target(List.of("WorldId")),
+                                                ComparisonOperator.EQ,
+                                                new TriggerExpression(new Target(List.of("DesiredWorldId"))))),
+                                ComparisonOperator.GT,
+                                new ValueExpression(0))));
+
+        Map<String, Set<String>> references = QueryReferenceCollector.collect(List.of(trigger));
+
+        assertEquals(Set.of("EntityId", "Hunger"), references.get("SimEntity"));
+        assertEquals(Set.of("WorldId", "Size"), references.get("World"));
+        assertFalse(references.get("World").contains("DesiredWorldId"));
     }
 
     private StatementTrigger trigger(String statement) {

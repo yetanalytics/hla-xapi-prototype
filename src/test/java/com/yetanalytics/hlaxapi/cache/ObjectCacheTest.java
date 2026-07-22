@@ -11,6 +11,7 @@ import com.yetanalytics.hlaxapi.config.XapiConfig;
 import com.yetanalytics.hlaxapi.config.model.ComparisonOperator;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
+import com.yetanalytics.hlaxapi.config.model.QueryExpression;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TrackedObject;
@@ -91,6 +92,34 @@ class ObjectCacheTest {
                     "rabbit-one",
                     cache.findFirstValue("Rabbit", new Target(List.of("EntityId")), criteria).orElseThrow());
             assertTrue(Files.exists(databasePath));
+        }
+    }
+
+    @Test
+    void enabledWhenQueryAppearsOnlyInTriggerCriteria(@TempDir Path tempDir) {
+        StatementTrigger trigger = new StatementTrigger();
+        trigger.statement = "{}";
+        trigger.criteria = new Criterion(
+                new QueryExpression(
+                        "Rabbit",
+                        new Target(List.of("EntityId")),
+                        new Criterion(
+                                new Target(List.of("Hunger")),
+                                ComparisonOperator.GT,
+                                new ValueExpression(50))),
+                ComparisonOperator.NEQ,
+                new ValueExpression(null));
+        XapiConfig config = new XapiConfig();
+        config.statementTriggers = List.of(trigger);
+
+        try (ObjectCache cache = new ObjectCache(
+                config,
+                catalog,
+                fomXml,
+                decoderRegistry,
+                "jdbc:sqlite:" + tempDir.resolve("criteria-query.sqlite"))) {
+            assertTrue(cache.isEnabled());
+            assertEquals(Set.of("EntityId", "Hunger"), cache.subscriptions().get("Rabbit"));
         }
     }
 

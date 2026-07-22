@@ -1,9 +1,7 @@
 package com.yetanalytics.hlaxapi;
 
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,9 +15,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import com.yetanalytics.hlaxapi.cache.CachedObject;
 import com.yetanalytics.hlaxapi.cache.ValueResolution;
-import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.injection.InjectionContext;
@@ -49,25 +45,54 @@ public class TriggerProcessor {
         this.injectionHandler = injectionHandler;
     }
 
-    public record TriggerProcessingResult(String statement, boolean success, Throwable error){}
+    public record TriggerProcessingResult(String statement, boolean matched, boolean success, Throwable error) {
+
+        private static TriggerProcessingResult emitted(String statement) {
+            return new TriggerProcessingResult(statement, true, true, null);
+        }
+
+        private static TriggerProcessingResult skipped() {
+            return new TriggerProcessingResult(null, false, true, null);
+        }
+
+        private static TriggerProcessingResult failed(Throwable error) {
+            return new TriggerProcessingResult(null, false, false, error);
+        }
+    }
 
     public TriggerProcessingResult processTrigger(StatementTrigger trigger, InjectionContext context) {
+        return processTrigger(trigger, context, true);
+    }
+
+    public TriggerProcessingResult renderTemplateForValidation(StatementTrigger trigger, InjectionContext context) {
+        return processTrigger(trigger, context, false);
+    }
+
+    private TriggerProcessingResult processTrigger(
+            StatementTrigger trigger,
+            InjectionContext context,
+            boolean evaluateCriteria) {
         if (trigger == null || trigger.statement == null) {
             return null;
         }
         ObjectMapper mapper = new ObjectMapper();
         try {
+            LazyLookupContext lookups = new LazyLookupContext(injectionHandler, context, trigger.lookups);
+            if (evaluateCriteria
+                    && !new TriggerCriteriaMatcher(injectionHandler).matches(trigger.criteria, context, lookups)) {
+                logger.trace("Skipping trigger {}.{} because criteria did not match", trigger.type, trigger.clazz);
+                return TriggerProcessingResult.skipped();
+            }
             JsonNode stmtNode = mapper.readTree(trigger.statement);
-            Map<String, CachedObject> lookupObjects = resolveLookups(trigger, context);
             context.setObjectType(getObjectType(stmtNode));
-            JsonNode processed = processNode(stmtNode, context, mapper, lookupObjects, List.of());
+            JsonNode processed = processNode(stmtNode, context, mapper, lookups, List.of());
 
             String output = mapper.writeValueAsString(processed);
             logger.trace("Processed statement output: {}", output);
-            return new TriggerProcessingResult(output, true, null);
+            return TriggerProcessingResult.emitted(output);
         } catch (Exception e) {
             logger.error("Could not process trigger {}.{}: {}", trigger.type, trigger.clazz, e.getMessage(), e);
-            return new TriggerProcessingResult(null, false, e);
+            return TriggerProcessingResult.failed(e);
         }
     }
 
@@ -83,23 +108,11 @@ public class TriggerProcessor {
 
     }
 
-    private Map<String, CachedObject> resolveLookups(StatementTrigger trigger, InjectionContext context) {
-        Map<String, CachedObject> lookupObjects = new LinkedHashMap<>();
-        if (trigger.lookups == null || trigger.lookups.isEmpty()) {
-            return lookupObjects;
-        }
-        for (Map.Entry<String, ObjectLookup> entry : trigger.lookups.entrySet()) {
-            injectionHandler.resolveLookup(entry.getValue(), context)
-                    .ifPresent(object -> lookupObjects.put(entry.getKey(), object));
-        }
-        return lookupObjects;
-    }
-
     private JsonNode processNode(
             JsonNode node,
             InjectionContext context,
             ObjectMapper mapper,
-            Map<String, CachedObject> lookupObjects,
+            LazyLookupContext lookups,
             List<Object> statementPath) throws JsonProcessingException {
         if (node == null || node.isNull())
             return node;
@@ -115,7 +128,7 @@ public class TriggerProcessor {
                         child,
                         context,
                         mapper,
-                        lookupObjects,
+                        lookups,
                         appendPath(statementPath, field));
                 out.set(field, processedChild);
             }
@@ -126,7 +139,7 @@ public class TriggerProcessor {
             ParseResult parsed = StatementInjectionParser.parse(node);
             if (parsed.recognized()) {
                 return parsed.valid()
-                        ? handleInjection(parsed.injection(), context, mapper, false, lookupObjects, statementPath)
+                        ? handleInjection(parsed.injection(), context, mapper, false, lookups, statementPath)
                         : NullNode.instance;
             }
             ArrayNode out = mapper.createArrayNode();
@@ -135,7 +148,7 @@ public class TriggerProcessor {
                         node.get(index),
                         context,
                         mapper,
-                        lookupObjects,
+                        lookups,
                         appendPath(statementPath, index)));
             }
             return out;
@@ -159,7 +172,7 @@ public class TriggerProcessor {
                             context,
                             mapper,
                             true,
-                            lookupObjects,
+                            lookups,
                             statementPath);
                 } else if (inline.result().recognized()) {
                     repNode = NullNode.instance;
@@ -192,7 +205,7 @@ public class TriggerProcessor {
             InjectionContext context,
             ObjectMapper mapper,
             Boolean embedded,
-            Map<String, CachedObject> lookupObjects,
+            LazyLookupContext lookups,
             List<Object> statementPath) {
         List<Object> previousPath = context.getStatementPath();
         context.setStatementPath(statementPath);
@@ -218,10 +231,7 @@ public class TriggerProcessor {
                         mapper);
             } else if (injection instanceof LookupInjection lookupInjection) {
                 return renderResolution(
-                        injectionHandler.handleLookup(
-                                lookupObjects.get(lookupInjection.alias()),
-                                lookupInjection.target(),
-                                context),
+                        lookups.value(lookupInjection.alias(), lookupInjection.target()),
                         lookupInjection.options(),
                         injectionDescription(lookupInjection, lookupInjection.alias()),
                         embedded,
