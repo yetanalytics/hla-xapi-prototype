@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
+import com.yetanalytics.hlaxapi.config.model.ExpressionWalker;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LookupExpression;
 import com.yetanalytics.hlaxapi.config.model.QueryExpression;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
+import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
 import com.yetanalytics.hlaxapi.config.model.ValueExpression;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser;
 import com.yetanalytics.hlaxapi.injection.StatementInjectionParser.InlineInjection;
@@ -27,6 +29,47 @@ public final class QueryReferenceCollector {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private record ReferenceState(
+            Map<String, Set<String>> references,
+            Map<String, String> lookupClasses,
+            String activeCacheClass) {
+    }
+
+    private static final ExpressionWalker.Visitor<ReferenceState> REFERENCE_VISITOR =
+            new ExpressionWalker.Visitor<>() {
+                @Override
+                public void visit(Expression expression, ReferenceState state) {
+                    switch (expression) {
+                        case Criterion ignored -> {
+                        }
+                        case LogicalExpression ignored -> {
+                        }
+                        case LookupExpression lookup -> addTarget(
+                                state.references,
+                                state.lookupClasses.get(lookup.alias),
+                                lookup.target);
+                        case QueryExpression query -> addTarget(state.references, query.clazz, query.target);
+                        case Target target -> addTarget(state.references, state.activeCacheClass, target);
+                        case TriggerExpression ignored -> {
+                        }
+                        case ValueExpression ignored -> {
+                        }
+                    }
+                }
+
+                @Override
+                public ReferenceState stateForChild(
+                        Expression parent,
+                        ExpressionWalker.Child child,
+                        ReferenceState state) {
+                    String activeCacheClass = switch (child.role()) {
+                        case QUERY_FILTER -> ((QueryExpression) parent).clazz;
+                        case LEFT, RIGHT, OPERAND -> state.activeCacheClass;
+                    };
+                    return new ReferenceState(state.references, state.lookupClasses, activeCacheClass);
+                }
+            };
+
     private QueryReferenceCollector() {
     }
 
@@ -40,7 +83,7 @@ public final class QueryReferenceCollector {
                 continue;
             }
             Map<String, String> lookupClasses = collectLookupDefinitions(trigger, references);
-            collectTriggerExpression(trigger.criteria, references, lookupClasses);
+            collectExpressionReferences(trigger.criteria, references, lookupClasses, null);
             if (trigger.statement == null) {
                 continue;
             }
@@ -65,25 +108,20 @@ public final class QueryReferenceCollector {
                 return;
             }
             lookupClasses.put(alias, lookup.clazz);
-            collectCriteriaTargets(references, lookup.clazz, lookup.criteria);
+            collectExpressionReferences(lookup.criteria, references, lookupClasses, lookup.clazz);
         });
         return lookupClasses;
     }
 
-    private static void collectTriggerExpression(
+    private static void collectExpressionReferences(
             Expression expression,
             Map<String, Set<String>> references,
-            Map<String, String> lookupClasses) {
-        if (expression instanceof QueryExpression query) {
-            collectQueryReference(query.clazz, query.target, query.criteria, references);
-        } else if (expression instanceof LookupExpression lookup) {
-            addTarget(references, lookupClasses.get(lookup.alias), lookup.target);
-        } else if (expression instanceof Criterion criterion) {
-            collectTriggerExpression(criterion.left, references, lookupClasses);
-            collectTriggerExpression(criterion.right, references, lookupClasses);
-        } else if (expression instanceof LogicalExpression logical) {
-            logical.operands.forEach(operand -> collectTriggerExpression(operand, references, lookupClasses));
-        }
+            Map<String, String> lookupClasses,
+            String activeCacheClass) {
+        ExpressionWalker.walk(
+                expression,
+                new ReferenceState(references, lookupClasses, activeCacheClass),
+                REFERENCE_VISITOR);
     }
 
     private static void collectFromNode(
@@ -144,7 +182,7 @@ public final class QueryReferenceCollector {
         }
 
         addTarget(references, className, target);
-        collectCriteriaTargets(references, className, criteria);
+        collectExpressionReferences(criteria, references, Map.of(), className);
     }
 
     private static void collectLookup(
@@ -157,22 +195,6 @@ public final class QueryReferenceCollector {
         }
 
         addTarget(references, className, lookup.target());
-    }
-
-    private static void collectCriteriaTargets(
-            Map<String, Set<String>> references,
-            String className,
-            Expression expression) {
-        if (expression instanceof Target target) {
-            addTarget(references, className, target);
-        } else if (expression instanceof Criterion criterion) {
-            collectCriteriaTargets(references, className, criterion.left);
-            collectCriteriaTargets(references, className, criterion.right);
-        } else if (expression instanceof LogicalExpression logicalExpression) {
-            logicalExpression.operands.forEach(operand -> collectCriteriaTargets(references, className, operand));
-        } else if (expression instanceof ValueExpression) {
-            return;
-        }
     }
 
     private static void addTarget(Map<String, Set<String>> references, String className, Target target) {
