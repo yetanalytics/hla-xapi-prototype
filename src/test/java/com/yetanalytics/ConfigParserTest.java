@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -41,7 +42,9 @@ import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
 import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
+import com.yetanalytics.hlaxapi.config.model.LookupExpression;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
+import com.yetanalytics.hlaxapi.config.model.QueryExpression;
 import com.yetanalytics.hlaxapi.config.model.StatementTrigger;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
@@ -140,6 +143,54 @@ public class ConfigParserTest {
         Criterion criterion = (Criterion) lookup.criteria;
         assertTrue(criterion.left instanceof Target);
         assertTrue(criterion.right instanceof TriggerExpression);
+    }
+
+    @Test
+    public void parsesQueriesAndLookupsInTriggerCriteria(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, """
+                {
+                  "statementTriggers": [{
+                    "type": "Interaction",
+                    "class": "EntityAte",
+                    "lookups": {"subject": {"class": "SimEntity"}},
+                    "criteria": [
+                      ["query", "World", ["Size"], [["WorldId"], "=", ["trigger", ["WorldId"]]]],
+                      ">",
+                      ["lookup", "subject", ["MinimumWorldSize"]]
+                    ],
+                    "statement": {}
+                  }]
+                }
+                """);
+
+        Criterion criteria = (Criterion) ConfigParser.fromFile(configPath.toString()).parse()
+                .statementTriggers.get(0).criteria;
+
+        assertTrue(criteria.left instanceof QueryExpression);
+        assertTrue(criteria.right instanceof LookupExpression);
+    }
+
+    @Test
+    public void rejectsBareEventTargetsInTriggerCriteria(@TempDir Path tempDir) throws IOException {
+        Path configPath = tempDir.resolve("xapi-config.json");
+        Files.writeString(configPath, """
+                {
+                  "statementTriggers": [{
+                    "type": "Interaction",
+                    "class": "EntityAte",
+                    "criteria": [["Score"], ">", 10],
+                    "statement": {}
+                  }]
+                }
+                """);
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> ConfigParser.fromFile(configPath.toString()).parse());
+
+        assertTrue(error.getMessage().contains("statementTriggers[0].criteria"));
+        assertTrue(error.getMessage().contains("use [\"trigger\""));
     }
 
     @Test

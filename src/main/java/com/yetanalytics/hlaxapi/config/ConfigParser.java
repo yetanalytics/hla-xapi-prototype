@@ -3,9 +3,6 @@ package com.yetanalytics.hlaxapi.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.yetanalytics.hlaxapi.config.model.InjectionType;
-import com.yetanalytics.hlaxapi.config.model.LogicalOperator;
 import com.yetanalytics.hlaxapi.config.model.LrsConfig;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.ObjectCacheConfig;
@@ -51,15 +48,22 @@ public class ConfigParser {
         JsonNode st = root.get("statementTriggers");
         if (st != null && st.isArray()) {
             List<StatementTrigger> triggers = new ArrayList<>();
-            for (JsonNode tnode : st) {
+            for (int triggerIndex = 0; triggerIndex < st.size(); triggerIndex++) {
+                JsonNode tnode = st.get(triggerIndex);
                 StatementTrigger stt = new StatementTrigger();
                 stt.type = StatementTrigger.Type.fromString(tnode.path("type").asText(null));
                 stt.skipValidation = tnode.path("skipValidation").asBoolean(false);
                 // map "class" json prop to clazz
                 stt.clazz = tnode.path("class").asText(null);
-                Object rawCrit = parseCriteriaNode(tnode.get("criteria"));
-                stt.criteria = ConfigConverter.toCriterion(rawCrit);
                 stt.lookups = parseLookups(tnode.get("lookups"));
+                try {
+                    stt.criteria = CriteriaExpressionParser.parseNullable(tnode.get("criteria"));
+                    CriteriaExpressionValidator.validateTrigger(stt.criteria, stt.lookups);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                            "statementTriggers[" + triggerIndex + "].criteria: " + e.getMessage(),
+                            e);
+                }
                 if (tnode.has("statement")) {
                     try {
                         stt.statement = mapper.writeValueAsString(tnode.get("statement"));
@@ -121,83 +125,11 @@ public class ConfigParser {
             }
             ObjectLookup lookup = new ObjectLookup();
             lookup.clazz = lookupNode.path("class").asText(null);
-            Object rawCriteria = parseCriteriaNode(lookupNode.get("criteria"));
-            lookup.criteria = rawCriteria == null ? null : ConfigConverter.toExpression(rawCriteria);
+            lookup.criteria = CriteriaExpressionParser.parseNullable(lookupNode.get("criteria"));
+            CriteriaExpressionValidator.validateCacheFilter(lookup.criteria);
             lookups.put(field.getKey(), lookup);
         }
         return lookups.isEmpty() ? null : lookups;
     }
 
-    private Object parseCriteriaNode(JsonNode node) {
-        // criteria syntax: [targetSyntax, operator, value]
-        if (node == null || node.isNull()) return null;
-
-        if (node.isArray()) {
-            ArrayNode an = (ArrayNode) node;
-            // Could be nested criteria: e.g. [criteria, "or", criteria]
-            if (an.size() == 3 && !isLogicalOperator(an.get(1))) {
-                Object target = parseTargetSyntax(an.get(0));
-                String op = an.get(1).asText();
-                Object val = parseValueNode(an.get(2));
-                return List.of(target, op, val);
-            }
-            // Otherwise treat as raw array/compound expression
-            List<Object> out = new ArrayList<>();
-            for (JsonNode el : an) {
-                if (el.isTextual()
-                        && (LogicalOperator.fromString(el.asText().toLowerCase()) != null)) {
-                    out.add(el.asText().toLowerCase());
-                } else {
-                    out.add(parseCriteriaNode(el));
-                }
-            }
-            return out;
-        }
-
-        // fallback to primitive
-        if (node.isTextual()) return node.asText();
-        if (node.isNumber()) return node.numberValue();
-        if (node.isBoolean()) return node.booleanValue();
-        return mapper.convertValue(node, Object.class);
-    }
-
-    private boolean isLogicalOperator(JsonNode n) {
-        if (!n.isTextual()) return false;
-        String s = n.asText().toLowerCase();
-        return LogicalOperator.fromString(s) != null;
-    }
-
-    private Object parseTargetSyntax(JsonNode node) {
-        // target syntax is an array of strings and ints
-        if (node == null || !node.isArray()) return null;
-        List<Object> parts = new ArrayList<>();
-        for (JsonNode el : node) {
-            if (el.isTextual()) parts.add(el.asText());
-            else if (el.isInt()) parts.add(el.asInt());
-            else if (el.isLong()) parts.add(el.longValue());
-            else parts.add(mapper.convertValue(el, Object.class));
-        }
-        return parts;
-    }
-
-    private Object parseValueNode(JsonNode node) {
-        // value can be an injection syntax, a primitive, or another criteria
-        if (node == null || node.isNull()) return null;
-        if (node.isArray()) {
-            ArrayNode an = (ArrayNode) node;
-            if (an.size() > 0 && an.get(0).isTextual()) {
-                String keyword = an.get(0).asText();
-                if (InjectionType.fromString(keyword) != null) {
-                    // return the raw array as parsed JSON to be interpreted later
-                    return mapper.convertValue(node, List.class);
-                }
-            }
-            // otherwise fallback
-            return mapper.convertValue(node, List.class);
-        }
-        if (node.isTextual()) return node.asText();
-        if (node.isNumber()) return node.numberValue();
-        if (node.isBoolean()) return node.booleanValue();
-        return mapper.convertValue(node, Object.class);
-    }
 }
