@@ -53,8 +53,8 @@ Fields:
 
 - `type`: Type of trigger. `Interaction` is currently wired into RTI subscriptions and statement processing. `ObjectUpdate` is parsed by the config model but object updates currently feed the object cache rather than firing statement triggers directly.
 - `class`: The local HLA interaction class name. For interactions this is matched against the final segment of the RTI interaction class name.
-- `criteria`: **NOTE: Not Yet Implemented!** Parsed as a criteria expression, but not currently applied when deciding whether an incoming interaction should fire the trigger.
-- `lookups`: Optional named cache lookups resolved once before the statement template is processed. These can be used to reduce the size and complexity of queries in the body of the statement config.
+- `criteria`: Optional expression evaluated before the statement template is processed. A non-matching trigger is skipped without producing an xAPI statement. A trigger without criteria always matches.
+- `lookups`: Optional named cache lookups loaded on first use. A lookup result, including a missing result, is reused for the rest of that trigger attempt.
 - `statement`: An xAPI statement template. Any JSON object accepted by the xAPI spec can be used here, with injection expressions inserted where dynamic values are needed.
 - `skipValidation`: Optional flag to skip boot validation for xAPI statement template and injections. **NOTE: This may result in invalid statements being sent to LRS!** Only use if startup is throwing unnecessary validation errors for your template. If you encounter validation issues that you believe to be in error, please report them in a Github Issue.
 
@@ -89,7 +89,7 @@ Supported comparison operators:
 - `<=`
 - `>=`
 
-The left or right side may be a target, primitive value, nested criterion, or a `trigger` expression.
+The left or right side may be a target, primitive value, nested criterion, or an expression that reads from `trigger`, `query`, or `lookup`.
 
 ```json
 [["Hunger"], ">", 50]
@@ -110,6 +110,40 @@ Logical expressions use `and` or `or` between criteria:
 Use a single logical operator at a given array level. If mixed `and`/`or` logic is needed, prefer nested expressions.
 
 In cache queries, `=` compares numbers numerically when both sides are numeric; otherwise it uses normal equality. Ordered comparisons compare numbers numerically, comparable values of the same class directly, and otherwise fall back to string comparison.
+
+### Trigger criteria
+
+Statement-trigger criteria require an explicit value source. Use `trigger` to read the incoming event, `query` to read the first matching cached object, or `lookup` to read a named lookup. Bare targets remain reserved for the cached object being tested inside query and lookup filters.
+
+```json
+{
+  "lookups": {
+    "predator": {
+      "class": "SimEntity",
+      "criteria": [["EntityId"], "=", ["trigger", ["PredatorId"]]]
+    }
+  },
+  "criteria": [
+    ["trigger", ["PredatorId"]],
+    "=",
+    ["lookup", "predator", ["EntityId"]]
+  ]
+}
+```
+
+A query is also a value expression in trigger criteria:
+
+```json
+[
+  ["query", "World", ["Size"], [["WorldId"], "=", ["trigger", ["WorldId"]]]],
+  ">",
+  0
+]
+```
+
+Query and lookup filters may contain cached targets, literals, nested comparisons/logical expressions, and `trigger` expressions. Nested queries and lookups are not allowed in cache filters. Injection rendering options such as `required` and `nullable` do not apply inside criteria.
+
+Logical expressions short-circuit. A missing query object, lookup object, or target value resolves to `null` for comparison purposes. Other resolution errors fail trigger processing rather than being treated as a non-match.
 
 ## Statement Injections
 
@@ -222,14 +256,14 @@ A lookup injection has this shape:
 ["lookup", "predator", ["EntityId"]]
 ```
 
-The alias must exist in the trigger's `lookups` map. Each lookup alias is resolved once before processing the statement template, and all `lookup` injections for that alias reuse the same cached object.
+The alias must exist in the trigger's `lookups` map. An alias is resolved only when criteria evaluation or statement rendering first reads it. All later reads during that trigger attempt reuse the same cached object; a missing result is memoized as well.
 
 ## Object Cache
 
 The object cache stores the latest reflected values for subscribed HLA object attributes in SQLite or PostgreSQL. It is enabled when either:
 
-- a statement template contains a `query` injection,
-- a trigger defines `lookups` or uses `lookup` injections that reference cached object attributes, or
+- a statement template or trigger criterion contains a `query`,
+- a trigger defines `lookups` or uses `lookup` expressions that reference cached object attributes, or
 - `objectCache.trackedObjects` explicitly requests tracked attributes.
 
 When enabled, the adapter subscribes to the top-level object attributes required by query targets, query criteria, lookup targets, lookup criteria, and explicit tracked objects. Use the `trackedObjects` array to force cacheing of simulation objects:

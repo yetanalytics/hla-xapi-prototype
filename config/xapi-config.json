@@ -3,7 +3,11 @@
         {
             "type": "Interaction",
             "class": "EntityAte",
-            "criteria": [["trigger", "key1"], "=", "thing1"],
+            "criteria": [
+                ["trigger", ["PredatorId"]],
+                "!=",
+                ["trigger", ["PreyId"]]
+            ],
             "lookups": {
                 "predator": {
                     "class": "SimEntity",

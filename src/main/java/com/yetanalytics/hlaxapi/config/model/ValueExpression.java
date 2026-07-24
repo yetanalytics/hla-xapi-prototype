@@ -1,6 +1,6 @@
 package com.yetanalytics.hlaxapi.config.model;
 
-public class ValueExpression implements Expression {
+public final class ValueExpression implements Expression {
     public final Object value;
 
     public ValueExpression(Object value) {

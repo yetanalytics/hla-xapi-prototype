@@ -4,7 +4,7 @@ package com.yetanalytics.hlaxapi.config.model;
  * Represents a trigger injection inside an expression tree. Holds a Target that
  * specifies the attribute path to extract from the current statement/context.
  */
-public class TriggerExpression implements Expression {
+public final class TriggerExpression implements Expression {
     public final Target target;
 
     public TriggerExpression(Target target) {

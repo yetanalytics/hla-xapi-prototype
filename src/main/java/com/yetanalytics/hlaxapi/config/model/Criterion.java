@@ -3,7 +3,7 @@ package com.yetanalytics.hlaxapi.config.model;
 /**
  * Binary comparison node (left op right). Left and right are Expressions.
  */
-public class Criterion implements Expression {
+public final class Criterion implements Expression {
     public final Expression left; // Target or nested Expression
     public final ComparisonOperator operator;
     public final Expression right; // ValueExpression, Target, or nested Expression

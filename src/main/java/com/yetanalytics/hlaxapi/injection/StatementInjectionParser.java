@@ -2,7 +2,8 @@ package com.yetanalytics.hlaxapi.injection;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yetanalytics.hlaxapi.config.ConfigConverter;
+import com.yetanalytics.hlaxapi.config.CriteriaExpressionParser;
+import com.yetanalytics.hlaxapi.config.CriteriaExpressionValidator;
 import com.yetanalytics.hlaxapi.config.model.Expression;
 import com.yetanalytics.hlaxapi.config.model.InjectionType;
 import com.yetanalytics.hlaxapi.config.model.Target;
@@ -41,20 +42,20 @@ public final class StatementInjectionParser {
                 case TRIGGER -> node.size() < 2
                         ? ParseResult.malformed(type)
                         : ParseResult.valid(new TriggerInjection(
-                                target(node.get(1)),
+                                CriteriaExpressionParser.parseTarget(node.get(1)),
                                 options(node, 2)));
                 case QUERY -> node.size() < 4
                         ? ParseResult.malformed(type)
                         : ParseResult.valid(new QueryInjection(
                                 node.get(1).asText(),
-                                target(node.get(2)),
+                                CriteriaExpressionParser.parseTarget(node.get(2)),
                                 expression(node.get(3)),
                                 options(node, 4)));
                 case LOOKUP -> node.size() < 3
                         ? ParseResult.malformed(type)
                         : ParseResult.valid(new LookupInjection(
                                 node.get(1).asText(),
-                                target(node.get(2)),
+                                CriteriaExpressionParser.parseTarget(node.get(2)),
                                 options(node, 3)));
             };
         } catch (RuntimeException e) {
@@ -90,13 +91,10 @@ public final class StatementInjectionParser {
         return List.copyOf(injections);
     }
 
-    private static Target target(JsonNode node) {
-        return ConfigConverter.toTarget(MAPPER.convertValue(node, Object.class));
-    }
-
     private static Expression expression(JsonNode node) {
-        Object raw = MAPPER.convertValue(node, Object.class);
-        return ConfigConverter.toExpression(raw);
+        Expression expression = CriteriaExpressionParser.parseNullable(node);
+        CriteriaExpressionValidator.validateCacheFilter(expression);
+        return expression;
     }
 
     private static InjectionOptions options(JsonNode node, int index) {

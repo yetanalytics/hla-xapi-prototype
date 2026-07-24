@@ -194,7 +194,9 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
     public void validateConfig() throws XapiConfigurationException {
         for(StatementTrigger st : xapiConfig.statementTriggers){
             if (st.skipValidation) continue;
-            TriggerProcessingResult tpr = triggerProcessor.processTrigger(st, new TestInjectionContext(st.clazz));
+            TriggerProcessingResult tpr = triggerProcessor.renderTemplateForValidation(
+                    st,
+                    new TestInjectionContext(st.clazz));
             if (tpr.success()) {
                 StatementValidationResult svr = validator.validateStatement(tpr.statement());
                 if (!svr.isValid()){
@@ -434,15 +436,15 @@ public class HlaInterfaceImpl extends NullFederateAmbassador implements HlaInter
                             && trigger.type.equals(StatementTrigger.Type.INTERACTION))
                     .forEach(trigger -> {
                         logger.trace("Processing trigger for interaction {}", trigger.clazz);
-                        // TODO: this is nullable, implement DLQ
                         TriggerProcessingResult result = triggerProcessor.processTrigger(trigger, context);
-                        if (result.success()){
+                        if (result.success() && result.matched()){
                             try {
                                 xapiClient.sendStatement(result.statement());
                             } catch (Exception e) {
                                 logger.error("Error parsing or posting statement {}", result.statement(), e);
                             }
-                        } else {
+                        } else if (!result.success()) {
+                            // TODO: DLQ
                             logger.error("Error processing Interaction: {}", result.error().getMessage(),
                                 result.error());
                         }
