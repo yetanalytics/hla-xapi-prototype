@@ -1,7 +1,7 @@
 package com.yetanalytics.hlaxapi.config.model;
 
 /** Reads a target value from the first cached object matching the query criteria. */
-public class QueryExpression implements Expression {
+public final class QueryExpression implements Expression {
 
     public final String clazz;
     public final Target target;

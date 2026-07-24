@@ -15,9 +15,8 @@ import com.yetanalytics.hlaxapi.FOMXML.PathCheckResult;
 import com.yetanalytics.hlaxapi.cache.CachedObject;
 import com.yetanalytics.hlaxapi.cache.ObjectCache;
 import com.yetanalytics.hlaxapi.cache.ValueResolution;
-import com.yetanalytics.hlaxapi.config.model.Criterion;
 import com.yetanalytics.hlaxapi.config.model.Expression;
-import com.yetanalytics.hlaxapi.config.model.LogicalExpression;
+import com.yetanalytics.hlaxapi.config.model.ExpressionWalker;
 import com.yetanalytics.hlaxapi.config.model.ObjectLookup;
 import com.yetanalytics.hlaxapi.config.model.Target;
 import com.yetanalytics.hlaxapi.config.model.TriggerExpression;
@@ -287,24 +286,13 @@ public class InjectionHandler {
         if (expression == null || context == null) {
             return expression;
         }
-        if (expression instanceof TriggerExpression triggerExpression) {
-            ValueResolution vr = handleTrigger(triggerExpression.target, context);
-            return new ValueExpression(vr.value());
-        }
-        if (expression instanceof Criterion criterion) {
-            return new Criterion(
-                    resolveTriggerExpressions(criterion.left, context),
-                    criterion.operator,
-                    resolveTriggerExpressions(criterion.right, context));
-        }
-        if (expression instanceof LogicalExpression logicalExpression) {
-            return new LogicalExpression(
-                    logicalExpression.operator,
-                    logicalExpression.operands.stream()
-                            .map(operand -> resolveTriggerExpressions(operand, context))
-                            .toList());
-        }
-        return expression;
+        return ExpressionWalker.rewrite(expression, candidate -> {
+            if (candidate instanceof TriggerExpression triggerExpression) {
+                ValueResolution resolution = handleTrigger(triggerExpression.target, context);
+                return new ValueExpression(resolution.value());
+            }
+            return candidate;
+        });
     }
 
     // for test

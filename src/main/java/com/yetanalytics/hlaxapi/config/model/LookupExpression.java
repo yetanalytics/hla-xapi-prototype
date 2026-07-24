@@ -1,7 +1,7 @@
 package com.yetanalytics.hlaxapi.config.model;
 
 /** Reads a target value from a named trigger lookup. */
-public class LookupExpression implements Expression {
+public final class LookupExpression implements Expression {
 
     public final String alias;
     public final Target target;
